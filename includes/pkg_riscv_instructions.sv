@@ -427,15 +427,19 @@ package pkg_riscv_instructions;
         return make_beq(rs1, 5'd0, imm);
     endfunction
 
-    function automatic instruction_t make_jal(input logic [20:1] imm);
+    function automatic instruction_t make_jal(input logic [4:0] rd, input logic [20:0] imm);
         instruction_t inst;
         inst.jtype.imm20    = imm[20:20];
         inst.jtype.imm10_1  = imm[10:1];
         inst.jtype.imm11    = imm[11:11];
         inst.jtype.imm19_12 = imm[19:12];
-        inst.jtype.rd       = ZERO;
+        inst.jtype.rd       = rd;
         inst.jtype.opcode   = 7'b1101111;
         return inst;
+    endfunction
+
+    function automatic instruction_t make_j(input logic [20:0] imm);
+        return make_jal(ZERO, imm);
     endfunction
 
     // U-type instructions (LUI, AUIPC)

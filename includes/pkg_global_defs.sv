@@ -66,10 +66,10 @@ package pkg_global_defs;
     parameter FALSE = 1'b0;
 
     typedef struct {
-        logic [4:0]   rs1;
-        logic [4:0]   rs2;
-        logic [4:0]   rd;
-        logic [31:0]  imm;
+        reg_nr_t      rs1;
+        reg_nr_t      rs2;
+        reg_nr_t      rd;
+        word_t        imm;
         // comparator
         bool_t        cmpIsSigned;
         // ALU

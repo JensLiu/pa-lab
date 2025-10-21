@@ -87,9 +87,12 @@ module datapath
 
     // ALU
     word_t EX_aluA = ID_rs1Data;
-    word_t EX_aluB = (EX_instInfo.aluUseImm ? EX_instInfo.imm : ID_rs2Data);
+
+    word_t EX_aluB;  // NOTE: cannot use operator `?` here
+    assign EX_aluB = (EX_instInfo.aluUseImm ? EX_instInfo.imm : ID_rs2Data);
+
     alu_op_t EX_aluOp = EX_instInfo.aluOp;
-    word_t EX_aluResult;
+    word_t   EX_aluResult;
     alu alu (
         .A(EX_aluA),
         .B(EX_aluB),
@@ -120,6 +123,15 @@ module datapath
             default: EX_branchTaken = FALSE;
         endcase
     end
+
+    always_comb begin
+        if (EX_instInfo.branchType == BR_UNCOND) begin
+            EX_pcBr = EX_instInfo.imm;
+        end else begin
+            EX_pcBr = EX_aluResult;
+        end
+    end
+
     // EXECUTION end ---------------------------------------
 
     // MEMORY begin ----------------------------------------
@@ -143,7 +155,10 @@ module datapath
         .readData(MEM_data)
     );
 
-    word_t MEM_result = MEM_instInfo.isLoad ? MEM_data : MEM_aluResult;
+    // word_t MEM_result = MEM_instInfo.isLoad ? MEM_data : MEM_aluResult;
+    word_t MEM_result;
+    assign MEM_result = MEM_instInfo.isLoad ? MEM_data : MEM_aluResult;
+
     // MEMORY end ------------------------------------------
 
     // WRITEBACK begin -------------------------------------

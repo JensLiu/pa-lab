@@ -151,9 +151,17 @@ module decoder
                 inst.jtype.imm10_1,
                 1'b0
             };
+            // $display("imm[20]: %b", inst.jtype.imm20);
+            // $display("imm[19:12]: %b", inst.jtype.imm19_12);
+            // $display("imm[11]: %b", inst.jtype.imm11);
+            // $display("imm[10:1]: %b", inst.jtype.imm10_1);
+            // $display("imm: %b", info.imm);
             info.branchType = BR_UNCOND;
             info.rs1 = REG_NR_INVALID_FALLBACK;
             info.rs2 = REG_NR_INVALID_FALLBACK;
+            info.isWriteback = TRUE;    // write pc + 4 to rd
+            // FIXME: we can only use the `j` semantics now
+            //       need info to track both IMM and PC + 4
         end
 
         // BRANCH end

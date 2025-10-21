@@ -24,35 +24,38 @@
             inst.raw[23:16], inst.raw[31:24], \
             inst, comment);
 
+`define MAKE_LABEL(label_name) \
+    $fwrite(fd, "// %s @0x%h:\n", label_name, pc);
+
 `define MAKE_INST_3(inst_name, arg0, arg1, arg2) \
     inst = make_``inst_name(arg0, arg1, arg2); \
-    pc = pc + 4; \
     begin \
-        string format = $sformatf("@%h: %s\t%s(%0h), %s(%0h), %s(%h)", \
+        string format = $sformatf("@0x%h: %s\t%s=0x%0h, %s=0x%0h, %s=0x%0h", \
         pc, `"inst_name`", `"arg0`", arg0, `"arg1`", arg1, `"arg2`", arg2);  \
         `INST_HEX_DUMP(fd, inst, format) \
-    end
+    end \
+    pc = pc + 4;
 
 `define MAKE_INST_2(inst_name, arg0, arg1) \
     inst = make_``inst_name(arg0, arg1); \
-    pc = pc + 4; \
     begin \
-    string format = $sformatf("@%h: %s\t%s(%0h), %s(%0h)", pc, `"inst_name`", `"arg0`", arg0, `"arg1`", arg1);  \
+    string format = $sformatf("@0x%h: %s\t%s=0x%0h, %s=0x%0h", pc, `"inst_name`", `"arg0`", arg0, `"arg1`", arg1);  \
     `INST_HEX_DUMP(fd, inst, format) \
-    end
+    end \
+    pc = pc + 4;
 
 `define MAKE_INST_1(inst_name, arg0) \
     inst = make_``inst_name(arg0); \
-    pc = pc + 4; \
     begin \
-    string format = $sformatf("@%h: %s\t%s(%0h)", pc, `"inst_name`", `"arg0`", arg0);  \
+    string format = $sformatf("@0x%h: %s\t%s=0x%0h", pc, `"inst_name`", `"arg0`", arg0);  \
     `INST_HEX_DUMP(fd, inst, format) \
-    end
+    end \
+    pc = pc + 4; \
 
 `define MAKE_INST_0(inst_name) \
     inst = make_``inst_name(); \
-    pc = pc + 4; \
     begin \
-    string format = $sformatf("@%h: %s", pc, `"inst_name`");  \
+    string format = $sformatf("@0x%h: %s", pc, `"inst_name`");  \
     `INST_HEX_DUMP(fd, inst, format) \
-    end
+    end \
+    pc = pc + 4;
