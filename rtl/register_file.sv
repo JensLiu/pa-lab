@@ -1,6 +1,5 @@
 `timescale 1ns / 1ps
-
-`define REGISTER_FILE_EXPOSE_INTERNALS
+`include "../includes/includes.sv"
 
 module register_file 
 import pkg_global_defs::*;

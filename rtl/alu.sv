@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "../includes/includes.sv"
 
 module alu
     import pkg_global_defs::*;

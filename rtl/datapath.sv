@@ -1,6 +1,4 @@
-`define SINGLE_CYCLE
-
-`define DATAPATH_EXPOSE_INTERNALS
+`include "../includes/includes.sv"
 
 module datapath
     import pkg_global_defs::*;
@@ -9,7 +7,16 @@ module datapath
 `ifdef DATAPATH_EXPOSE_INTERNALS
     output reg_t DEBUG_pc,
     output instruction_t DEBUG_inst,
-    output reg_t DEBUG_regs[0:31],
+    output reg_t DEBUG_regs[32],
+    output reg_nr_t DEBUG_WB_rdIdx,
+    output word_t DEBUG_WB_data,
+    output bool_t DEBUG_WB_isWriteback,
+`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+    output byte_t DEBUG_inst_mem[INST_MEM_SIZE],
+`endif
+`ifdef DATA_MEMORY_EXPOSE_INTERNALS
+    output byte_t DEBUG_data_mem[DATA_MEM_SIZE],
+`endif
 `endif
     input clk_t clk
 );
@@ -18,6 +25,13 @@ module datapath
     reg_t  IF_pc;
     reg_t  EX_pcBr;
     bool_t EX_branchTaken;
+`ifdef DATAPATH_EXPOSE_INTERNALS
+    assign DEBUG_pc = IF_pc;
+    assign DEBUG_inst = IF_inst;
+    assign DEBUG_WB_rdIdx = WB_rdIdx;
+    assign DEBUG_WB_data = WB_data;
+    assign DEBUG_WB_isWriteback = WB_isWriteback;
+`endif
 
 `ifdef SINGLE_CYCLE
     always_ff @(posedge clk) begin
@@ -31,9 +45,12 @@ module datapath
 
     instruction_t IF_inst;
     memory_inst memInst (
-        clk,
-        IF_pc,
-        IF_inst
+`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+        .DEBUG_mem(DEBUG_inst_mem),
+`endif
+        .clk(clk),
+        .addr(IF_pc),
+        .inst(IF_inst)
     );
     // INSTRUCTION FETCH end -------------------------------------
 
@@ -115,12 +132,15 @@ module datapath
     bool_t MEM_writeEnabled = MEM_instInfo.isStore;
 
     memory_data memData (
-        clk,
-        MEM_readAddr,
-        MEM_writeAddr,
-        MEM_writeData,
-        MEM_writeEnabled,
-        MEM_data
+`ifdef DATA_MEMORY_EXPOSE_INTERNALS
+        .DEBUG_mem(DEBUG_data_mem),
+`endif
+        .clk(clk),
+        .readAddr(MEM_readAddr),
+        .writeAddr(MEM_writeAddr),
+        .writeData(MEM_writeData),
+        .writeEnable(MEM_writeEnabled),
+        .readData(MEM_data)
     );
 
     word_t MEM_result = MEM_instInfo.isLoad ? MEM_data : MEM_aluResult;

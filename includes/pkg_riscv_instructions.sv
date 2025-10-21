@@ -12,7 +12,9 @@ package pkg_riscv_instructions;
         OP_LD    =  7'b0000011,
         OP_ST    =  7'b0100011,
         OP_BR    =  7'b1100011,
-        OP_LUI   =  7'b0110111
+        OP_LUI   =  7'b0110111,
+        OP_JAL   =  7'b1101111,
+        OP_JALR  =  7'b1100111
     } inst_opcode_t;
 
     typedef enum logic [2:0] {
@@ -105,6 +107,7 @@ package pkg_riscv_instructions;
         logic [30:21] imm10_1;
         logic [20:20] imm11;
         logic [19:12] imm19_12;
+        logic [11:7]  rd;
         logic [6:0]   opcode;
     } instruction_jtype_t;
 
@@ -116,6 +119,7 @@ package pkg_riscv_instructions;
         instruction_stype_t   stype;
         instruction_btype_t   btype;
         instruction_utype_t   utype;
+        instruction_jtype_t   jtype;
     } instruction_t;
 
     // RISC-V command generator
@@ -189,6 +193,14 @@ package pkg_riscv_instructions;
         inst.itype.rd     = rd;
         inst.itype.opcode = OP_ALU_I;
         return inst;
+    endfunction
+
+    function automatic instruction_t make_li(input logic [4:0] rd, input logic [11:0] imm);
+        return make_addi(rd, ZERO, imm);
+    endfunction
+
+    function automatic instruction_t make_nop();
+        return make_addi(5'd0, 5'd0, 12'd0);
     endfunction
 
     function automatic instruction_t make_andi(input logic [4:0] rd, input logic [4:0] rs1,
@@ -317,6 +329,10 @@ package pkg_riscv_instructions;
         return inst;
     endfunction
 
+    function automatic instruction_t make_mv(input logic [4:0] rd, input logic [4:0] rs1);
+        return make_addi(rd, rs1, 12'd0);
+    endfunction
+
     // Branch instructions (B-type)
     function automatic instruction_t make_beq(input logic [4:0] rs1, input logic [4:0] rs2,
                                               input logic [12:0] imm);
@@ -402,6 +418,26 @@ package pkg_riscv_instructions;
         return inst;
     endfunction
 
+    function automatic instruction_t make_bgt(input logic [4:0] rs1, input logic [4:0] rs2,
+                                              input logic [12:0] imm);
+        return make_bltu(rs2, rs1, imm);
+    endfunction
+
+    function automatic instruction_t make_beqz(input logic [4:0] rs1, input logic [12:0] imm);
+        return make_beq(rs1, 5'd0, imm);
+    endfunction
+
+    function automatic instruction_t make_jal(input logic [20:1] imm);
+        instruction_t inst;
+        inst.jtype.imm20    = imm[20:20];
+        inst.jtype.imm10_1  = imm[10:1];
+        inst.jtype.imm11    = imm[11:11];
+        inst.jtype.imm19_12 = imm[19:12];
+        inst.jtype.rd       = ZERO;
+        inst.jtype.opcode   = 7'b1101111;
+        return inst;
+    endfunction
+
     // U-type instructions (LUI, AUIPC)
     function automatic instruction_t make_lui(input logic [4:0] rd, input logic [31:12] imm);
         instruction_t inst;
@@ -439,5 +475,39 @@ package pkg_riscv_instructions;
     //     inst.itype.opcode = OP_JALR;
     //     return inst;
     // endfunction
+
+    // Register indices
+    parameter ZERO = 5'd0;
+    parameter RA = 5'd1;
+    parameter SP = 5'd2;
+    parameter GP = 5'd3;
+    parameter TP = 5'd4;
+    parameter T0 = 5'd5;
+    parameter T1 = 5'd6;
+    parameter T2 = 5'd7;
+    parameter S0 = 5'd8;
+    parameter S1 = 5'd9;
+    parameter A0 = 5'd10;
+    parameter A1 = 5'd11;
+    parameter A2 = 5'd12;
+    parameter A3 = 5'd13;
+    parameter A4 = 5'd14;
+    parameter A5 = 5'd15;
+    parameter A6 = 5'd16;
+    parameter A7 = 5'd17;
+    parameter S2 = 5'd18;
+    parameter S3 = 5'd19;
+    parameter S4 = 5'd20;
+    parameter S5 = 5'd21;
+    parameter S6 = 5'd22;
+    parameter S7 = 5'd23;
+    parameter S8 = 5'd24;
+    parameter S9 = 5'd25;
+    parameter S10 = 5'd26;
+    parameter S11 = 5'd27;
+    parameter T3 = 5'd28;
+    parameter T4 = 5'd29;
+    parameter T5 = 5'd30;
+    parameter T6 = 5'd31;
 
 endpackage : pkg_riscv_instructions

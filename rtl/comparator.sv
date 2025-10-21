@@ -1,3 +1,5 @@
+`include "../includes/includes.sv"
+
 module comparator
     import pkg_global_defs::*;
 (

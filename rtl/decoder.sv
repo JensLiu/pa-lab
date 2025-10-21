@@ -1,4 +1,5 @@
 `timescale 1ns / 1ps
+`include "../includes/includes.sv"
 
 module decoder
     import pkg_riscv_instructions::*;
@@ -119,7 +120,7 @@ module decoder
         if (opcode == OP_BR) begin
             // Note: In RISC-V, the zero-th bit in B-Type is always zero
             //       since instructions must be aligned by 2
-            info.imm = {
+            info.imm = {  // offset
                 {19{inst.btype.imm12}},
                 inst.btype.imm12,
                 inst.btype.imm11,
@@ -141,7 +142,20 @@ module decoder
                 FN3_BLTU, FN3_BGEU: info.cmpIsSigned = FALSE;
                 default: info.cmpIsSigned = TRUE;
             endcase
+        end else if (opcode == OP_JAL) begin
+            info.imm = {
+                {11{1'b0}},
+                inst.jtype.imm20,
+                inst.jtype.imm19_12,
+                inst.jtype.imm11,
+                inst.jtype.imm10_1,
+                1'b0
+            };
+            info.branchType = BR_UNCOND;
+            info.rs1 = REG_NR_INVALID_FALLBACK;
+            info.rs2 = REG_NR_INVALID_FALLBACK;
         end
+
         // BRANCH end
 
         // LUI begin

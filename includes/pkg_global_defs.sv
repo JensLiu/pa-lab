@@ -83,7 +83,6 @@ package pkg_global_defs;
         data_length_t stldDataLen;
         signedness_t  stldSignedness;
         // branching
-        // logic         isBranch;
         branch_type_t branchType;
     } inst_info_t;
 
@@ -97,5 +96,7 @@ package pkg_global_defs;
 
     parameter IMM_32_WHATEVER = 32'h12345678;
     parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
+    parameter INST_MEM_SIZE = 4096;
+    parameter DATA_MEM_SIZE = 4096;
 
 endpackage : pkg_global_defs
