@@ -22,11 +22,11 @@ module datapath
 );
 
     // INSTRUCTION FETCH begin -----------------------------------
-    reg_t  IF_pc;
+    reg_t  IF_pcQ;
     reg_t  EX_pcBr;
     bool_t EX_branchTaken;
 `ifdef DATAPATH_EXPOSE_INTERNALS
-    assign DEBUG_pc = IF_pc;
+    assign DEBUG_pc = IF_pcQ;
     assign DEBUG_inst = IF_inst;
     assign DEBUG_WB_rdIdx = WB_rdIdx;
     assign DEBUG_WB_data = WB_data;
@@ -34,11 +34,15 @@ module datapath
 `endif
 
 `ifdef SINGLE_CYCLE
+    reg_t IF_pcNext;
+    assign IF_pcNext = IF_pcQ + 4;
     always_ff @(posedge clk) begin
         if (EX_branchTaken) begin
-            IF_pc <= EX_pcBr;
+            // $display("Branch taken: pc %d <- %d", IF_pcQ, EX_pcBr);
+            IF_pcQ <= EX_pcBr;
         end else begin
-            IF_pc <= IF_pc + 4;
+            // $display("Continue: pc %d <- %d", IF_pcQ, IF_pcNext);
+            IF_pcQ <= IF_pcNext;
         end
     end
 `endif
@@ -49,12 +53,13 @@ module datapath
         .DEBUG_mem(DEBUG_inst_mem),
 `endif
         .clk(clk),
-        .addr(IF_pc),
+        .addr(IF_pcQ),
         .inst(IF_inst)
     );
     // INSTRUCTION FETCH end -------------------------------------
 
     // INSTRUCTION DECODING begin --------------------------------
+    reg_t ID_pc = IF_pcQ;
     inst_info_t ID_instInfo;
     decoder decoder (
         .inst(IF_inst),
@@ -83,10 +88,20 @@ module datapath
     // INSTRUCTION DECODING end -------------------------
 
     // EXECUTION begin -------------------------------------
+    reg_t EX_pc = ID_pc;
     inst_info_t EX_instInfo = ID_instInfo;
 
     // ALU
-    word_t EX_aluA = ID_rs1Data;
+    word_t EX_aluA;
+    assign EX_aluA = EX_instInfo.branchType != BR_UNCOND &&
+                     EX_instInfo.branchType != BR_INVALID ? EX_pc : ID_rs1Data;
+
+    always_comb begin
+        if (EX_instInfo.branchType != BR_UNCOND && EX_instInfo.branchType != BR_INVALID) begin
+            assert (EX_instInfo.aluUseImm == TRUE)
+            else $display("Error: Conditional Branch should use offset");
+        end
+    end
 
     word_t EX_aluB;  // NOTE: cannot use operator `?` here
     assign EX_aluB = (EX_instInfo.aluUseImm ? EX_instInfo.imm : ID_rs2Data);
@@ -107,7 +122,7 @@ module datapath
     bool_t EX_cmpIsSigned = EX_instInfo.cmpIsSigned;
     comparator cmp (
         .A(EX_cmpA),
-        .B(EX_aluB),
+        .B(EX_cmpB),
         .isSigned(EX_cmpIsSigned),
         .res(EX_cmpResult)
     );
@@ -127,8 +142,9 @@ module datapath
     always_comb begin
         if (EX_instInfo.branchType == BR_UNCOND) begin
             EX_pcBr = EX_instInfo.imm;
+            // TODO: Store PC_NEXT to register rd for `jal`
         end else begin
-            EX_pcBr = EX_aluResult;
+            EX_pcBr = EX_aluResult;  // PC + offset
         end
     end
 

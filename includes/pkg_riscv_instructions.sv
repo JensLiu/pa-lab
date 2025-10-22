@@ -420,7 +420,7 @@ package pkg_riscv_instructions;
 
     function automatic instruction_t make_bgt(input logic [4:0] rs1, input logic [4:0] rs2,
                                               input logic [12:0] imm);
-        return make_bltu(rs2, rs1, imm);
+        return make_blt(rs2, rs1, imm);
     endfunction
 
     function automatic instruction_t make_beqz(input logic [4:0] rs1, input logic [12:0] imm);

@@ -50,7 +50,7 @@
     string format = $sformatf("@0x%h: %s\t%s=0x%0h", pc, `"inst_name`", `"arg0`", arg0);  \
     `INST_HEX_DUMP(fd, inst, format) \
     end \
-    pc = pc + 4; \
+    pc = pc + 4;
 
 `define MAKE_INST_0(inst_name) \
     inst = make_``inst_name(); \

@@ -120,7 +120,8 @@ module decoder
         if (opcode == OP_BR) begin
             // Note: In RISC-V, the zero-th bit in B-Type is always zero
             //       since instructions must be aligned by 2
-            info.imm = {  // offset
+            // address calculation
+            info.imm = {
                 {19{inst.btype.imm12}},
                 inst.btype.imm12,
                 inst.btype.imm11,
@@ -128,7 +129,10 @@ module decoder
                 inst.btype.imm4_1,
                 1'b0
             };
+            info.aluUseImm = TRUE;
+            info.aluOp = ALU_ADD;
             info.rd = REG_NR_INVALID_FALLBACK;
+            // branch comaprison
             case (funct3)
                 FN3_BEQ:  info.branchType = BR_BEQ;
                 FN3_BNE:  info.branchType = BR_BNE;
@@ -143,6 +147,7 @@ module decoder
                 default: info.cmpIsSigned = TRUE;
             endcase
         end else if (opcode == OP_JAL) begin
+            // address
             info.imm = {
                 {11{1'b0}},
                 inst.jtype.imm20,
@@ -151,11 +156,6 @@ module decoder
                 inst.jtype.imm10_1,
                 1'b0
             };
-            // $display("imm[20]: %b", inst.jtype.imm20);
-            // $display("imm[19:12]: %b", inst.jtype.imm19_12);
-            // $display("imm[11]: %b", inst.jtype.imm11);
-            // $display("imm[10:1]: %b", inst.jtype.imm10_1);
-            // $display("imm: %b", info.imm);
             info.branchType = BR_UNCOND;
             info.rs1 = REG_NR_INVALID_FALLBACK;
             info.rs2 = REG_NR_INVALID_FALLBACK;
