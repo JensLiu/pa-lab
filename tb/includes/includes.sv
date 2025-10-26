@@ -1,15 +1,14 @@
 `include "../../includes/includes.sv"
 
 `define BEGIN_WRITE_FILE(mem_filename) \
-        int fd``mem_filename = $fopen(mem_filename, "w"); \
-        if (fd``mem_filename  == 0) begin \
-            $fatal(0, "Could not open instruction memory file for writing."); \
-        end begin \
-        fd = fd``mem_filename;
+    integer __fd; \
+    __fd = $fopen(mem_filename, "w"); \
+    if (__fd == 0) begin \
+        $fatal(0, "Could not open instruction memory file for writing: %s", mem_filename); \
+    end
 
 `define END_WRITE_FILE(mem_filename) \
-        $fclose(fd``mem_filename); \
-        end
+    $fclose(__fd);
 
 `define BEGIN_INST(START_ADDR) \
     begin \
@@ -25,14 +24,14 @@
             inst, comment);
 
 `define MAKE_LABEL(label_name) \
-    $fwrite(fd, "// %s @0x%h:\n", label_name, pc);
+    $fwrite(__fd, "// %s @0x%h:\n", label_name, pc);
 
 `define MAKE_INST_3(inst_name, arg0, arg1, arg2) \
     inst = make_``inst_name(arg0, arg1, arg2); \
     begin \
         string format = $sformatf("@0x%h: %s\t%s=0x%0h, %s=0x%0h, %s=0x%0h", \
         pc, `"inst_name`", `"arg0`", arg0, `"arg1`", arg1, `"arg2`", arg2);  \
-        `INST_HEX_DUMP(fd, inst, format) \
+        `INST_HEX_DUMP(__fd, inst, format) \
     end \
     pc = pc + 4;
 
@@ -40,7 +39,7 @@
     inst = make_``inst_name(arg0, arg1); \
     begin \
     string format = $sformatf("@0x%h: %s\t%s=0x%0h, %s=0x%0h", pc, `"inst_name`", `"arg0`", arg0, `"arg1`", arg1);  \
-    `INST_HEX_DUMP(fd, inst, format) \
+    `INST_HEX_DUMP(__fd, inst, format) \
     end \
     pc = pc + 4;
 
@@ -48,7 +47,7 @@
     inst = make_``inst_name(arg0); \
     begin \
     string format = $sformatf("@0x%h: %s\t%s=0x%0h", pc, `"inst_name`", `"arg0`", arg0);  \
-    `INST_HEX_DUMP(fd, inst, format) \
+    `INST_HEX_DUMP(__fd, inst, format) \
     end \
     pc = pc + 4;
 
@@ -56,6 +55,6 @@
     inst = make_``inst_name(); \
     begin \
     string format = $sformatf("@0x%h: %s", pc, `"inst_name`");  \
-    `INST_HEX_DUMP(fd, inst, format) \
+    `INST_HEX_DUMP(__fd, inst, format) \
     end \
     pc = pc + 4;
