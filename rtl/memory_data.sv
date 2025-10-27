@@ -23,9 +23,9 @@ module memory_data
     always_ff @(posedge clk) begin
         if (writeEnable) begin
             {mem[readAddr+3], mem[readAddr+2], mem[readAddr+1], mem[readAddr]} <= writeData;
-        end else begin
-            readData <= {mem[readAddr+3], mem[readAddr+2], mem[readAddr+1], mem[readAddr]};
         end
     end
+
+    assign readData = {mem[readAddr+3], mem[readAddr+2], mem[readAddr+1], mem[readAddr]};
 
 endmodule
