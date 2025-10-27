@@ -44,6 +44,8 @@ module tb_datapath;
     parameter FIB_END_ADDR = 'h00000048;
     parameter EXIT_PROGRAM_ADDR = 'h0000004c;
 
+    parameter TEST_MEMORY = 'h00000005;
+
     // Create instructions and write to mem
     instruction_t inst;
     initial begin
@@ -54,7 +56,7 @@ module tb_datapath;
 
         // Configuration and Initialization
         // ------------------------------------
-        `MAKE_INST_2(li, S0, 8) // s0 holds N, the target Fibonacci index (e.g., N=8)
+        `MAKE_INST_2(li, S0, 11) // s0 holds N, the target Fibonacci index (e.g., N=8)
 
         // Handle Base Case N = 0
         `MAKE_INST_2(beqz, S0, {FIB_N_ZERO_ADDR - pc}[12:0])  // PC 1: If N=0, jump to fib_n_zero
@@ -112,6 +114,15 @@ module tb_datapath;
         // PC 25 onwards (Padding/NOPs may be needed depending on memory size)
         // ...
         `END_INST
+
+        // `BEGIN_INST(0)
+        // `MAKE_INST_2(li, S0, TEST_MEMORY);
+        // `MAKE_INST_2(li, T1, 'h123);
+        // // `MAKE_INST_2(li, T2, 0xC1A3);
+        // `MAKE_INST_3(sw, T1, S0, 0);
+        // `MAKE_INST_3(lw, T2, S0, 0);
+        // `END_INST
+
         `END_WRITE_FILE("inst_mem.hex")
     end
 
@@ -124,7 +135,7 @@ module tb_datapath;
         #2000;  // Run for sufficient time to complete execution
         result = DEBUG_regs[A0];
         // assert (result == 21) else $display("Failed");
-        $display("Fib[%d] = %d", 8, result);
+        $display("Fib[%d] = %d", 11, result);
         $finish;
     end
 

@@ -160,8 +160,8 @@ module decoder
             info.rs1 = REG_NR_INVALID_FALLBACK;
             info.rs2 = REG_NR_INVALID_FALLBACK;
             info.isWriteback = TRUE;    // write pc + 4 to rd
-            // FIXME: we can only use the `j` semantics now
-            //       need info to track both IMM and PC + 4
+            info.aluOp = ALU_ADD;
+            info.aluUseImm = FALSE;
         end
 
         // BRANCH end

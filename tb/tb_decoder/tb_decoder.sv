@@ -131,9 +131,9 @@ module tb_decoder;
         check_eq("BEQ: rd == REG_NR_INVALID_FALLBACK", info.rd === REG_NR_INVALID_FALLBACK);
         check_eq("BEQ: rs1 == 1", info.rs1 === 5'd1);
         check_eq("BEQ: rs2 == 2", info.rs2 === 5'd2);
-        check_eq("BEQ: aluOp == ALU_INVALID", info.aluOp === ALU_INVALID);
+        check_eq("BEQ: aluOp == ALU_ADD", info.aluOp === ALU_ADD);
         check_eq("BEQ: isWriteback", info.isWriteback === 1'b0);
-        check_eq("BEQ: aluUseImm", info.aluUseImm === 1'b0);
+        check_eq("BEQ: aluUseImm", info.aluUseImm === 1'b1);
         check_eq("BEQ: isLoad", info.isLoad === 1'b0);
         check_eq("BEQ: isStore", info.isStore === 1'b0);
 

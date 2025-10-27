@@ -38,10 +38,8 @@ module datapath
     assign IF_pcNext = IF_pcQ + 4;
     always_ff @(posedge clk) begin
         if (EX_branchTaken) begin
-            // $display("Branch taken: pc %d <- %d", IF_pcQ, EX_pcBr);
             IF_pcQ <= EX_pcBr;
         end else begin
-            // $display("Continue: pc %d <- %d", IF_pcQ, IF_pcNext);
             IF_pcQ <= IF_pcNext;
         end
     end
@@ -93,8 +91,26 @@ module datapath
 
     // ALU
     word_t EX_aluA;
-    assign EX_aluA = EX_instInfo.branchType != BR_UNCOND &&
-                     EX_instInfo.branchType != BR_INVALID ? EX_pc : ID_rs1Data;
+    word_t EX_aluB;
+    always_comb begin
+        if (EX_instInfo.branchType == BR_INVALID) begin
+            // normal operations
+            EX_aluA = ID_rs1Data;
+            EX_aluB = EX_instInfo.aluUseImm ? EX_instInfo.imm : ID_rs2Data;
+        end else if (EX_instInfo.branchType != BR_UNCOND) begin
+            // normal branch
+            EX_aluA = EX_pc; // PC
+            assert(EX_instInfo.aluUseImm);
+            assert(EX_aluOp == ALU_ADD);
+            EX_aluB = EX_instInfo.imm; // OFFSET
+        end else begin
+            // jump
+            EX_aluA = EX_pc;
+            assert(!EX_instInfo.aluUseImm);
+            assert(EX_aluOp == ALU_ADD);
+            EX_aluB = 32'h4;
+        end
+    end
 
     always_comb begin
         if (EX_instInfo.branchType != BR_UNCOND && EX_instInfo.branchType != BR_INVALID) begin
@@ -103,8 +119,6 @@ module datapath
         end
     end
 
-    word_t EX_aluB;  // NOTE: cannot use operator `?` here
-    assign EX_aluB = (EX_instInfo.aluUseImm ? EX_instInfo.imm : ID_rs2Data);
 
     alu_op_t EX_aluOp = EX_instInfo.aluOp;
     word_t   EX_aluResult;
