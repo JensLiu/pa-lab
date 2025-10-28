@@ -1,3 +1,4 @@
 .vscode
 tb/**/obj_dir
 tb/**/*.vcd
+*.hdl_checker
