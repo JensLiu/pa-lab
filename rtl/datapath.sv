@@ -96,17 +96,17 @@ module datapath
         if (EX_instInfo.branchType == BR_INVALID) begin
             // normal operations
             EX_aluA = ID_rs1Data;
-            EX_aluB = EX_instInfo.aluUseImm ? EX_instInfo.imm : ID_rs2Data;
+            EX_aluB = EX_instInfo.aluUseImmAsRs2 ? EX_instInfo.imm : ID_rs2Data;
         end else if (EX_instInfo.branchType != BR_UNCOND) begin
             // normal branch
             EX_aluA = EX_pc; // PC
-            assert(EX_instInfo.aluUseImm);
+            assert(EX_instInfo.aluUseImmAsRs2);
             assert(EX_aluOp == ALU_ADD);
             EX_aluB = EX_instInfo.imm; // OFFSET
         end else begin
             // jump
             EX_aluA = EX_pc;
-            assert(!EX_instInfo.aluUseImm);
+            assert(!EX_instInfo.aluUseImmAsRs2);
             assert(EX_aluOp == ALU_ADD);
             EX_aluB = 32'h4;
         end
@@ -114,7 +114,7 @@ module datapath
 
     always_comb begin
         if (EX_instInfo.branchType != BR_UNCOND && EX_instInfo.branchType != BR_INVALID) begin
-            assert (EX_instInfo.aluUseImm == TRUE)
+            assert (EX_instInfo.aluUseImmAsRs2 == TRUE)
             else $display("Error: Conditional Branch should use offset");
         end
     end
@@ -187,7 +187,19 @@ module datapath
 
     // word_t MEM_result = MEM_instInfo.isLoad ? MEM_data : MEM_aluResult;
     word_t MEM_result;
-    assign MEM_result = MEM_instInfo.isLoad ? MEM_data : MEM_aluResult;
+    // TODO: support load byte, load word, load half
+    always_comb begin
+        if (MEM_instInfo.isLoad) begin
+            case (MEM_instInfo)
+            DL_BYTE: MEM_result = MEM_data[7:0];
+            DL_HALF: MEM_result = MEM_data[15:0];
+            DL_WORD: MEM_result = MEM_data[31:0];
+            default: assert(FAlSE);
+            endcase
+        end else begin
+            MEM_result = MEM_aluResult;
+        end
+    end
 
     // MEMORY end ------------------------------------------
 

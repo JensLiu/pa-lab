@@ -51,6 +51,7 @@ module tb_datapath;
     initial begin
 
         `BEGIN_WRITE_FILE("inst_mem.hex")
+`ifdef TESTCASE_FIB
         `BEGIN_INST(0)
         // Instruction Sequence (Mapping from fibonacci_calculator.s)
 
@@ -114,14 +115,14 @@ module tb_datapath;
         // PC 25 onwards (Padding/NOPs may be needed depending on memory size)
         // ...
         `END_INST
+`endif // TESTCASE_FIB
 
-        // `BEGIN_INST(0)
-        // `MAKE_INST_2(li, S0, TEST_MEMORY);
-        // `MAKE_INST_2(li, T1, 'h123);
-        // // `MAKE_INST_2(li, T2, 0xC1A3);
-        // `MAKE_INST_3(sw, T1, S0, 0);
-        // `MAKE_INST_3(lw, T2, S0, 0);
-        // `END_INST
+        `BEGIN_INST(0)
+        `MAKE_INST_2(li, S0, TEST_MEMORY);
+        `MAKE_INST_2(li, T1, 'h);
+        `MAKE_INST_3(sw, T1, S0, 0);
+        `MAKE_INST_3(lw, T2, S0, 0);
+        `END_INST
 
         `END_WRITE_FILE("inst_mem.hex")
     end

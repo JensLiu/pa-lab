@@ -74,7 +74,7 @@ package pkg_global_defs;
         bool_t        cmpIsSigned;
         // ALU
         alu_op_t      aluOp;
-        bool_t        aluUseImm;       // isImm ? use `rs1` and `imm` : use `rs1` and `rs2`
+        bool_t        aluUseImmAsRs2;
         // registers
         bool_t        isWriteback;
         // memory access

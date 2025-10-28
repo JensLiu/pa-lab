@@ -20,11 +20,12 @@ module decoder
         info.cmpIsSigned = TRUE;
         info.isStore = FALSE;
         info.isLoad = FALSE;
-        info.aluUseImm = FALSE;
+        info.aluUseImmAsRs2 = FALSE;
         info.isWriteback = FALSE;
         info.aluOp = ALU_INVALID;
         info.branchType = BR_INVALID;
         info.stldDataLen = DL_INVALID;
+        info.isLUI = FALSE;
 
 
         // ALU begin
@@ -74,14 +75,25 @@ module decoder
             end else if (funct3 == FN3_ADD_SUB) begin
                 info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
             end
-            info.aluUseImm = TRUE;
+            info.aluUseImmAsRs2 = TRUE;
             info.rs2 = REG_NR_INVALID_FALLBACK;
         end
         // ALU end
 
+        // LOAD UPPER IMMEDIATE begin
+        if (opcode == OP_LUI) begin
+            // make it rd <- {imm:000000000000} + 0
+            info.rs1 = 5'h0;
+            info.aluUseImmAsRs2 = TRUE;
+            info.aluOp = ALU_ADD;
+            info.imm = {inst.utype.imm, {12{1'b0}}};
+            info.rd = inst.utype.rd;
+        end
+        // LOAD UPPER IMMEDIATE end
+
         // LOAD AND STORE begin
         if (opcode == OP_LD || opcode == OP_ST) begin
-            info.aluUseImm = TRUE;
+            info.aluUseImmAsRs2 = TRUE;
             info.aluOp = ALU_ADD;  // <- address calculation
             case (funct3)
                 FN3_BYTE, FN3_HALF:     info.stldSignedness = SS_SIGNED;
@@ -104,13 +116,13 @@ module decoder
 
         if (opcode == OP_LD) begin
             info.isLoad = TRUE;
-            info.aluUseImm = TRUE;
+            info.aluUseImmAsRs2 = TRUE;
             info.isWriteback = TRUE;
             info.rs2 = REG_NR_INVALID_FALLBACK;
             info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
         end else if (opcode == OP_ST) begin
             info.isStore = TRUE;
-            info.aluUseImm = TRUE;
+            info.aluUseImmAsRs2 = TRUE;
             info.rd = REG_NR_INVALID_FALLBACK;
             info.imm = {{20{inst.stype.immhi[31]}}, inst.stype.immhi, inst.stype.immlo};
         end
@@ -129,7 +141,7 @@ module decoder
                 inst.btype.imm4_1,
                 1'b0
             };
-            info.aluUseImm = TRUE;
+            info.aluUseImmAsRs2 = TRUE;
             info.aluOp = ALU_ADD;
             info.rd = REG_NR_INVALID_FALLBACK;
             // branch comaprison
@@ -161,7 +173,7 @@ module decoder
             info.rs2 = REG_NR_INVALID_FALLBACK;
             info.isWriteback = TRUE;    // write pc + 4 to rd
             info.aluOp = ALU_ADD;
-            info.aluUseImm = FALSE;
+            info.aluUseImmAsRs2 = FALSE;
         end
 
         // BRANCH end
