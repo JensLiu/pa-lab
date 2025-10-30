@@ -68,12 +68,11 @@ module decoder
         end
 
         if (opcode == OP_ALU_I) begin
-            if (funct3 == FN3_SRL_SRA) begin
-                // shift instructions use shamt in imm[4:0]
-                info.imm = {27'b0, inst.itype.imm[24:20]};
-            end else if (funct3 == FN3_ADD_SUB) begin
-                info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
-            end
+            case (funct3)
+            FN3_SRL_SRA: info.imm = {27'b0, inst.itype.imm[24:20]};
+            FN3_ADD_SUB, FN3_OR: info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
+            default: assert(FALSE); // TODO: add other arithmetic instructions with immediate numbers
+            endcase
             info.aluUseImmAsRs2 = TRUE;
             info.rs2 = REG_NR_INVALID_FALLBACK;
         end
@@ -84,6 +83,7 @@ module decoder
             // make it rd <- {imm:000000000000} + 0
             info.rs1 = 5'h0;
             info.aluUseImmAsRs2 = TRUE;
+            info.isWriteback = TRUE;
             info.aluOp = ALU_ADD;
             info.imm = {inst.utype.imm, {12{1'b0}}};
             info.rd = inst.utype.rd;

@@ -94,10 +94,14 @@ package datapath_testcases;
         `BEGIN_INST(0)
         `MAKE_INST_2(li, S0, TEST_MEMORY);
         `MAKE_INST_2(lui, T1,'hFFFF1);
-        `MAKE_INST_3(addi, T1, T1, 'h234);
+        `MAKE_INST_3(ori, T1, T1, 'h234);
         `MAKE_INST_3(sw, T1, S0, 0);
         `MAKE_INST_3(sh, T1, S0, 4);
         `MAKE_INST_3(sb, T1, S0, 6);
+
+        `MAKE_INST_3(lw, T2, S0, 0);
+        `MAKE_INST_3(lh, T3, S0, 4);
+        `MAKE_INST_3(lb, T4, S0, 6);
         `END_INST
         `END_WRITE_FILE("inst_mem.hex")
     

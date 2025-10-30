@@ -64,6 +64,12 @@ module datapath
         .info(ID_instInfo)
     );
 
+    // always_comb begin
+    //     if (IF_inst.generic.opcode == OP_LUI) begin
+    //         $display("is_writeback=%d", ID_instInfo.isWriteback);
+    //     end
+    // end
+
     reg_nr_t WB_rdIdx;
     word_t   WB_data;
     bool_t   WB_isWriteback;
@@ -99,15 +105,15 @@ module datapath
             EX_aluB = EX_instInfo.aluUseImmAsRs2 ? EX_instInfo.imm : ID_rs2Data;
         end else if (EX_instInfo.branchType != BR_UNCOND) begin
             // normal branch
-            EX_aluA = EX_pc; // PC
-            assert(EX_instInfo.aluUseImmAsRs2);
-            assert(EX_aluOp == ALU_ADD);
-            EX_aluB = EX_instInfo.imm; // OFFSET
+            EX_aluA = EX_pc;  // PC
+            assert (EX_instInfo.aluUseImmAsRs2);
+            assert (EX_aluOp == ALU_ADD);
+            EX_aluB = EX_instInfo.imm;  // OFFSET
         end else begin
             // jump
             EX_aluA = EX_pc;
-            assert(!EX_instInfo.aluUseImmAsRs2);
-            assert(EX_aluOp == ALU_ADD);
+            assert (!EX_instInfo.aluUseImmAsRs2);
+            assert (EX_aluOp == ALU_ADD);
             EX_aluB = 32'h4;
         end
     end
@@ -168,20 +174,19 @@ module datapath
     word_t MEM_aluResult = EX_aluResult;
     inst_info_t MEM_instInfo = EX_instInfo;
     word_t MEM_data;
-    addr_t MEM_readAddr = EX_aluResult;  // <- address calculation
-    addr_t MEM_writeAddr = EX_aluResult;  // pipelined?
+    addr_t MEM_readAddr = MEM_aluResult;  // <- address calculation
+    addr_t MEM_writeAddr = MEM_aluResult;  // pipelined?
     bool_t MEM_writeEnabled = MEM_instInfo.isStore;
-    
     word_t MEM_writeData = ID_rs2Data;
     mem_stlen_t MEM_writeDataLen;
     // FIXME: handle store types when is written to memory, should not extend zeros
     always_comb begin
         if (MEM_instInfo.isStore) begin
             case (MEM_instInfo.stldDataLen)
-            DL_BYTE: MEM_writeDataLen = MEM_STLEN_BYTE;
-            DL_HALF: MEM_writeDataLen = MEM_STLEN_HALF;
-            DL_WORD: MEM_writeDataLen = MEM_STLEN_WORD;
-            default: MEM_writeDataLen = MEM_STLEN_INVALID;
+                DL_BYTE: MEM_writeDataLen = MEM_STLEN_BYTE;
+                DL_HALF: MEM_writeDataLen = MEM_STLEN_HALF;
+                DL_WORD: MEM_writeDataLen = MEM_STLEN_WORD;
+                default: MEM_writeDataLen = MEM_STLEN_INVALID;
             endcase
         end else begin
             MEM_writeDataLen = MEM_STLEN_INVALID;
@@ -206,10 +211,10 @@ module datapath
     always_comb begin
         if (MEM_instInfo.isLoad) begin
             case (MEM_instInfo.stldDataLen)
-            DL_BYTE: MEM_result = {{24{1'b0}}, MEM_data[7:0]};
-            DL_HALF: MEM_result = {{16{1'b0}}, MEM_data[15:0]};
-            DL_WORD: MEM_result = MEM_data[31:0];
-            default: assert(FALSE);
+                DL_BYTE: MEM_result = {{24{1'b0}}, MEM_data[7:0]};
+                DL_HALF: MEM_result = {{16{1'b0}}, MEM_data[15:0]};
+                DL_WORD: MEM_result = MEM_data[31:0];
+                default: assert (FALSE);
             endcase
         end else begin
             MEM_result = MEM_aluResult;

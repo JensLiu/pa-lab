@@ -48,7 +48,10 @@ module tb_datapath;
         $dumpvars(0, tb_datapath);  // Dumps all signals in the testbench and below
         tb_clk = 0;
         #2000;  // Run for sufficient time to complete execution
-        result = DEBUG_regs[A0];
+
+        $display("T2=%h\nT3=%h\nT4=%h", DEBUG_regs[T2], DEBUG_regs[T3], DEBUG_regs[T4]);
+
+        // result = DEBUG_regs[A0];
         // assert (result == 21) else $display("Failed");
         // $display("Fib[%d] = %d", 11, result);
         $finish;
