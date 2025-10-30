@@ -38,7 +38,7 @@ module tb_datapath;
     );
 
     initial begin
-        datapath_testcases::make_fib();
+        datapath_testcases::make_memtest1();
     end
 
     // run the simulation
@@ -50,7 +50,7 @@ module tb_datapath;
         #2000;  // Run for sufficient time to complete execution
         result = DEBUG_regs[A0];
         // assert (result == 21) else $display("Failed");
-        $display("Fib[%d] = %d", 11, result);
+        // $display("Fib[%d] = %d", 11, result);
         $finish;
     end
 

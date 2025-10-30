@@ -55,6 +55,13 @@ package pkg_global_defs;
         ALU_SRA
     } alu_op_t;
 
+    typedef enum logic [1:0] {
+        MEM_STLEN_INVALID,
+        MEM_STLEN_BYTE,
+        MEM_STLEN_HALF,
+        MEM_STLEN_WORD
+    } mem_stlen_t;
+
     // Comparator result
     typedef struct {
         bool_t eq;

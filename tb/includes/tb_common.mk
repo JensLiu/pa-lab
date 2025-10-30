@@ -8,7 +8,7 @@ VERILATOR_UNIQUE_FLAGS = -x-assign unique -x-initial unique
 VERILATOR_TRACE_FLAGS = --trace-fst
 VERILATOR_BUILD_FLAGS = --cc -exe --main --timing --build --exe -j 0
 
-VERILATOR_FLAGS = -CFLAGS -fcoroutines $(VERILATOR_UNIQUE_FLAGS) $(VERILATOR_TRACE_FLAGS) $(VERILATOR_BUILD_FLAGS)
+VERILATOR_FLAGS = -CFLAGS -fcoroutines $(VERILATOR_UNIQUE_FLAGS) $(VERILATOR_TRACE_FLAGS) $(VERILATOR_BUILD_FLAGS) --timing
 PACKAGES = ${RTL_INCLUDES_DIR}/pkg_global_defs.sv ${RTL_INCLUDES_DIR}/pkg_riscv_instructions.sv
 INCLUDE_FLAGS = -I${RTL_INCLUDES_DIR} -I${TB_INCLUDES_DIR}
 
@@ -28,5 +28,5 @@ run: build
 clean:
 	@rm -rf obj_dir $(TOP_MODULE).vcd
 
-view: run
+wave: run
 	gtkwave $(TOP_MODULE).vcd

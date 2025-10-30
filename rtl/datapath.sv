@@ -170,8 +170,23 @@ module datapath
     word_t MEM_data;
     addr_t MEM_readAddr = EX_aluResult;  // <- address calculation
     addr_t MEM_writeAddr = EX_aluResult;  // pipelined?
-    word_t MEM_writeData = ID_rs2Data;  // pipelined?
     bool_t MEM_writeEnabled = MEM_instInfo.isStore;
+    
+    word_t MEM_writeData = ID_rs2Data;
+    mem_stlen_t MEM_writeDataLen;
+    // FIXME: handle store types when is written to memory, should not extend zeros
+    always_comb begin
+        if (MEM_instInfo.isStore) begin
+            case (MEM_instInfo.stldDataLen)
+            DL_BYTE: MEM_writeDataLen = MEM_STLEN_BYTE;
+            DL_HALF: MEM_writeDataLen = MEM_STLEN_HALF;
+            DL_WORD: MEM_writeDataLen = MEM_STLEN_WORD;
+            default: MEM_writeDataLen = MEM_STLEN_INVALID;
+            endcase
+        end else begin
+            MEM_writeDataLen = MEM_STLEN_INVALID;
+        end
+    end
 
     memory_data memData (
 `ifdef DATA_MEMORY_EXPOSE_INTERNALS
@@ -181,13 +196,13 @@ module datapath
         .readAddr(MEM_readAddr),
         .writeAddr(MEM_writeAddr),
         .writeData(MEM_writeData),
+        .writeDataLen(MEM_writeDataLen),
         .writeEnable(MEM_writeEnabled),
         .readData(MEM_data)
     );
 
     // word_t MEM_result = MEM_instInfo.isLoad ? MEM_data : MEM_aluResult;
     word_t MEM_result;
-    // TODO: support load byte, load word, load half
     always_comb begin
         if (MEM_instInfo.isLoad) begin
             case (MEM_instInfo.stldDataLen)
