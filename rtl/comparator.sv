@@ -1,4 +1,4 @@
-`include "../includes/includes.sv"
+`include "rtl_common.svh"
 
 module comparator
     import pkg_global_defs::*;

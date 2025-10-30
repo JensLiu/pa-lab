@@ -1,5 +1,5 @@
 `timescale 1ns / 1ps
-`include "../includes/includes.sv"
+`include "rtl_common.svh"
 
 module memory_inst
     import pkg_global_defs::*;

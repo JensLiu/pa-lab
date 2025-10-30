@@ -460,13 +460,6 @@ package pkg_riscv_instructions;
     // endfunction
 
     // J-type instruction (JAL)
-    // function automatic instruction_t make_jal(input logic [4:0] rd, input logic [20:1] imm);
-    //     instruction_t inst;
-    //     inst.jtype.imm    = imm;
-    //     inst.jtype.rd     = rd;
-    //     inst.jtype.opcode = OP_JAL;
-    //     return inst;
-    // endfunction
 
     // I-type JALR
     // function automatic instruction_t make_jalr(input logic [4:0] rd, input logic [4:0] rs1,

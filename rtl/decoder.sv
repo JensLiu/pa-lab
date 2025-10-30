@@ -1,5 +1,5 @@
 `timescale 1ns / 1ps
-`include "../includes/includes.sv"
+`include "rtl_common.svh"
 
 module decoder
     import pkg_riscv_instructions::*;
@@ -25,7 +25,6 @@ module decoder
         info.aluOp = ALU_INVALID;
         info.branchType = BR_INVALID;
         info.stldDataLen = DL_INVALID;
-        info.isLUI = FALSE;
 
 
         // ALU begin

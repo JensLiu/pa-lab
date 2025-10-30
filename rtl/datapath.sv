@@ -1,4 +1,4 @@
-`include "../includes/includes.sv"
+`include "rtl_common.svh"
 
 module datapath
     import pkg_global_defs::*;
@@ -190,11 +190,11 @@ module datapath
     // TODO: support load byte, load word, load half
     always_comb begin
         if (MEM_instInfo.isLoad) begin
-            case (MEM_instInfo)
-            DL_BYTE: MEM_result = MEM_data[7:0];
-            DL_HALF: MEM_result = MEM_data[15:0];
+            case (MEM_instInfo.stldDataLen)
+            DL_BYTE: MEM_result = {{24{1'b0}}, MEM_data[7:0]};
+            DL_HALF: MEM_result = {{16{1'b0}}, MEM_data[15:0]};
             DL_WORD: MEM_result = MEM_data[31:0];
-            default: assert(FAlSE);
+            default: assert(FALSE);
             endcase
         end else begin
             MEM_result = MEM_aluResult;

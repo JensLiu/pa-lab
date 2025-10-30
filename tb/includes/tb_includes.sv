@@ -1,4 +1,4 @@
-`include "../../includes/includes.sv"
+`include "rtl_common.svh"
 
 `define BEGIN_WRITE_FILE(mem_filename) \
     integer __fd; \
