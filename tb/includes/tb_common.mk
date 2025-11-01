@@ -1,6 +1,5 @@
 # Common Makefile variables for testbenches
 
-BASE_DIR = ../..
 RTL_DIR = $(BASE_DIR)/rtl
 RTL_INCLUDES_DIR = $(BASE_DIR)/includes
 TB_INCLUDES_DIR = ${BASE_DIR}/tb/includes

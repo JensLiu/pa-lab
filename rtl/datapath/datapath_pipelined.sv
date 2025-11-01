@@ -1,0 +1,211 @@
+`include "rtl_common.svh"
+
+module datapath_pipelined
+    import pkg_global_defs::*;
+    import pkg_riscv_instructions::*;
+(
+`ifdef DATAPATH_EXPOSE_INTERNALS
+`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+    output byte_t DEBUG_inst_mem[INST_MEM_SIZE],
+`endif  // INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+`ifdef DATA_MEMORY_EXPOSE_INTERNALS
+    output byte_t DEBUG_data_mem[INST_MEM_SIZE],
+`endif  // DATA_MEMORY_EXPOSE_INTERNALS
+`ifdef REGISTER_FILE_EXPOSE_INTERNALS
+    output reg_t DEBUG_regs[32],
+`endif  // REGISTER_FILE_EXPOSE_INTERNALS
+`endif  // DATAPATH_EXPOSE_INTERNALS
+    input clk_t clk
+);
+
+    // pipeline registers
+    if_id_regs_t ifIdRegsQ;
+    id_ex_regs_t idExRegsQ;
+    ex_mem_regs_t exMemRegsQ;
+    mem_wb_regs_t memWbRegsQ;
+
+    // control signals
+    if_control_t ifControl;
+    id_control_t idControl;
+    ex_control_t exControl;
+    mem_control_t memControl;
+    wb_control_t wbControl;
+
+    // stage signals/hints
+    id_hints_t idHints;
+    ex_hints_t exHints;
+    mem_hints_t memHints;
+    wb_hints_t wbHints;
+
+    if_id_regs_t ifIdRegsP;
+    if_stage ifStage (
+`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+        .DEBUG_mem(DEBUG_inst_mem),
+`endif
+        .clk(clk),  // drives PC and memory
+        .ifControl(ifControl),
+        .ifIdRegs(ifIdRegsP)
+    );
+
+    id_ex_regs_t idExRegsP;
+    id_stage idStage (
+        .clk(clk),  // drives register files
+`ifdef REGISTER_FILE_EXPOSE_INTERNALS
+        .DEBUG_regs(DEBUG_regs),
+`endif
+        .ifIdRegs(ifIdRegsQ),
+        .idControl(idControl),
+        .idExRegs(idExRegsP),
+        .idHints(idHints)
+    );
+
+    ex_mem_regs_t exMemRegsP;
+    ex_stage exStage (
+        .idExRegs (idExRegsQ),
+        .exControl(exControl),
+        .exMemRegs(exMemRegsP),
+        .exHints  (exHints)
+    );
+
+    mem_wb_regs_t memWbRegsP;
+    mem_stage memStage (
+        .clk(clk),  // drives memory
+`ifdef DATA_MEMORY_EXPOSE_INTERNALS
+        .DEBUG_mem(DEBUG_data_mem),
+`endif
+        .exMemRegs(exMemRegsQ),
+        .memControl(memControl),
+        .memWbRegs(memWbRegsP),
+        .memHints(memHints)
+    );
+
+    wb_hints_t wbHintsP;
+    wb_stage wbStage (
+        .memWbRegs(memWbRegsQ),
+        .wbControl(wbControl),
+        .wbHints  (wbHints)
+    );
+
+    // Pipeline State Registers Propogation
+    bool_t IfIdRegs_writeEnable, IdExRegs_writeEnable, ExMemRegs_writeEnable, MemWbRegs_writeEnable;
+    bool_t IF_injectNop, ID_injectNop, EX_injectNop, MEM_injectNop;
+    always_ff @(posedge clk) begin : pipeline_propogation
+        // IF -> ID
+        if (IfIdRegs_writeEnable) begin
+            if (IF_injectNop) begin
+                ifIdRegsQ.pc <= ifIdRegsQ.pc;
+                ifIdRegsQ.inst <= inst_make_nop();
+                ifIdRegsQ.exceptions <= exception_make_none();
+            end else begin
+                ifIdRegsQ <= ifIdRegsP;
+            end
+        end
+        // ID -> EX
+        if (IdExRegs_writeEnable) begin
+            if (ID_injectNop) begin
+                // send down nop
+                idExRegsQ.pc <= idExRegsP.pc;
+                idExRegsQ.instInfo <= inst_info_make_nop();
+                idExRegsQ.exceptions <= exception_make_none();
+                idExRegsQ.rs1Data <= IMM_32_WHATEVER;
+                idExRegsQ.rs2Data <= IMM_32_WHATEVER;
+            end else begin
+                idExRegsQ <= idExRegsP;
+            end
+        end
+
+        // EX -> MEM
+        if (ExMemRegs_writeEnable) begin
+            if (EX_injectNop) begin
+                exMemRegsQ.pc <= exMemRegsP.pc;
+                exMemRegsQ.instInfo <= inst_info_make_nop();
+                exMemRegsQ.exceptions <= exception_make_none();
+                exMemRegsQ.aluResult <= IMM_32_WHATEVER;
+                exMemRegsQ.stData <= IMM_32_WHATEVER;
+            end else begin
+                exMemRegsQ <= exMemRegsP;
+            end
+        end
+        // MEM -> WB
+        if (MemWbRegs_writeEnable) begin
+            if (ID_injectNop) begin
+                memWbRegsQ.pc <= memWbRegsP.pc;
+                memWbRegsQ.instInfo <= inst_info_make_nop();
+                memWbRegsQ.exceptions <= exception_make_none();
+                memWbRegsQ.memResult <= IMM_32_WHATEVER;
+            end else begin
+                memWbRegsQ <= memWbRegsP;
+            end
+        end
+    end
+
+    // Stage Control Assignment
+    always_comb begin : stage_control
+        // IF Control
+        ifControl.halt = idHints.shouldHalt || memHints.shouldHalt;
+        ifControl.branchTaken = exHints.EX_branchTaken;
+        ifControl.pcBr = exHints.EX_pcBr;
+
+        // ID Control
+        idControl.WB_isWriteback = wbHints.WB_isWriteback;
+        idControl.WB_rd = wbHints.WB_rd;
+        idControl.WB_hasException = wbHints.WB_hasException;
+        idControl.WB_rdData = wbHints.WB_rdData;
+        idControl.EX_rd = exHints.EX_rd;
+        idControl.EX_isWriteback = exHints.EX_isWriteback;
+        idControl.EX_isLoad = exHints.EX_isLoad;
+        idControl.EX_aluResult = exHints.EX_aluResult;
+
+        // EX Control
+        exControl.placeholder = TRUE;
+
+        // MEM Control
+        memControl.placeholder = TRUE;
+
+        // WB Control
+        wbControl.placeholder = TRUE;
+
+    end
+
+
+    // Pipeline Control Assignment
+    always_comb begin : pipeline_control
+        IfIdRegs_writeEnable = TRUE;
+        IdExRegs_writeEnable = TRUE;
+        ExMemRegs_writeEnable = TRUE;
+        MemWbRegs_writeEnable = TRUE;
+        IF_injectNop = TRUE;
+        ID_injectNop = TRUE;
+        EX_injectNop = TRUE;
+        MEM_injectNop = TRUE;
+
+        if (idHints.shouldHalt) begin
+            ID_injectNop = TRUE;
+            IfIdRegs_writeEnable = FALSE;
+        end
+
+        if (memHints.shouldHalt) begin
+            MEM_injectNop = TRUE;
+            IfIdRegs_writeEnable = FALSE;
+            IdExRegs_writeEnable = FALSE;
+            ExMemRegs_writeEnable = FALSE;
+        end
+
+        if (exHints.EX_branchTaken) begin
+            // kill previous instructions
+            IF_injectNop = TRUE;
+            ID_injectNop = TRUE;
+        end
+
+        if (wbHints.WB_hasException) begin
+            IF_injectNop  = TRUE;
+            ID_injectNop  = TRUE;
+            EX_injectNop  = TRUE;
+            MEM_injectNop = TRUE;
+        end
+    end
+
+
+
+
+endmodule

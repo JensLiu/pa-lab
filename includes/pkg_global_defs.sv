@@ -1,5 +1,8 @@
 `timescale 1ns / 1ps
 
+import pkg_riscv_instructions::instruction_t;
+import pkg_riscv_instructions::make_nop;
+
 package pkg_global_defs;
     // data types
     typedef logic clk_t;
@@ -71,6 +74,10 @@ package pkg_global_defs;
 
     parameter TRUE = 1'b1;
     parameter FALSE = 1'b0;
+    parameter IMM_32_WHATEVER = 32'h12345678;
+    parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
+    parameter INST_MEM_SIZE = 4096;
+    parameter DATA_MEM_SIZE = 4096;
 
     typedef struct {
         reg_nr_t      rs1;
@@ -93,6 +100,28 @@ package pkg_global_defs;
         branch_type_t branchType;
     } inst_info_t;
 
+    function automatic instruction_t inst_make_nop();
+        instruction_t inst = make_nop();
+        return inst;
+    endfunction
+
+    function automatic inst_info_t inst_info_make_nop();
+        inst_info_t info;
+        info.rs1 = REG_NR_INVALID_FALLBACK;
+        info.rs2 = REG_NR_INVALID_FALLBACK;
+        info.rd = REG_NR_INVALID_FALLBACK;
+        info.imm = IMM_32_WHATEVER;
+        info.cmpIsSigned = FALSE;
+        info.aluOp = ALU_INVALID;
+        info.aluUseImmAsRs2 = FALSE;
+        info.isWriteback = FALSE;
+        info.isStore = FALSE;
+        info.isLoad = FALSE;
+        info.stldDataLen = DL_INVALID;
+        info.stldSignedness = SS_INVALID;
+        info.branchType = BR_INVALID;
+    endfunction
+
     typedef struct {
         logic zero;
         logic negative;
@@ -101,9 +130,106 @@ package pkg_global_defs;
         logic carry;
     } alu_flags_t;
 
-    parameter IMM_32_WHATEVER = 32'h12345678;
-    parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
-    parameter INST_MEM_SIZE = 4096;
-    parameter DATA_MEM_SIZE = 4096;
+    typedef struct {
+        bool_t illegalInstruction;
+        bool_t illegalMemoryAccess;
+        bool_t divideByZero;
+    } exception_t;
+
+    function automatic exception_t exception_make_none();
+        exception_t exception;
+        exception.illegalInstruction = FALSE;
+        exception.illegalMemoryAccess = FALSE;
+        exception.divideByZero = FALSE;
+        return exception;
+    endfunction
+
+    typedef struct {
+        bool_t halt;
+        bool_t branchTaken;
+        addr_t pcBr;
+        exception_t exception;
+    } if_control_t;
+
+    typedef struct {
+        reg_t pc;
+        instruction_t inst;
+        exception_t exceptions;
+    } if_id_regs_t;
+
+    typedef struct {
+        bool_t WB_isWriteback;
+        reg_nr_t WB_rd;
+        word_t WB_rdData;
+        bool_t WB_hasException;
+
+        // register R/W conflict resolver
+        reg_nr_t EX_rd;
+        bool_t EX_isWriteback;
+        bool_t EX_isLoad;  // If is load, the ALU result is the address not the register
+        word_t EX_aluResult;
+
+        reg_nr_t MEM_rd;
+        bool_t   MEM_isWriteback;
+        word_t   MEM_memResult;
+    } id_control_t;
+
+    typedef struct {
+        reg_t pc;
+        inst_info_t instInfo;
+        exception_t exceptions;
+        reg_t rs1Data;
+        reg_t rs2Data;
+    } id_ex_regs_t;
+
+    typedef struct {
+        bool_t shouldHalt;  // halt for data hazards
+    } id_hints_t;
+
+    typedef struct {bool_t placeholder;} ex_control_t;
+
+    typedef struct {
+        bool_t EX_branchTaken;
+        addr_t EX_pcBr;
+        bool_t EX_isWriteback;
+        reg_nr_t EX_rd;
+        bool_t EX_isLoad;
+        word_t EX_aluResult;
+    } ex_hints_t;
+
+    typedef struct {
+        reg_t pc;
+        inst_info_t instInfo;
+        word_t aluResult;
+        word_t stData;
+        exception_t exceptions;
+    } ex_mem_regs_t;
+
+    typedef struct {bool_t placeholder;} mem_control_t;
+
+    typedef struct {
+        bool_t   shouldHalt;
+        reg_nr_t MEM_rd;
+        bool_t   MEM_isWriteback;
+        word_t   MEM_memResult;
+    } mem_hints_t;
+
+    typedef struct {
+        reg_t pc;
+        inst_info_t instInfo;
+        word_t memResult;
+        exception_t exceptions;
+    } mem_wb_regs_t;
+
+    typedef struct {bool_t placeholder;} wb_control_t;
+
+    typedef struct {
+        bool_t   WB_isWriteback;
+        reg_nr_t WB_rd;
+        word_t   WB_rdData;
+        bool_t WB_hasException;
+        exception_t WB_exceptions;
+    } wb_hints_t;
+
 
 endpackage : pkg_global_defs

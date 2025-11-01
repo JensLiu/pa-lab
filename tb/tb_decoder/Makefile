@@ -2,6 +2,7 @@
 
 include ../includes/tb_common.mk
 
+BASE_DIR = ../..
 TOP_MODULE = tb_decoder
 RTL_SOURCES = ${RTL_DIR}/decoder.sv \
               ${RTL_DIR}/register_file.sv \

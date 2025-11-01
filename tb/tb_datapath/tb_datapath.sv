@@ -10,35 +10,50 @@ module tb_datapath;
     logic tb_clk;
     always #5 tb_clk = ~tb_clk;
 
-    reg_t DEBUG_pc;
-    instruction_t DEBUG_inst;
+    // reg_t DEBUG_pc;
+    // instruction_t DEBUG_inst;
     reg_t DEBUG_regs[32];
     byte_t DEBUG_inst_mem[INST_MEM_SIZE];
     byte_t DEBUG_data_mem[DATA_MEM_SIZE];
-    reg_nr_t DEBUG_WB_rdIdx;
-    word_t DEBUG_WB_data;
-    bool_t DEBUG_WB_isWriteback;
+    // reg_nr_t DEBUG_WB_rdIdx;
+    // word_t DEBUG_WB_data;
+    // bool_t DEBUG_WB_isWriteback;
 
-    datapath dut (
+    //     datapath dut (
+    // `ifdef DATAPATH_EXPOSE_INTERNALS
+    //         .DEBUG_pc(DEBUG_pc),
+    //         .DEBUG_inst(DEBUG_inst),
+    //         .DEBUG_regs(DEBUG_regs),
+    //         .DEBUG_WB_data(DEBUG_WB_data),
+    //         .DEBUG_WB_rdIdx(DEBUG_WB_rdIdx),
+    //         .DEBUG_WB_isWriteback(DEBUG_WB_isWriteback),
+    // `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+    //         .DEBUG_inst_mem(DEBUG_inst_mem),
+    // `endif
+    // `ifdef DATA_MEMORY_EXPOSE_INTERNALS
+    //         .DEBUG_data_mem(DEBUG_data_mem),
+    // `endif
+    // `endif
+    //         .clk(tb_clk)
+    //     );
+
+    datapath_pipelined dut (
 `ifdef DATAPATH_EXPOSE_INTERNALS
-        .DEBUG_pc(DEBUG_pc),
-        .DEBUG_inst(DEBUG_inst),
-        .DEBUG_regs(DEBUG_regs),
-        .DEBUG_WB_data(DEBUG_WB_data),
-        .DEBUG_WB_rdIdx(DEBUG_WB_rdIdx),
-        .DEBUG_WB_isWriteback(DEBUG_WB_isWriteback),
 `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
         .DEBUG_inst_mem(DEBUG_inst_mem),
 `endif
 `ifdef DATA_MEMORY_EXPOSE_INTERNALS
         .DEBUG_data_mem(DEBUG_data_mem),
 `endif
+`ifdef REGISTER_FILE_EXPOSE_INTERNALS
+        .DEBUG_regs(DEBUG_regs),
+`endif
 `endif
         .clk(tb_clk)
     );
 
     initial begin
-        datapath_testcases::make_memtest1();
+        datapath_testcases::make_fib();
     end
 
     // run the simulation
@@ -49,11 +64,11 @@ module tb_datapath;
         tb_clk = 0;
         #2000;  // Run for sufficient time to complete execution
 
-        $display("T2=%h\nT3=%h\nT4=%h", DEBUG_regs[T2], DEBUG_regs[T3], DEBUG_regs[T4]);
+        // $display("T2=%h\nT3=%h\nT4=%h", DEBUG_regs[T2], DEBUG_regs[T3], DEBUG_regs[T4]);
 
-        // result = DEBUG_regs[A0];
+        result = DEBUG_regs[A0];
         // assert (result == 21) else $display("Failed");
-        // $display("Fib[%d] = %d", 11, result);
+        $display("Fib = %d", result);
         $finish;
     end
 

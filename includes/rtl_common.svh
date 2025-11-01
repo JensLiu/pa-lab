@@ -24,3 +24,14 @@
 `define EMIT_INST_0(INST_NAME)
 `define EMIT_MSG(MSG)
 `endif
+
+`define INST_INFO_MAKE_NOP(inst)  \
+        // make sure no state is changed        \
+        (inst).isLoad = FALSE;            \
+        (inst).isStore = FALSE;           \
+        (inst).isWriteback = FALSE;       \
+        // make sure no ALU exceptions          \
+        (inst).aluOp = ALU_INVALID;       \
+        // (inst).rs1 = REG_NR_INVALID_FALLBACK;      \
+        // (inst).rs2 = REG_NR_INVALID_FALLBACK;      \
+        // (inst).rd = REG_NR_INVALID_FALLBACK;       \

@@ -64,12 +64,6 @@ module datapath
         .info(ID_instInfo)
     );
 
-    // always_comb begin
-    //     if (IF_inst.generic.opcode == OP_LUI) begin
-    //         $display("is_writeback=%d", ID_instInfo.isWriteback);
-    //     end
-    // end
-
     reg_nr_t WB_rdIdx;
     word_t   WB_data;
     bool_t   WB_isWriteback;

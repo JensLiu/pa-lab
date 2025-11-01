@@ -11,14 +11,17 @@ module register_file
 `endif
 
     input clk_t    clk,
+
+    // read (combinational)
     input reg_nr_t read_reg1,    // @decode stage
     input reg_nr_t read_reg2,    // @decode stage
+    output reg_t read_data1,  // @decode stage
+    output reg_t read_data2,   // @decode stage
+
+    // write (sequential)
     input reg_nr_t write_reg,    // @writeback stage
     input reg_t    write_data,   // @writeback stage
-    input logic    write_enable, // @writeback stage
-
-    output reg_t read_data1,  // @decode stage
-    output reg_t read_data2   // @decode stage
+    input logic    write_enable // @writeback stage
 );
     reg_t gp_regs[32];
 

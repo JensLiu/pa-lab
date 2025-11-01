@@ -26,9 +26,9 @@ module memory_inst
 
     always_comb begin
         inst = {mem[addr+3], mem[addr+2], mem[addr+1], mem[addr]};
-`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+// `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
         // DEBUG_mem <= mem;
-`endif
+// `endif
     end
 
 endmodule
