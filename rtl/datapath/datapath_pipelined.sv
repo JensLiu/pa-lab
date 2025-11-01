@@ -93,7 +93,7 @@ module datapath_pipelined
         // IF -> ID
         if (IfIdRegs_writeEnable) begin
             if (IF_injectNop) begin
-                ifIdRegsQ.pc <= ifIdRegsQ.pc;
+                ifIdRegsQ.pc <= ifIdRegsP.pc;
                 ifIdRegsQ.inst <= inst_make_nop();
                 ifIdRegsQ.exceptions <= exception_make_none();
             end else begin
@@ -155,6 +155,9 @@ module datapath_pipelined
         idControl.EX_isWriteback = exHints.EX_isWriteback;
         idControl.EX_isLoad = exHints.EX_isLoad;
         idControl.EX_aluResult = exHints.EX_aluResult;
+        idControl.MEM_rd = memHints.MEM_rd;
+        idControl.MEM_isWriteback = memHints.MEM_isWriteback;
+        idControl.MEM_memResult = memHints.MEM_memResult;
 
         // EX Control
         exControl.placeholder = TRUE;
@@ -174,10 +177,10 @@ module datapath_pipelined
         IdExRegs_writeEnable = TRUE;
         ExMemRegs_writeEnable = TRUE;
         MemWbRegs_writeEnable = TRUE;
-        IF_injectNop = TRUE;
-        ID_injectNop = TRUE;
-        EX_injectNop = TRUE;
-        MEM_injectNop = TRUE;
+        IF_injectNop = FALSE;
+        ID_injectNop = FALSE;
+        EX_injectNop = FALSE;
+        MEM_injectNop = FALSE;
 
         if (idHints.shouldHalt) begin
             ID_injectNop = TRUE;

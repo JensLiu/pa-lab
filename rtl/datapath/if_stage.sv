@@ -17,17 +17,18 @@ module if_stage
 
     reg_t IF_pcNext;
 
-    always_ff @(posedge clk) begin
+    always_comb begin
         // TODO exception handling
         if (ifControl.halt) begin
-            IF_pcNext <= IF_pcQ;
+            IF_pcNext = IF_pcQ;
+        end else if (ifControl.branchTaken) begin
+            IF_pcNext = ifControl.pcBr;
         end else begin
-            if (ifControl.branchTaken) begin
-                IF_pcNext <= ifControl.pcBr;
-            end else begin
-                IF_pcNext <= IF_pcQ + 4;
-            end
+            IF_pcNext = IF_pcQ + 4;
         end
+    end
+
+    always_ff @(posedge clk) begin
         IF_pcQ <= IF_pcNext;
     end
 
@@ -42,7 +43,9 @@ module if_stage
     );
 
 
-    assign ifIdRegs.pc   = IF_pcQ;
-    assign ifIdRegs.inst = IF_inst;
+    always_comb begin
+        ifIdRegs.pc   = IF_pcQ;
+        ifIdRegs.inst = IF_inst;
+    end
 
 endmodule

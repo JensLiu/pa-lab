@@ -41,10 +41,13 @@ module register_file
     assign read_data1 = gp_regs[read_reg1];
     assign read_data2 = gp_regs[read_reg2];
 `else
-    assign read_data1 = (write_enable && write_reg != 0 &&
-                        write_reg == read_reg1) ? write_data : gp_regs[read_reg1];
-    assign read_data2 = (write_enable && write_reg != 0 &&
-                        write_reg == read_reg2) ? write_data : gp_regs[read_reg2];
+    // assign read_data1 = (write_enable && write_reg != 0 &&
+    //                     write_reg == read_reg1) ? write_data : gp_regs[read_reg1];
+    // assign read_data2 = (write_enable && write_reg != 0 &&
+    //                     write_reg == read_reg2) ? write_data : gp_regs[read_reg2];
+    // Remove internal bypass of the register file in pipeline, leaving it to the bypass network
+    assign read_data1 = gp_regs[read_reg1];
+    assign read_data2 = gp_regs[read_reg2];
 `endif
     always_ff @(posedge clk) begin
         // flip-flop

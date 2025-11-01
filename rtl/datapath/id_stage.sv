@@ -21,7 +21,7 @@ module id_stage
         .info(instInfo)
     );
 
-    // register file with internal WB bypass
+    // register file WITHOUT internal WB bypass
     word_t ID_oldRs1Data, ID_oldRs2Data;
     bool_t shuoldWrite = idControl.WB_isWriteback && !idControl.WB_hasException;
     register_file gpRegFile (
@@ -40,34 +40,37 @@ module id_stage
         .write_data(idControl.WB_rdData)
     );
 
+    // EX, MEM, WB bypass
+    bool_t rs1ExDep, rs1MemDep, rs1WbDep, rs1HasDep, rs1ShouldHalt;
+    assign rs1ExDep  = idControl.EX_rd == instInfo.rs1 && instInfo.rs1 != 5'd0;
+    assign rs1MemDep = idControl.MEM_rd == instInfo.rs1 && instInfo.rs1 != 5'd0;
+    assign rs1WbDep  = idControl.WB_rd == instInfo.rs1 && instInfo.rs1 != 5'd0;
+    assign rs1HasDep = rs1ExDep || rs1MemDep || rs1WbDep;
+    bool_t rs2ExDep, rs2MemDep, rs2WbDep, rs2HasDep, rs2ShouldHalt;
+    assign rs2MemDep = idControl.MEM_rd == instInfo.rs2 && instInfo.rs2 != 5'd0;
+    assign rs2ExDep = idControl.EX_rd == instInfo.rs2 && instInfo.rs2 != 5'd0;
+    assign rs2WbDep = idControl.WB_rd == instInfo.rs2 && instInfo.rs2 != 5'd0;
+    assign rs2HasDep = rs2ExDep || rs2MemDep;
+    // NOTE: we should NOT allow `EX_isLoad` to bypass since the its `EX_aluResult`
+    //       is the load address not the data
+    assign rs1ShouldHalt = rs1ExDep && idControl.EX_isLoad;
+    assign rs2ShouldHalt = rs2ExDep && idControl.EX_isLoad;
 
-    // EX, MEM bypass
     bool_t ID_shouldHalt;
     word_t ID_rs1Data, ID_rs2Data;
     always_comb begin : id_conflict_resolver_bypass_or_else_halt
-        bool_t rs1ExDep = idControl.EX_rd == instInfo.rs1;
-        bool_t rs1MemDep = idControl.MEM_rd == instInfo.rs1;
-        bool_t rs1HasDep = rs1ExDep || rs1MemDep;
 
-        bool_t rs2ExDep = idControl.EX_rd == instInfo.rs2;
-        bool_t rs2MemDep = idControl.MEM_rd == instInfo.rs2;
-        bool_t rs2HasDep = rs2ExDep || rs2MemDep;
-
-        // NOTE: we should NOT allow `EX_isLoad` to bypass  since the its `EX_aluResult`
-        //       is the load address not the data
-        bool_t rs1ShuoldHalt = rs1ExDep && idControl.EX_isLoad;
-        bool_t rs2ShouldHalt = rs2ExDep && idControl.EX_isLoad;
-
-        ID_shouldHalt = rs1ShuoldHalt || rs2ShouldHalt;
-
-        if (rs1HasDep && !rs1ShuoldHalt) begin
+        ID_shouldHalt = rs1ShouldHalt || rs2ShouldHalt;
+        if (rs1HasDep && !rs1ShouldHalt) begin
             // priority given to dependency in EX stage (newer value)
             if (rs1ExDep) begin
                 ID_rs1Data = idControl.EX_aluResult;
-            end else begin
-                assert (rs1MemDep)
-                else $display("ID: UNREACHABLE DEPENDENCY");
+            end else if (rs1MemDep) begin
                 ID_rs1Data = idControl.MEM_memResult;
+            end else begin
+                assert (rs1WbDep)
+                else $display("ID: UNREACHABLE DEPENDENCY");
+                ID_rs1Data = idControl.WB_rdData;
             end
         end else begin
             ID_rs1Data = ID_oldRs1Data;
@@ -76,10 +79,12 @@ module id_stage
         if (rs2HasDep && !rs2ShouldHalt) begin
             if (rs2ExDep) begin
                 ID_rs2Data = idControl.EX_aluResult;
-            end else begin
-                assert (rs2MemDep)
-                else $display("ID: UNREACHABLE DEPENDENCY");
+            end else if (rs2MemDep) begin
                 ID_rs2Data = idControl.MEM_memResult;
+            end else begin
+                assert (rs2WbDep)
+                else $display("ID: UNREACHABLE DEPENDENCY");
+                ID_rs2Data = idControl.WB_rdData;
             end
         end else begin
             ID_rs2Data = ID_oldRs2Data;
@@ -89,6 +94,7 @@ module id_stage
 
     always_comb begin
         // propagate pipeline
+        idExRegs.pc = ifIdRegs.pc;
         idExRegs.instInfo = instInfo;
         idExRegs.rs1Data = ID_rs1Data;
         idExRegs.rs2Data = ID_rs2Data;

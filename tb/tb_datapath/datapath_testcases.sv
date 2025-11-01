@@ -4,7 +4,9 @@
 
 package datapath_testcases;
     import pkg_riscv_instructions::*;
-    function automatic void make_fib();
+    import pkg_global_defs::*;
+
+    function automatic void fib_codegen(string filename);
         // --- Program Counter (PC) Address Constants ---
         parameter FIB_LOOP_ADDR = 'h00000020;
         parameter FIB_N_ZERO_ADDR = 'h00000038;
@@ -16,7 +18,7 @@ package datapath_testcases;
 
         instruction_t inst;
 
-        `BEGIN_WRITE_FILE("inst_mem.hex")
+        `BEGIN_WRITE_FILE(filename)
         `BEGIN_INST(0)
         // Instruction Sequence (Mapping from fibonacci_calculator.s)
 
@@ -81,19 +83,23 @@ package datapath_testcases;
         // ...
         `END_INST
 
-        `END_WRITE_FILE("inst_mem.hex")
+        `END_WRITE_FILE(filename)
     endfunction
 
-    function automatic void make_memtest1();
+    function automatic void fib_check(reg_t regs[32]);
+        assert (regs[A0] == 'd98) else $display("testcase fib failed");
+    endfunction
+
+    function automatic void memtest1_codegen(string filename);
 
         parameter TEST_MEMORY = 'h00000005;
 
         instruction_t inst;
 
-        `BEGIN_WRITE_FILE("inst_mem.hex")
+        `BEGIN_WRITE_FILE(filename)
         `BEGIN_INST(0)
         `MAKE_INST_2(li, S0, TEST_MEMORY);
-        `MAKE_INST_2(lui, T1,'hFFFF1);
+        `MAKE_INST_2(lui, T1, 'hFFFF1);
         `MAKE_INST_3(ori, T1, T1, 'h234);
         `MAKE_INST_3(sw, T1, S0, 0);
         `MAKE_INST_3(sh, T1, S0, 4);
@@ -103,8 +109,56 @@ package datapath_testcases;
         `MAKE_INST_3(lh, T3, S0, 4);
         `MAKE_INST_3(lb, T4, S0, 6);
         `END_INST
-        `END_WRITE_FILE("inst_mem.hex")
-    
+        `END_WRITE_FILE(filename)
     endfunction
 
-endpackage;
+    function automatic void memtest1_check(reg_t regs[32]);
+        assert(regs[T2] == 'hFFFF1234) else $display("memtest1 failed");
+        assert(regs[T3] == 'h1234) else $display("memtest1 failed");
+        assert(regs[T4] == 'h34) else $display("memtest1 failed");
+    endfunction
+
+    function automatic void dependency_test1_codegen(string filename);
+        instruction_t inst;
+        `BEGIN_WRITE_FILE(filename)
+        `BEGIN_INST(0)
+
+        `MAKE_INST_2(li, T2, 'h123);
+        `MAKE_INST_2(li, T3, 'h234);
+        `MAKE_INST_3(add, T1, T2, T3);
+        `MAKE_INST_3(add, T1, T1, T1);
+
+        `END_INST
+        `END_WRITE_FILE(filename)
+    endfunction
+
+    function automatic void dependency_test1_check(reg_t regs[32]);
+        assert(regs[T1] == 'h6ae) else $display("ERROR: dependency test1 failed");
+    endfunction
+
+    function automatic void dependency_test2_codegen(string filename);
+        instruction_t inst;
+        `BEGIN_WRITE_FILE(filename)
+        `BEGIN_INST(0)
+
+        `MAKE_INST_2(li, T1, 'h1);      // 1
+        `MAKE_INST_3(add, T1, T1, T1);  // 2
+        `MAKE_INST_3(add, T1, T1, T1);  // 3
+        `MAKE_INST_3(add, T1, T1, T1);  // 4
+        `MAKE_INST_3(add, T1, T1, T1);  // 5
+        `MAKE_INST_3(add, T1, T1, T1);  // 6
+        `MAKE_INST_3(add, T1, T1, T1);  // 7
+        `MAKE_INST_3(add, T1, T1, T1);  // 8
+        `MAKE_INST_3(add, T1, T1, T1);  // 9
+        `MAKE_INST_3(add, T1, T1, T1);  // 10
+
+        `END_INST
+        `END_WRITE_FILE(filename)
+    endfunction
+
+    function automatic void dependency_test2_check(reg_t regs[32]);
+        assert (regs[T1] == 10) else $display("ERROR: dependency test2 failed");
+    endfunction
+
+endpackage
+;
