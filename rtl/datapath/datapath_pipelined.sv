@@ -128,7 +128,7 @@ module datapath_pipelined
         end
         // MEM -> WB
         if (MemWbRegs_writeEnable) begin
-            if (ID_injectNop) begin
+            if (MEM_injectNop) begin
                 memWbRegsQ.pc <= memWbRegsP.pc;
                 memWbRegsQ.instInfo <= inst_info_make_nop();
                 memWbRegsQ.exceptions <= exception_make_none();

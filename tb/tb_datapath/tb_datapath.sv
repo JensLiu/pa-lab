@@ -53,7 +53,7 @@ module tb_datapath;
     );
 
     initial begin
-        datapath_testcases::dependency_test2_codegen("inst_mem.hex");
+        datapath_testcases::dependency_test_load1_codegen("inst_mem.hex");
     end
 
     // run the simulation
@@ -63,7 +63,7 @@ module tb_datapath;
         $dumpvars(0, tb_datapath);  // Dumps all signals in the testbench and below
         tb_clk = 0;
         #2000;  // Run for sufficient time to complete execution
-        datapath_testcases::dependency_test2_check(DEBUG_regs);
+        datapath_testcases::dependency_test_load1_check(DEBUG_regs);
         $finish;
     end
 

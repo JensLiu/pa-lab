@@ -87,7 +87,8 @@ package datapath_testcases;
     endfunction
 
     function automatic void fib_check(reg_t regs[32]);
-        assert (regs[A0] == 'd98) else $display("testcase fib failed");
+        assert (regs[A0] == 'd98)
+        else $display("testcase fib failed");
     endfunction
 
     function automatic void memtest1_codegen(string filename);
@@ -113,9 +114,12 @@ package datapath_testcases;
     endfunction
 
     function automatic void memtest1_check(reg_t regs[32]);
-        assert(regs[T2] == 'hFFFF1234) else $display("memtest1 failed");
-        assert(regs[T3] == 'h1234) else $display("memtest1 failed");
-        assert(regs[T4] == 'h34) else $display("memtest1 failed");
+        assert (regs[T2] == 'hFFFF1234)
+        else $display("memtest1 failed");
+        assert (regs[T3] == 'h1234)
+        else $display("memtest1 failed");
+        assert (regs[T4] == 'h34)
+        else $display("memtest1 failed");
     endfunction
 
     function automatic void dependency_test1_codegen(string filename);
@@ -133,7 +137,8 @@ package datapath_testcases;
     endfunction
 
     function automatic void dependency_test1_check(reg_t regs[32]);
-        assert(regs[T1] == 'h6ae) else $display("ERROR: dependency test1 failed");
+        assert (regs[T1] == 'h6ae)
+        else $display("ERROR: dependency test1 failed");
     endfunction
 
     function automatic void dependency_test2_codegen(string filename);
@@ -141,24 +146,49 @@ package datapath_testcases;
         `BEGIN_WRITE_FILE(filename)
         `BEGIN_INST(0)
 
-        `MAKE_INST_2(li, T1, 'h1);      // 1
+        `MAKE_INST_2(li, T1, 'h1);  // 1
         `MAKE_INST_3(add, T1, T1, T1);  // 2
-        `MAKE_INST_3(add, T1, T1, T1);  // 3
         `MAKE_INST_3(add, T1, T1, T1);  // 4
-        `MAKE_INST_3(add, T1, T1, T1);  // 5
-        `MAKE_INST_3(add, T1, T1, T1);  // 6
-        `MAKE_INST_3(add, T1, T1, T1);  // 7
         `MAKE_INST_3(add, T1, T1, T1);  // 8
-        `MAKE_INST_3(add, T1, T1, T1);  // 9
-        `MAKE_INST_3(add, T1, T1, T1);  // 10
+        `MAKE_INST_3(add, T1, T1, T1);  // 16
+        `MAKE_INST_3(add, T1, T1, T1);  // 32
+        `MAKE_INST_3(add, T1, T1, T1);  // 64
+        `MAKE_INST_3(add, T1, T1, T1);  // 128
+        `MAKE_INST_3(add, T1, T1, T1);  // 256
+        `MAKE_INST_3(add, T1, T1, T1);  // 512
 
         `END_INST
         `END_WRITE_FILE(filename)
     endfunction
 
     function automatic void dependency_test2_check(reg_t regs[32]);
-        assert (regs[T1] == 10) else $display("ERROR: dependency test2 failed");
+        assert (regs[T1] == 512)
+        else $display("ERROR: dependency test2 failed");
     endfunction
 
+    function automatic void dependency_test_load1_codegen(string filename);
+        parameter TEST_MEMORY = 'h00000005;
+        instruction_t inst;
+        `BEGIN_WRITE_FILE(filename)
+        `BEGIN_INST(0)
+        // store value
+        `MAKE_INST_2(li, S0, TEST_MEMORY);
+        `MAKE_INST_2(li, T1, 'd123);
+        `MAKE_INST_3(sw, T1, S0, 0);
+        // create dependency
+        `MAKE_INST_2(li, T1, 'd1);  // T1 = 1
+        `MAKE_INST_3(lw, T2, S0, 0);  // T2 = 123
+        // should halt 1 cycle for T2 (load)
+        `MAKE_INST_3(add, T1, T1, T2);  // T3 = 124
+
+        `END_INST
+        `END_WRITE_FILE(filename)
+
+    endfunction
+
+    function automatic void dependency_test_load1_check(reg_t regs[32]);
+        assert (regs[T1] == 124)
+        else $display("ERROR: dependency test load1 failed");
+    endfunction
 endpackage
 ;
