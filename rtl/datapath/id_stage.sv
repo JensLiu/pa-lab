@@ -40,7 +40,7 @@ module id_stage
         .write_data(idControl.WB_rdData)
     );
 
-    // EX, MEM, WB bypass
+    // EX, MEM, WB dependency resolver
     bool_t rs1ExDep, rs1MemDep, rs1WbDep, rs1HasDep, rs1ShouldHalt;
     assign rs1ExDep  = idControl.EX_rd == instInfo.rs1 && instInfo.rs1 != 5'd0;
     assign rs1MemDep = idControl.MEM_rd == instInfo.rs1 && instInfo.rs1 != 5'd0;
@@ -50,17 +50,17 @@ module id_stage
     assign rs2MemDep = idControl.MEM_rd == instInfo.rs2 && instInfo.rs2 != 5'd0;
     assign rs2ExDep = idControl.EX_rd == instInfo.rs2 && instInfo.rs2 != 5'd0;
     assign rs2WbDep = idControl.WB_rd == instInfo.rs2 && instInfo.rs2 != 5'd0;
-    assign rs2HasDep = rs2ExDep || rs2MemDep;
+    assign rs2HasDep = rs2ExDep || rs2MemDep || rs2WbDep;
     // NOTE: we should NOT allow `EX_isLoad` to bypass since the its `EX_aluResult`
     //       is the load address not the data
     assign rs1ShouldHalt = rs1ExDep && idControl.EX_isLoad;
     assign rs2ShouldHalt = rs2ExDep && idControl.EX_isLoad;
-
+    // halt
     bool_t ID_shouldHalt;
+    assign ID_shouldHalt = rs1ShouldHalt || rs2ShouldHalt;
+    // EX, MEM, WB bypass
     word_t ID_rs1Data, ID_rs2Data;
     always_comb begin : id_conflict_resolver_bypass_or_else_halt
-
-        ID_shouldHalt = rs1ShouldHalt || rs2ShouldHalt;
         if (rs1HasDep && !rs1ShouldHalt) begin
             // priority given to dependency in EX stage (newer value)
             if (rs1ExDep) begin
