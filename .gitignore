@@ -1,4 +1,10 @@
 .vscode
 tb/**/obj_dir
 tb/**/*.vcd
+tb/**/*.hex
 *.hdl_checker
+firmware/*.o
+firmware/*.mem
+firmware/*.hex
+firmware/*.elf
+firmware/*.asm
