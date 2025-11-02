@@ -87,7 +87,7 @@ package datapath_testcases;
     endfunction
 
     function automatic void fib_check(reg_t regs[32]);
-        assert (regs[A0] == 'd98)
+        assert (regs[A0] == 'd89)
         else $display("testcase fib failed");
     endfunction
 
@@ -179,7 +179,7 @@ package datapath_testcases;
         `MAKE_INST_2(li, T1, 'd1);  // T1 = 1
         `MAKE_INST_3(lw, T2, S0, 0);  // T2 = 123
         // should halt 1 cycle for T2 (load)
-        `MAKE_INST_3(add, T1, T1, T2);  // T3 = 124
+        `MAKE_INST_3(add, T1, T1, T2);  // T1 = 124
 
         `END_INST
         `END_WRITE_FILE(filename)
@@ -190,5 +190,63 @@ package datapath_testcases;
         assert (regs[T1] == 124)
         else $display("ERROR: dependency test load1 failed");
     endfunction
+
+    function automatic void dependency_test_load2_codegen(string filename);
+        parameter TEST_MEMORY = 'h00000005;
+        instruction_t inst;
+        `BEGIN_WRITE_FILE(filename)
+        `BEGIN_INST(0)
+        // store value
+        `MAKE_INST_2(li, S0, TEST_MEMORY);
+        `MAKE_INST_2(li, T1, 'd123);
+        `MAKE_INST_2(li, T2, 'd234);
+        `MAKE_INST_3(sw, T1, S0, 0);
+        `MAKE_INST_3(sw, T2, S0, 4);
+        // create dependency
+        `MAKE_INST_2(li, T1, 'd345);  // T1 = 345
+        `MAKE_INST_2(li, T2, 'd456);  // T2 = 456
+        `MAKE_INST_3(lw, T1, S0, 4);  // T1 = 234
+        `MAKE_INST_3(lw, T2, S0, 0);  // T2 = 123
+        // should halt 1 cycle for T2 (load)
+        `MAKE_INST_3(add, T1, T1, T2);  // T1 = 357
+
+        `END_INST
+        `END_WRITE_FILE(filename)
+
+    endfunction
+
+    function automatic void dependency_test_load2_check(reg_t regs[32]);
+        assert (regs[T1] == 357 && regs[T2] == 123)
+        else $display("ERROR: dependency test load2 failed");
+    endfunction
+
+    function automatic void branch_test1_codegen(string filename);
+        instruction_t inst;
+        parameter N_ITERS = 10;
+        parameter LOOP_ADDR = 'hc;
+        parameter LOOP_EXIT_ADDR = 'h1c;
+        `BEGIN_WRITE_FILE(filename)
+        `BEGIN_INST(0)
+        `MAKE_INST_2(li, T0, 1)  // x <- 1
+        `MAKE_INST_2(li, S0, 0)  // i <- 0
+        `MAKE_INST_2(li, S1, N_ITERS)   // N_ITERS
+        `MAKE_LABEL("loop")
+        `MAKE_INST_3(bge, S0, S1, {LOOP_EXIT_ADDR - pc}[12:0])  // if i >= 10: goto loop-exit
+        `MAKE_INST_3(add, T0, T0, T0)  // x <- x + x
+        `MAKE_INST_3(addi, S0, S0, 1)  // i <- i + 1
+        `MAKE_INST_1(j, LOOP_ADDR)  // jmp loop
+        `MAKE_LABEL("loop-exit")
+        `MAKE_INST_3(addi, T0, T0, 1)  // x <- x + 1
+
+        `END_INST
+        `END_WRITE_FILE(filename)
+    endfunction
+
+    function automatic void branch_test1_check(reg_t regs[32]);
+        assert (regs[S0] == 10 && regs[T0] == 1025)
+        else $display("ERROR: dependency test load2 failed");
+    endfunction
+
+
 endpackage
 ;
