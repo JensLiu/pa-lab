@@ -12,7 +12,8 @@
 
 `define BEGIN_INST(START_ADDR) \
     begin \
-    integer pc = START_ADDR;
+    integer pc = START_ADDR; \
+    $fwrite(__fd, "@%h\n", START_ADDR);
 
 `define END_INST \
     end

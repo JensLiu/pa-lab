@@ -5,7 +5,7 @@ module mem_stage
     import pkg_global_defs::*;
 (
 `ifdef DATA_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_mem[INST_MEM_SIZE],
+    output byte_t DEBUG_mem[DATA_MEM_SIZE],
 `endif
     input clk_t clk,
     input ex_mem_regs_t exMemRegs,

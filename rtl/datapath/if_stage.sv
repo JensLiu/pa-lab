@@ -15,6 +15,11 @@ module if_stage
 
     reg_t IF_pcQ;  // PC register
 
+    initial begin
+        IF_pcQ = START_ADDRESS;
+        $display("Start executing at %h", IF_pcQ);
+    end
+
     reg_t IF_pcNext;
 
     always_comb begin

@@ -15,6 +15,7 @@ module memory_inst
     byte_t mem[INST_MEM_SIZE];
 
     initial begin
+        $display("INST_MEM_SIZE=%d", INST_MEM_SIZE);
         $readmemh("inst_mem.hex", mem);
         // for (int i = 0; i < 100; i++) begin
         //     if (i != 0 && i % 4 == 0) begin
@@ -26,6 +27,7 @@ module memory_inst
 
     always_comb begin
         inst = {mem[addr+3], mem[addr+2], mem[addr+1], mem[addr]};
+        // $display("instruction@%h: %h", addr, inst);
 // `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
         // DEBUG_mem <= mem;
 // `endif

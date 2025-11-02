@@ -9,7 +9,7 @@ module datapath_pipelined
     output byte_t DEBUG_inst_mem[INST_MEM_SIZE],
 `endif  // INSTRUCTION_MEMORY_EXPOSE_INTERNALS
 `ifdef DATA_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_data_mem[INST_MEM_SIZE],
+    output byte_t DEBUG_data_mem[DATA_MEM_SIZE],
 `endif  // DATA_MEMORY_EXPOSE_INTERNALS
 `ifdef REGISTER_FILE_EXPOSE_INTERNALS
     output reg_t DEBUG_regs[32],

@@ -8,18 +8,18 @@ package datapath_testcases;
 
     function automatic void fib_codegen(string filename);
         // --- Program Counter (PC) Address Constants ---
-        parameter FIB_LOOP_ADDR = 'h00000020;
-        parameter FIB_N_ZERO_ADDR = 'h00000038;
-        parameter FIB_N_ONE_ADDR = 'h00000040;
-        parameter FIB_END_ADDR = 'h00000048;
-        parameter EXIT_PROGRAM_ADDR = 'h0000004c;
+        parameter FIB_LOOP_ADDR = START_ADDRESS + 'h00000020;
+        parameter FIB_N_ZERO_ADDR = START_ADDRESS + 'h00000038;
+        parameter FIB_N_ONE_ADDR = START_ADDRESS + 'h00000040;
+        parameter FIB_END_ADDR = START_ADDRESS + 'h00000048;
+        parameter EXIT_PROGRAM_ADDR = START_ADDRESS + 'h0000004c;
 
         parameter TEST_MEMORY = 'h00000005;
 
         instruction_t inst;
 
         `BEGIN_WRITE_FILE(filename)
-        `BEGIN_INST(0)
+        `BEGIN_INST(START_ADDRESS)
         // Instruction Sequence (Mapping from fibonacci_calculator.s)
 
         // Configuration and Initialization
@@ -98,7 +98,7 @@ package datapath_testcases;
         instruction_t inst;
 
         `BEGIN_WRITE_FILE(filename)
-        `BEGIN_INST(0)
+        `BEGIN_INST(START_ADDRESS)
         `MAKE_INST_2(li, S0, TEST_MEMORY);
         `MAKE_INST_2(lui, T1, 'hFFFF1);
         `MAKE_INST_3(ori, T1, T1, 'h234);
@@ -125,7 +125,7 @@ package datapath_testcases;
     function automatic void dependency_test1_codegen(string filename);
         instruction_t inst;
         `BEGIN_WRITE_FILE(filename)
-        `BEGIN_INST(0)
+        `BEGIN_INST(START_ADDRESS)
 
         `MAKE_INST_2(li, T2, 'h123);
         `MAKE_INST_2(li, T3, 'h234);
@@ -144,7 +144,7 @@ package datapath_testcases;
     function automatic void dependency_test2_codegen(string filename);
         instruction_t inst;
         `BEGIN_WRITE_FILE(filename)
-        `BEGIN_INST(0)
+        `BEGIN_INST(START_ADDRESS)
 
         `MAKE_INST_2(li, T1, 'h1);  // 1
         `MAKE_INST_3(add, T1, T1, T1);  // 2
@@ -170,7 +170,7 @@ package datapath_testcases;
         parameter TEST_MEMORY = 'h00000005;
         instruction_t inst;
         `BEGIN_WRITE_FILE(filename)
-        `BEGIN_INST(0)
+        `BEGIN_INST(START_ADDRESS)
         // store value
         `MAKE_INST_2(li, S0, TEST_MEMORY);
         `MAKE_INST_2(li, T1, 'd123);
@@ -195,7 +195,7 @@ package datapath_testcases;
         parameter TEST_MEMORY = 'h00000005;
         instruction_t inst;
         `BEGIN_WRITE_FILE(filename)
-        `BEGIN_INST(0)
+        `BEGIN_INST(START_ADDRESS)
         // store value
         `MAKE_INST_2(li, S0, TEST_MEMORY);
         `MAKE_INST_2(li, T1, 'd123);
@@ -223,10 +223,10 @@ package datapath_testcases;
     function automatic void branch_test1_codegen(string filename);
         instruction_t inst;
         parameter N_ITERS = 10;
-        parameter LOOP_ADDR = 'hc;
-        parameter LOOP_EXIT_ADDR = 'h1c;
+        parameter LOOP_ADDR = START_ADDRESS + 'hc;
+        parameter LOOP_EXIT_ADDR = START_ADDRESS + 'h1c;
         `BEGIN_WRITE_FILE(filename)
-        `BEGIN_INST(0)
+        `BEGIN_INST(START_ADDRESS)
         `MAKE_INST_2(li, T0, 1)  // x <- 1
         `MAKE_INST_2(li, S0, 0)  // i <- 0
         `MAKE_INST_2(li, S1, N_ITERS)   // N_ITERS

@@ -4,6 +4,15 @@ import pkg_riscv_instructions::instruction_t;
 import pkg_riscv_instructions::make_nop;
 
 package pkg_global_defs;
+    // parameters
+    parameter TRUE = 1'b1;
+    parameter FALSE = 1'b0;
+    parameter IMM_32_WHATEVER = 32'h12345678;
+    parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
+    parameter INST_MEM_SIZE = 4096 * 1024;
+    parameter DATA_MEM_SIZE = 4096;
+    parameter START_ADDRESS = 'h1000;
+
     // data types
     typedef logic clk_t;
     typedef logic bool_t;
@@ -71,13 +80,6 @@ package pkg_global_defs;
         bool_t lt;
         bool_t gt;
     } cmp_result_t;
-
-    parameter TRUE = 1'b1;
-    parameter FALSE = 1'b0;
-    parameter IMM_32_WHATEVER = 32'h12345678;
-    parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
-    parameter INST_MEM_SIZE = 4096;
-    parameter DATA_MEM_SIZE = 4096;
 
     typedef struct {
         reg_nr_t      rs1;
