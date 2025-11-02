@@ -70,10 +70,12 @@ module decoder
 
         if (opcode == OP_ALU_I) begin
             case (funct3)
-                FN3_SRL_SRA: info.imm = {27'b0, inst.itype.imm[24:20]};
+                FN3_SRL_SRA, FN3_SLL: info.imm = {27'b0, inst.itype.imm[24:20]};
                 FN3_ADD_SUB, FN3_OR: info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
-                default:
-                assert (FALSE);  // TODO: add other arithmetic instructions with immediate numbers
+                default: begin
+                    $display("INVALID INSTRUCTION: %h", inst.raw);
+                    assert (FALSE);  // TODO: add other arithmetic instructions with immediate numbers 
+                end
             endcase
             info.aluUseImmAsRs2 = TRUE;
             info.rs2 = REG_NR_INVALID_FALLBACK;
