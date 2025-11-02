@@ -93,7 +93,8 @@ module datapath_pipelined
         // IF -> ID
         if (IfIdRegs_writeEnable) begin
             if (IF_injectNop) begin
-                ifIdRegsQ.pc <= ifIdRegsP.pc;
+                // ifIdRegsQ.pc <= ifIdRegsP.pc;
+                ifIdRegsQ.pc <= 32'h0;
                 ifIdRegsQ.inst <= inst_make_nop();
                 ifIdRegsQ.exceptions <= exception_make_none();
             end else begin
@@ -103,8 +104,8 @@ module datapath_pipelined
         // ID -> EX
         if (IdExRegs_writeEnable) begin
             if (ID_injectNop) begin
-                // send down nop
-                idExRegsQ.pc <= idExRegsP.pc;
+                // idExRegsQ.pc <= idExRegsP.pc;
+                idExRegsQ.pc <= 32'h0;
                 idExRegsQ.instInfo <= inst_info_make_nop();
                 idExRegsQ.exceptions <= exception_make_none();
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
@@ -117,7 +118,8 @@ module datapath_pipelined
         // EX -> MEM
         if (ExMemRegs_writeEnable) begin
             if (EX_injectNop) begin
-                exMemRegsQ.pc <= exMemRegsP.pc;
+                // exMemRegsQ.pc <= exMemRegsP.pc;
+                exMemRegsQ.pc <= 32'h0;
                 exMemRegsQ.instInfo <= inst_info_make_nop();
                 exMemRegsQ.exceptions <= exception_make_none();
                 exMemRegsQ.aluResult <= IMM_32_WHATEVER;
@@ -129,7 +131,8 @@ module datapath_pipelined
         // MEM -> WB
         if (MemWbRegs_writeEnable) begin
             if (MEM_injectNop) begin
-                memWbRegsQ.pc <= memWbRegsP.pc;
+                // memWbRegsQ.pc <= memWbRegsP.pc;
+                memWbRegsQ.pc <= 32'h0;
                 memWbRegsQ.instInfo <= inst_info_make_nop();
                 memWbRegsQ.exceptions <= exception_make_none();
                 memWbRegsQ.memResult <= IMM_32_WHATEVER;

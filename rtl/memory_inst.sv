@@ -26,11 +26,13 @@ module memory_inst
     end
 
     always_comb begin
+        assert (addr < INST_MEM_SIZE)
+        else $display("Invalid memory access @%h while max size is %h", addr, INST_MEM_SIZE);
         inst = {mem[addr+3], mem[addr+2], mem[addr+1], mem[addr]};
         // $display("instruction@%h: %h", addr, inst);
-// `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
+        // `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
         // DEBUG_mem <= mem;
-// `endif
+        // `endif
     end
 
 endmodule

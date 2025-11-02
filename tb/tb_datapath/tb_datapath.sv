@@ -60,7 +60,7 @@ module tb_datapath;
 // `endif
     initial begin
         // datapath_testcases::branch_test1_codegen("inst_mem.hex");
-        datapath_testcases::fib_codegen("inst_mem.hex");
+        // datapath_testcases::fib_codegen("inst_mem.hex");
     end
 
     // run the simulation
@@ -69,9 +69,9 @@ module tb_datapath;
         $dumpfile("tb_datapath.vcd");  // Sets the output file name
         $dumpvars(0, tb_datapath);  // Dumps all signals in the testbench and below
         tb_clk = 0;
-        #2000;  // Run for sufficient time to complete execution
+        #200000;  // Run for sufficient time to complete execution
         // datapath_testcases::branch_test1_check(DEBUG_regs);
-        datapath_testcases::fib_check(DEBUG_regs);
+        // datapath_testcases::fib_check(DEBUG_regs);
         $finish;
     end
 

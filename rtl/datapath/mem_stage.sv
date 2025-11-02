@@ -32,6 +32,7 @@ module mem_stage
                 DL_WORD: MEM_writeDataLen = MEM_STLEN_WORD;
                 default: MEM_writeDataLen = MEM_STLEN_INVALID;
             endcase
+            $display("%h: @%h <- %h", exMemRegs.pc, MEM_writeAddr, MEM_writeData);
         end else begin
             MEM_writeDataLen = MEM_STLEN_INVALID;
         end
@@ -60,6 +61,7 @@ module mem_stage
                 DL_WORD: MEM_result = MEM_data[31:0];
                 default: assert (FALSE);
             endcase
+            $display("%h: @%h -> %h", exMemRegs.pc, MEM_readAddr, MEM_result);
         end else begin
             MEM_result = MEM_aluResult;
         end

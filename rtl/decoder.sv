@@ -20,7 +20,8 @@ module decoder
         info.cmpIsSigned = TRUE;
         info.isStore = FALSE;
         info.isLoad = FALSE;
-        info.aluUseImmAsRs2 = FALSE;
+        info.aluUsePCAsRs1 = FALSE;     // used by branch instructions
+        info.aluUseImmAsRs2 = FALSE;    // used by branch and immediate arithmetic instruction
         info.isWriteback = FALSE;
         info.aluOp = ALU_INVALID;
         info.branchType = BR_INVALID;
@@ -69,9 +70,10 @@ module decoder
 
         if (opcode == OP_ALU_I) begin
             case (funct3)
-            FN3_SRL_SRA: info.imm = {27'b0, inst.itype.imm[24:20]};
-            FN3_ADD_SUB, FN3_OR: info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
-            default: assert(FALSE); // TODO: add other arithmetic instructions with immediate numbers
+                FN3_SRL_SRA: info.imm = {27'b0, inst.itype.imm[24:20]};
+                FN3_ADD_SUB, FN3_OR: info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
+                default:
+                assert (FALSE);  // TODO: add other arithmetic instructions with immediate numbers
             endcase
             info.aluUseImmAsRs2 = TRUE;
             info.rs2 = REG_NR_INVALID_FALLBACK;
@@ -140,6 +142,8 @@ module decoder
                 inst.btype.imm4_1,
                 1'b0
             };
+            // addr = PC + OFFSET
+            info.aluUsePCAsRs1 = TRUE;
             info.aluUseImmAsRs2 = TRUE;
             info.aluOp = ALU_ADD;
             info.rd = REG_NR_INVALID_FALLBACK;
@@ -158,7 +162,11 @@ module decoder
                 default: info.cmpIsSigned = TRUE;
             endcase
         end else if (opcode == OP_JAL) begin
-            // address
+            info.branchType = BR_UNCOND;
+            info.rs1 = REG_NR_INVALID_FALLBACK;
+            info.aluUsePCAsRs1 = TRUE;  // PC + OFFSET
+            info.rs2 = REG_NR_INVALID_FALLBACK;
+            info.aluUseImmAsRs2 = TRUE;
             info.imm = {
                 {11{inst.jtype.imm20}},
                 inst.jtype.imm20,
@@ -167,14 +175,20 @@ module decoder
                 inst.jtype.imm10_1,
                 1'b0
             };
-            info.branchType = BR_UNCOND;
-            info.rs1 = REG_NR_INVALID_FALLBACK;
-            info.rs2 = REG_NR_INVALID_FALLBACK;
             info.rd = inst.jtype.rd;
-            info.isWriteback = TRUE;    // write pc + 4 to rd
+            info.isWriteback = TRUE;  // write pc + 4 to rd
             info.aluOp = ALU_ADD;
+        end else if (opcode == OP_JALR) begin
+            info.branchType = BR_UNCOND;
+            info.rs1 = inst.itype.rs1;
+            info.aluUsePCAsRs1 = FALSE;  // RS1 + OFFSET
+            info.rs2 = REG_NR_INVALID_FALLBACK;
             info.aluUseImmAsRs2 = TRUE;
-            // NOTE: rs1 should be PC
+            info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
+            info.rd = inst.jtype.rd;
+            info.isWriteback = TRUE;  // write pc + 4 to rd
+            info.aluOp = ALU_ADD;
+            // $display("PC <- R%d + %h", info.rs1, info.imm);
         end
 
         // BRANCH end

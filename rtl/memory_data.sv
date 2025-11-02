@@ -23,11 +23,17 @@ module memory_data
 
     always_ff @(posedge clk) begin
         if (writeEnable) begin
+            assert (writeAddr < DATA_MEM_SIZE)
+            else
+                $display(
+                    "Invalid memory access @%h while max size is %h", writeAddr, DATA_MEM_SIZE
+                );
             case (writeDataLen)
-            MEM_STLEN_BYTE: mem[readAddr] <= writeData[7:0];
-            MEM_STLEN_HALF: {mem[readAddr+1], mem[readAddr]} <= writeData[15:0];
-            MEM_STLEN_WORD: {mem[readAddr+3], mem[readAddr+2], mem[readAddr+1], mem[readAddr]} <= writeData;
-            default: assert(FALSE); // TODO: exception
+                MEM_STLEN_BYTE: mem[writeAddr] <= writeData[7:0];
+                MEM_STLEN_HALF: {mem[writeAddr+1], mem[writeAddr]} <= writeData[15:0];
+                MEM_STLEN_WORD:
+                {mem[writeAddr+3], mem[writeAddr+2], mem[writeAddr+1], mem[writeAddr]} <= writeData;
+                default: assert (FALSE);  // TODO: exception
             endcase
         end
     end

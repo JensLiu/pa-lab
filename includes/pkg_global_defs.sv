@@ -10,7 +10,7 @@ package pkg_global_defs;
     parameter IMM_32_WHATEVER = 32'h12345678;
     parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
     parameter INST_MEM_SIZE = 4096 * 1024;
-    parameter DATA_MEM_SIZE = 4096;
+    parameter DATA_MEM_SIZE = 4096 * 1024;
     parameter START_ADDRESS = 'h1000;
 
     // data types
@@ -91,7 +91,7 @@ package pkg_global_defs;
         // ALU
         alu_op_t      aluOp;
         bool_t        aluUseImmAsRs2;
-        // TODO: bool_t        aluUsePCAsRs1;
+        bool_t        aluUsePCAsRs1;
         // registers
         bool_t        isWriteback;
         // memory access

@@ -18,17 +18,17 @@ module ex_stage
 
     word_t EX_aluA;
     word_t EX_aluB;
+    assign EX_aluA = EX_instInfo.aluUsePCAsRs1 ? EX_pc : EX_rs1Data;
+    assign EX_aluB = EX_instInfo.aluUseImmAsRs2 ? EX_instInfo.imm : EX_rs2Data;
+
     always_comb begin
-        if (EX_instInfo.branchType == BR_INVALID) begin
-            // normal operations
-            EX_aluA = EX_rs1Data;
-            EX_aluB = EX_instInfo.aluUseImmAsRs2 ? EX_instInfo.imm : EX_rs2Data;
-        end else begin
+        if (EX_instInfo.branchType != BR_INVALID) begin
             // normal branch and unconditioanl branch all uses relative offset
-            EX_aluA = EX_pc;  // PC
             assert (EX_instInfo.aluUseImmAsRs2);
             assert (EX_aluOp == ALU_ADD);
-            EX_aluB = EX_instInfo.imm;  // OFFSET
+            // if (EX_instInfo.branchType == BR_UNCOND) begin
+            //     assert (EX_instInfo.aluUsePCAsRs1);
+            // end
             // NOTE: for `jal` instrutions, we shuold write PC + 4 to the register
             //       it is handled by faking the aluResult
         end
@@ -96,6 +96,10 @@ module ex_stage
         exHints.EX_rd = EX_instInfo.rd;
         exHints.EX_isLoad = EX_instInfo.isLoad;
         exHints.EX_aluResult = EX_expectedAluResult;
+
+        if (EX_branchTaken) begin
+            $display("Branch to %h", EX_pcBr);
+        end
     end
 
 
