@@ -23,18 +23,14 @@ module ex_stage
             // normal operations
             EX_aluA = EX_rs1Data;
             EX_aluB = EX_instInfo.aluUseImmAsRs2 ? EX_instInfo.imm : EX_rs2Data;
-        end else if (EX_instInfo.branchType != BR_UNCOND) begin
-            // normal branch
+        end else begin
+            // normal branch and unconditioanl branch all uses relative offset
             EX_aluA = EX_pc;  // PC
             assert (EX_instInfo.aluUseImmAsRs2);
             assert (EX_aluOp == ALU_ADD);
             EX_aluB = EX_instInfo.imm;  // OFFSET
-        end else begin
-            // jump
-            EX_aluA = EX_pc;
-            assert (!EX_instInfo.aluUseImmAsRs2);
-            assert (EX_aluOp == ALU_ADD);
-            EX_aluB = 32'h4;
+            // NOTE: for `jal` instrutions, we shuold write PC + 4 to the register
+            //       it is handled by faking the aluResult
         end
     end
 
@@ -80,21 +76,18 @@ module ex_stage
         endcase
     end
 
-    addr_t EX_pcBr;
-    always_comb begin
-        if (EX_instInfo.branchType == BR_UNCOND) begin
-            EX_pcBr = EX_instInfo.imm;
-            // TODO: Store PC_NEXT to register rd for `jal`
-        end else begin
-            EX_pcBr = EX_aluResult;  // PC + offset
-        end
-    end
+    addr_t EX_pcBr = EX_aluResult;
+
+    // NOTE: the "expected ALU result" is emitted and passed down since
+    //       `jal` has the semantics of rd <- PC + 4
+    word_t EX_expectedAluResult;
+    assign EX_expectedAluResult = EX_instInfo.branchType == BR_UNCOND ? EX_pc + 4 : EX_aluResult;
 
     always_comb begin
         // propagate
         exMemRegs.pc = idExRegs.pc;
         exMemRegs.instInfo = idExRegs.instInfo;
-        exMemRegs.aluResult = EX_aluResult;
+        exMemRegs.aluResult = EX_expectedAluResult;
         exMemRegs.stData = EX_instInfo.isStore ? EX_rs2Data : IMM_32_WHATEVER;
         // emit signal
         exHints.EX_branchTaken = EX_branchTaken;
@@ -102,7 +95,7 @@ module ex_stage
         exHints.EX_isWriteback = EX_instInfo.isWriteback;
         exHints.EX_rd = EX_instInfo.rd;
         exHints.EX_isLoad = EX_instInfo.isLoad;
-        exHints.EX_aluResult = EX_aluResult;
+        exHints.EX_aluResult = EX_expectedAluResult;
     end
 
 

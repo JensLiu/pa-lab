@@ -91,6 +91,7 @@ package pkg_global_defs;
         // ALU
         alu_op_t      aluOp;
         bool_t        aluUseImmAsRs2;
+        // TODO: bool_t        aluUsePCAsRs1;
         // registers
         bool_t        isWriteback;
         // memory access
@@ -160,10 +161,10 @@ package pkg_global_defs;
     } if_id_regs_t;
 
     typedef struct {
-        bool_t WB_isWriteback;
+        bool_t   WB_isWriteback;
         reg_nr_t WB_rd;
-        word_t WB_rdData;
-        bool_t WB_hasException;
+        word_t   WB_rdData;
+        bool_t   WB_hasException;
 
         // register R/W conflict resolver
         reg_nr_t EX_rd;
@@ -191,12 +192,12 @@ package pkg_global_defs;
     typedef struct {bool_t placeholder;} ex_control_t;
 
     typedef struct {
-        bool_t EX_branchTaken;
-        addr_t EX_pcBr;
-        bool_t EX_isWriteback;
+        bool_t   EX_branchTaken;
+        addr_t   EX_pcBr;
+        bool_t   EX_isWriteback;
         reg_nr_t EX_rd;
-        bool_t EX_isLoad;
-        word_t EX_aluResult;
+        bool_t   EX_isLoad;
+        word_t   EX_aluResult;
     } ex_hints_t;
 
     typedef struct {
@@ -226,9 +227,9 @@ package pkg_global_defs;
     typedef struct {bool_t placeholder;} wb_control_t;
 
     typedef struct {
-        bool_t   WB_isWriteback;
+        bool_t WB_isWriteback;
         reg_nr_t WB_rd;
-        word_t   WB_rdData;
+        word_t WB_rdData;
         bool_t WB_hasException;
         exception_t WB_exceptions;
     } wb_hints_t;

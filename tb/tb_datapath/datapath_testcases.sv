@@ -8,6 +8,7 @@ package datapath_testcases;
 
     function automatic void fib_codegen(string filename);
         // --- Program Counter (PC) Address Constants ---
+
         parameter FIB_LOOP_ADDR = START_ADDRESS + 'h00000020;
         parameter FIB_N_ZERO_ADDR = START_ADDRESS + 'h00000038;
         parameter FIB_N_ONE_ADDR = START_ADDRESS + 'h00000040;
@@ -51,19 +52,19 @@ package datapath_testcases;
 
         // Loop Control
         `MAKE_INST_3(addi, T0, T0, 1)  // i = i + 1
-        `MAKE_INST_1(j, FIB_LOOP_ADDR)  // Jump back to fib_loop
+        `MAKE_INST_2(j, FIB_LOOP_ADDR, pc)  // Jump back to fib_loop
 
         // FIB_N_ZERO_ADDR (N=0 Handler)
         // ---------------------------------------
         `MAKE_LABEL("fib_n_zero")
         `MAKE_INST_2(li, A0, 0)  // Result F(0) = 0
-        `MAKE_INST_1(j, EXIT_PROGRAM_ADDR)  // Jump to exit_program
+        `MAKE_INST_2(j, EXIT_PROGRAM_ADDR, pc)  // Jump to exit_program
 
         // FIB_N_ONE_ADDR (N=1 Handler)
         // --------------------------------------
         `MAKE_LABEL("fib_n_one")
         `MAKE_INST_2(li, A0, 1)  // Result F(1) = 1
-        `MAKE_INST_1(j, EXIT_PROGRAM_ADDR)  // Jump to exit_program
+        `MAKE_INST_2(j, EXIT_PROGRAM_ADDR, pc)  // Jump to exit_program
 
         // FIB_END_ADDR (Loop Result)
         // ------------------------------------
@@ -89,6 +90,7 @@ package datapath_testcases;
     function automatic void fib_check(reg_t regs[32]);
         assert (regs[A0] == 'd89)
         else $display("testcase fib failed");
+        // $display("result=%d", regs[A0]);
     endfunction
 
     function automatic void memtest1_codegen(string filename);
@@ -234,7 +236,7 @@ package datapath_testcases;
         `MAKE_INST_3(bge, S0, S1, {LOOP_EXIT_ADDR - pc}[12:0])  // if i >= 10: goto loop-exit
         `MAKE_INST_3(add, T0, T0, T0)  // x <- x + x
         `MAKE_INST_3(addi, S0, S0, 1)  // i <- i + 1
-        `MAKE_INST_1(j, LOOP_ADDR)  // jmp loop
+        `MAKE_INST_2(j, LOOP_ADDR, pc)  // jmp loop
         `MAKE_LABEL("loop-exit")
         `MAKE_INST_3(addi, T0, T0, 1)  // x <- x + 1
 

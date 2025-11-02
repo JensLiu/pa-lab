@@ -160,7 +160,7 @@ module decoder
         end else if (opcode == OP_JAL) begin
             // address
             info.imm = {
-                {11{1'b0}},
+                {11{inst.jtype.imm20}},
                 inst.jtype.imm20,
                 inst.jtype.imm19_12,
                 inst.jtype.imm11,
@@ -170,9 +170,11 @@ module decoder
             info.branchType = BR_UNCOND;
             info.rs1 = REG_NR_INVALID_FALLBACK;
             info.rs2 = REG_NR_INVALID_FALLBACK;
+            info.rd = inst.jtype.rd;
             info.isWriteback = TRUE;    // write pc + 4 to rd
             info.aluOp = ALU_ADD;
-            info.aluUseImmAsRs2 = FALSE;
+            info.aluUseImmAsRs2 = TRUE;
+            // NOTE: rs1 should be PC
         end
 
         // BRANCH end

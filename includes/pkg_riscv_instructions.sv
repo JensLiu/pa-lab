@@ -438,8 +438,10 @@ package pkg_riscv_instructions;
         return inst;
     endfunction
 
-    function automatic instruction_t make_j(input logic [20:0] imm);
-        return make_jal(ZERO, imm);
+    function automatic instruction_t make_j(input logic [31:0] addr, input logic [31:0] currPc);
+        logic [31:0] offset = $signed(addr) - $signed(currPc);
+        // $display("%h = %h - %h\n", offset, currPc, addr);
+        return make_jal(ZERO, offset[20:0]);
     endfunction
 
     // U-type instructions (LUI, AUIPC)
