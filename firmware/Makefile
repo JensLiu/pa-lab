@@ -1,17 +1,19 @@
 # Makefile for riscv baremetal machine
 
+COMPILER = riscv64-unknown-elf-gcc
+
 ARCH_FLAGS = -march=rv32im -mabi=ilp32 
-AECH_FLAGS += -ffreestanding -nostdlib
+ARCH_FLAGS += -ffreestanding -nostdlib
 
 all: build intel-hex verilog-hex asm
 
 build:
-	@riscv64-unknown-elf-gcc -c -march=rv32im -mabi=ilp32 \
+	@$(COMPILER) -c -march=rv32im -mabi=ilp32 \
 							-ffreestanding -nostdlib \
 	 						-o main.o main.c
-	@riscv64-unknown-elf-gcc -c -march=rv32im -mabi=ilp32 \
+	@$(COMPILER) -c -march=rv32im -mabi=ilp32 \
 							-o start.o start.S
-	@riscv64-unknown-elf-gcc -march=rv32im -mabi=ilp32 -nostdlib -nostartfiles \
+	@$(COMPILER) -march=rv32im -mabi=ilp32 -nostdlib -nostartfiles \
 							-T linker.ld \
 							-o firmware.elf start.o main.o
 
