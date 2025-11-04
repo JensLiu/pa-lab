@@ -5,12 +5,6 @@ module datapath_pipelined
     import pkg_riscv_instructions::*;
 (
 `ifdef DATAPATH_EXPOSE_INTERNALS
-`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_inst_mem[INST_MEM_SIZE],
-`endif  // INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_data_mem[DATA_MEM_SIZE],
-`endif  // DATA_MEMORY_EXPOSE_INTERNALS
 `ifdef REGISTER_FILE_EXPOSE_INTERNALS
     output reg_t DEBUG_regs[32],
 `endif  // REGISTER_FILE_EXPOSE_INTERNALS
@@ -70,9 +64,6 @@ module datapath_pipelined
     mem_wb_regs_t memWbRegsP;
     mem_stage memStage (
         .clk(clk),  // drives memory
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-        .DEBUG_mem(DEBUG_data_mem),
-`endif
         .exMemRegs(exMemRegsQ),
         .memControl(memControl),
         .memWbRegs(memWbRegsP),

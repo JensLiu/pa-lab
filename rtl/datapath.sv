@@ -11,12 +11,6 @@ module datapath
     output reg_nr_t DEBUG_WB_rdIdx,
     output word_t DEBUG_WB_data,
     output bool_t DEBUG_WB_isWriteback,
-`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_inst_mem[INST_MEM_SIZE],
-`endif
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_data_mem[DATA_MEM_SIZE],
-`endif
 `endif
     input clk_t clk
 );
@@ -47,9 +41,6 @@ module datapath
 
     instruction_t IF_inst;
     memory_inst memInst (
-`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-        .DEBUG_mem(DEBUG_inst_mem),
-`endif
         .clk(clk),
         .addr(IF_pcQ),
         .inst(IF_inst)

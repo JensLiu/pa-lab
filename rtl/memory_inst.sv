@@ -5,9 +5,6 @@ module memory_inst
     import pkg_global_defs::*;
     import pkg_riscv_instructions::*;
 (
-`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-    output byte_t        DEBUG_mem[INST_MEM_SIZE],
-`endif
     input  clk_t         clk,
     input  addr_t        addr,
     output instruction_t inst

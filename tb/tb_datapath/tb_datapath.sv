@@ -41,16 +41,8 @@ module tb_datapath;
 //         );
 // `else
     reg_t DEBUG_regs[32];
-    byte_t DEBUG_inst_mem[INST_MEM_SIZE];
-    byte_t DEBUG_data_mem[DATA_MEM_SIZE];
     datapath_pipelined dut (
 `ifdef DATAPATH_EXPOSE_INTERNALS
-`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-        .DEBUG_inst_mem(DEBUG_inst_mem),
-`endif
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-        .DEBUG_data_mem(DEBUG_data_mem),
-`endif
 `ifdef REGISTER_FILE_EXPOSE_INTERNALS
         .DEBUG_regs(DEBUG_regs),
 `endif

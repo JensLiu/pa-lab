@@ -123,6 +123,7 @@ package pkg_global_defs;
         info.stldDataLen = DL_INVALID;
         info.stldSignedness = SS_INVALID;
         info.branchType = BR_INVALID;
+        return info;
     endfunction
 
     typedef struct {

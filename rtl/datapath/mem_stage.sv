@@ -4,9 +4,6 @@ module mem_stage
     import pkg_riscv_instructions::*;
     import pkg_global_defs::*;
 (
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_mem[DATA_MEM_SIZE],
-`endif
     input clk_t clk,
     input ex_mem_regs_t exMemRegs,
     input mem_control_t memControl,  // <- empty
@@ -39,9 +36,6 @@ module mem_stage
     end
 
     memory_data memData (
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-        .DEBUG_mem(DEBUG_mem),
-`endif
         .clk(clk),
         .readAddr(MEM_readAddr),
         .writeAddr(MEM_writeAddr),

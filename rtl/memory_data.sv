@@ -4,9 +4,6 @@
 module memory_data
     import pkg_global_defs::*;
 (
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-    output byte_t DEBUG_mem[DATA_MEM_SIZE],
-`endif
     input bool_t clk,
     input addr_t readAddr,
     input addr_t writeAddr,
@@ -16,10 +13,6 @@ module memory_data
     output word_t readData
 );
     byte_t mem[DATA_MEM_SIZE];
-
-`ifdef DATA_MEMORY_EXPOSE_INTERNALS
-    assign DEBUG_mem = mem;
-`endif
 
     always_ff @(posedge clk) begin
         if (writeEnable) begin
