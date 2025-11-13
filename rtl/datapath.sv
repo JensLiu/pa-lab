@@ -41,14 +41,15 @@ module datapath
 
     instruction_t IF_inst;
     memory_inst memInst (
-        .clk(clk),
+        .clk (clk),
         .addr(IF_pcQ),
         .inst(IF_inst)
     );
     // INSTRUCTION FETCH end -------------------------------------
 
     // INSTRUCTION DECODING begin --------------------------------
-    reg_t ID_pc = IF_pcQ;
+    reg_t ID_pc;
+    assign ID_pc = IF_pcQ;
     inst_info_t ID_instInfo;
     decoder decoder (
         .inst(IF_inst),
@@ -77,8 +78,10 @@ module datapath
     // INSTRUCTION DECODING end -------------------------
 
     // EXECUTION begin -------------------------------------
-    reg_t EX_pc = ID_pc;
-    inst_info_t EX_instInfo = ID_instInfo;
+    reg_t EX_pc;
+    assign EX_pc = ID_pc;
+    inst_info_t EX_instInfo;
+    assign EX_instInfo = ID_instInfo;
 
     // ALU
     word_t EX_aluA;

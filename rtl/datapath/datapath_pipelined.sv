@@ -9,7 +9,7 @@ module datapath_pipelined
     output reg_t DEBUG_regs[32],
 `endif  // REGISTER_FILE_EXPOSE_INTERNALS
 `endif  // DATAPATH_EXPOSE_INTERNALS
-    input clk_t clk
+    input  clk_t clk
 );
 
     // pipeline registers
@@ -26,10 +26,13 @@ module datapath_pipelined
     wb_control_t wbControl;
 
     // stage signals/hints
+    if_hints_t ifHints;
     id_hints_t idHints;
     ex_hints_t exHints;
     mem_hints_t memHints;
     wb_hints_t wbHints;
+
+    cache_request_if cacheRequest();
 
     if_id_regs_t ifIdRegsP;
     if_stage ifStage (
@@ -38,7 +41,9 @@ module datapath_pipelined
 `endif
         .clk(clk),  // drives PC and memory
         .ifControl(ifControl),
-        .ifIdRegs(ifIdRegsP)
+        .ifIdRegs(ifIdRegsP),
+        .ifHints(ifHints),
+        .cacheRequest(cacheRequest)
     );
 
     id_ex_regs_t idExRegsP;
@@ -67,7 +72,8 @@ module datapath_pipelined
         .exMemRegs(exMemRegsQ),
         .memControl(memControl),
         .memWbRegs(memWbRegsP),
-        .memHints(memHints)
+        .memHints(memHints),
+        .cacheRequest(cacheRequest)
     );
 
     wb_hints_t wbHintsP;
@@ -175,6 +181,10 @@ module datapath_pipelined
         ID_injectNop = FALSE;
         EX_injectNop = FALSE;
         MEM_injectNop = FALSE;
+
+        if (ifHints.shouldHalt) begin
+            IF_injectNop = TRUE;
+        end
 
         if (idHints.shouldHalt) begin
             ID_injectNop = TRUE;

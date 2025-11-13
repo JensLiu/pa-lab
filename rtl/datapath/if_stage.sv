@@ -1,4 +1,4 @@
-
+`timescale 1ps / 1ps
 `include "rtl_common.svh"
 
 module if_stage
@@ -10,7 +10,10 @@ module if_stage
 `endif
     input  clk_t        clk,
     input  if_control_t ifControl,
-    output if_id_regs_t ifIdRegs
+    output if_id_regs_t ifIdRegs,
+    output if_hints_t   ifHints,
+    // interface to the external cache
+    cache_request_if.master cacheRequest
 );
 
     reg_t IF_pcQ;  // PC register
@@ -20,37 +23,31 @@ module if_stage
         $display("Start executing at %h", IF_pcQ);
     end
 
-    reg_t IF_pcNext;
-
-    always_comb begin
+    always_ff @(posedge clk) begin
         // TODO exception handling
         if (ifControl.halt) begin
-            IF_pcNext = IF_pcQ;
+            IF_pcQ <= IF_pcQ;
         end else if (ifControl.branchTaken) begin
-            IF_pcNext = ifControl.pcBr;
+            IF_pcQ <= ifControl.pcBr;
         end else begin
-            IF_pcNext = IF_pcQ + 4;
+            IF_pcQ <= IF_pcQ + 4;
         end
     end
 
-    always_ff @(posedge clk) begin
-        IF_pcQ <= IF_pcNext;
-    end
-
     instruction_t IF_inst;
-    memory_inst memInst (
-`ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-        .DEBUG_mem(DEBUG_mem),
-`endif
-        .clk(clk),
-        .addr(IF_pcQ),
-        .inst(IF_inst)
-    );
+    logic cacheRequestDone;
+    always_comb begin
+        IF_inst = cacheRequest.dataFromCache;
+        cacheRequest.addr = IF_pcQ;
+        cacheRequest.isRead = TRUE;
+        cacheRequestDone = cacheRequest.ready;
+    end
 
 
     always_comb begin
         ifIdRegs.pc   = IF_pcQ;
         ifIdRegs.inst = IF_inst;
+        ifHints.shouldHalt = !cacheRequestDone;
     end
 
 endmodule

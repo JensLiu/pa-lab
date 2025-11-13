@@ -11,6 +11,7 @@ package pkg_global_defs;
     parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
     parameter INST_MEM_SIZE = 4096 * 1024;
     parameter DATA_MEM_SIZE = 4096 * 1024;
+    parameter MEM_SIZE = 4096 * 1024;
     parameter START_ADDRESS = 'h1000;
 
     // data types
@@ -23,6 +24,7 @@ package pkg_global_defs;
     typedef word_t imm_arith_t;
     typedef word_t addr_t;
     typedef word_t reg_t;
+    typedef byte_t [15:0] cacheline_data_t;
 
     // instructions
     typedef enum logic [3:1] {
@@ -160,6 +162,10 @@ package pkg_global_defs;
         instruction_t inst;
         exception_t exceptions;
     } if_id_regs_t;
+
+    typedef struct {
+        logic shouldHalt;
+    } if_hints_t;
 
     typedef struct {
         bool_t   WB_isWriteback;
