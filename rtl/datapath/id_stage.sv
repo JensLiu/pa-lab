@@ -96,6 +96,9 @@ module id_stage
         // propagate pipeline
         idExRegs.pc = ifIdRegs.pc;
         idExRegs.instInfo = instInfo;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        idExRegs.instInfo.DEBUG_instID = ifIdRegs.DEBUG_instID;
+`endif
         idExRegs.rs1Data = ID_rs1Data;
         idExRegs.rs2Data = ID_rs2Data;
         idExRegs.exceptions = ifIdRegs.exceptions;

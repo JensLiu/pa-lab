@@ -19,7 +19,6 @@ module mem_stage
     bool_t MEM_writeEnabled = MEM_instInfo.isStore;
     word_t MEM_writeData = exMemRegs.stData;
 
-    // FIXME: handle store types when is written to memory, should not extend zeros
     mem_stlen_t MEM_writeDataLen;
     always_comb begin
         if (MEM_instInfo.isStore) begin
@@ -29,7 +28,7 @@ module mem_stage
                 DL_WORD: MEM_writeDataLen = MEM_STLEN_WORD;
                 default: MEM_writeDataLen = MEM_STLEN_INVALID;
             endcase
-            $display("%h: @%h <- %h", exMemRegs.pc, MEM_writeAddr, MEM_writeData);
+            // $display("%h: @%h <- %h", exMemRegs.pc, MEM_writeAddr, MEM_writeData);
         end else begin
             MEM_writeDataLen = MEM_STLEN_INVALID;
         end
@@ -55,7 +54,7 @@ module mem_stage
                 DL_WORD: MEM_result = MEM_data[31:0];
                 default: assert (FALSE);
             endcase
-            $display("%h: @%h -> %h", exMemRegs.pc, MEM_readAddr, MEM_result);
+            // $display("%h: @%h -> %h", exMemRegs.pc, MEM_readAddr, MEM_result);
         end else begin
             MEM_result = MEM_aluResult;
         end

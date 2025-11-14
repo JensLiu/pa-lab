@@ -1,5 +1,7 @@
 `timescale 1ns / 1ps
 
+`include "rtl_common.svh"
+
 import pkg_riscv_instructions::instruction_t;
 import pkg_riscv_instructions::make_nop;
 
@@ -101,6 +103,10 @@ package pkg_global_defs;
         signedness_t  stldSignedness;
         // branching
         branch_type_t branchType;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        instruction_t DEBUG_instBinary;
+        word_t        DEBUG_instID;
+`endif
     } inst_info_t;
 
     function automatic instruction_t inst_make_nop();
@@ -123,6 +129,30 @@ package pkg_global_defs;
         info.stldDataLen = DL_INVALID;
         info.stldSignedness = SS_INVALID;
         info.branchType = BR_INVALID;
+        info.DEBUG_instBinary = 32'hFFFFFFFF;
+        info.DEBUG_instID = 32'hFFFFFFFF;
+        return info;
+    endfunction
+
+    function automatic inst_info_t inst_info_make_nop_with_inst_id(word_t inst_id);
+        inst_info_t info;
+        info.rs1 = REG_NR_INVALID_FALLBACK;
+        info.rs2 = REG_NR_INVALID_FALLBACK;
+        info.rd = REG_NR_INVALID_FALLBACK;
+        info.imm = IMM_32_WHATEVER;
+        info.cmpIsSigned = FALSE;
+        info.aluOp = ALU_INVALID;
+        info.aluUseImmAsRs2 = FALSE;
+        info.isWriteback = FALSE;
+        info.isStore = FALSE;
+        info.isLoad = FALSE;
+        info.stldDataLen = DL_INVALID;
+        info.stldSignedness = SS_INVALID;
+        info.branchType = BR_INVALID;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        info.DEBUG_instBinary = inst_make_nop();
+        info.DEBUG_instID = inst_id;
+`endif
         return info;
     endfunction
 
@@ -159,6 +189,9 @@ package pkg_global_defs;
         reg_t pc;
         instruction_t inst;
         exception_t exceptions;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        word_t DEBUG_instID;
+`endif
     } if_id_regs_t;
 
     typedef struct {

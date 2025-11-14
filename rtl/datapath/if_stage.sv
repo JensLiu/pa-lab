@@ -1,4 +1,4 @@
-
+`timescale 1ps / 1ps
 `include "rtl_common.svh"
 
 module if_stage
@@ -51,6 +51,19 @@ module if_stage
     always_comb begin
         ifIdRegs.pc   = IF_pcQ;
         ifIdRegs.inst = IF_inst;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        ifIdRegs.DEBUG_instID = DEBUG_nextInstID;
+`endif
     end
+
+`ifdef DEBUG_INST_INFO_EXTENSION
+    word_t DEBUG_nextInstID;
+    initial DEBUG_nextInstID = 0;
+    always_ff @(posedge clk) begin
+        if (!ifControl.halt) begin
+            DEBUG_nextInstID <= DEBUG_nextInstID + 1;
+        end
+    end
+`endif
 
 endmodule

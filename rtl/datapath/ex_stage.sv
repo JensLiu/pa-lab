@@ -97,9 +97,9 @@ module ex_stage
         exHints.EX_isLoad = EX_instInfo.isLoad;
         exHints.EX_aluResult = EX_expectedAluResult;
 
-        if (EX_branchTaken) begin
-            $display("Branch to %h", EX_pcBr);
-        end
+        // if (EX_branchTaken) begin
+        //     $display("Branch to %h", EX_pcBr);
+        // end
     end
 
 

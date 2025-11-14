@@ -9,7 +9,7 @@ module datapath_pipelined
     output reg_t DEBUG_regs[32],
 `endif  // REGISTER_FILE_EXPOSE_INTERNALS
 `endif  // DATAPATH_EXPOSE_INTERNALS
-    input clk_t clk
+    input  clk_t clk
 );
 
     // pipeline registers
@@ -97,7 +97,13 @@ module datapath_pipelined
             if (ID_injectNop) begin
                 // idExRegsQ.pc <= idExRegsP.pc;
                 idExRegsQ.pc <= 32'h0;
+
+`ifdef DEBUG_INST_INFO_EXTENSION
+                idExRegsQ.instInfo <= inst_info_make_nop_with_inst_id(idExRegsP.instInfo.DEBUG_instID);
+`else
                 idExRegsQ.instInfo <= inst_info_make_nop();
+`endif
+
                 idExRegsQ.exceptions <= exception_make_none();
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
                 idExRegsQ.rs2Data <= IMM_32_WHATEVER;
@@ -111,7 +117,11 @@ module datapath_pipelined
             if (EX_injectNop) begin
                 // exMemRegsQ.pc <= exMemRegsP.pc;
                 exMemRegsQ.pc <= 32'h0;
+`ifdef DEBUG_INST_INFO_EXTENSION
+                exMemRegsQ.instInfo <= inst_info_make_nop_with_inst_id(exMemRegsP.instInfo.DEBUG_instID);
+`else
                 exMemRegsQ.instInfo <= inst_info_make_nop();
+`endif
                 exMemRegsQ.exceptions <= exception_make_none();
                 exMemRegsQ.aluResult <= IMM_32_WHATEVER;
                 exMemRegsQ.stData <= IMM_32_WHATEVER;
@@ -124,9 +134,13 @@ module datapath_pipelined
             if (MEM_injectNop) begin
                 // memWbRegsQ.pc <= memWbRegsP.pc;
                 memWbRegsQ.pc <= 32'h0;
+`ifdef DEBUG_INST_INFO_EXTENSION
+                memWbRegsQ.instInfo <= inst_info_make_nop_with_inst_id(memWbRegsP.instInfo.DEBUG_instID);
+`else
                 memWbRegsQ.instInfo <= inst_info_make_nop();
+`endif
                 memWbRegsQ.exceptions <= exception_make_none();
-                memWbRegsQ.memResult <= IMM_32_WHATEVER;
+                memWbRegsQ.memResult  <= IMM_32_WHATEVER;
             end else begin
                 memWbRegsQ <= memWbRegsP;
             end
@@ -201,8 +215,5 @@ module datapath_pipelined
             MEM_injectNop = TRUE;
         end
     end
-
-
-
 
 endmodule

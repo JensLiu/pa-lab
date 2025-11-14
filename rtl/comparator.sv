@@ -1,3 +1,4 @@
+`timescale 1ps / 1ps
 `include "rtl_common.svh"
 
 module comparator

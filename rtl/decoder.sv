@@ -26,6 +26,10 @@ module decoder
         info.aluOp = ALU_INVALID;
         info.branchType = BR_INVALID;
         info.stldDataLen = DL_INVALID;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        info.DEBUG_instBinary = inst;
+        info.DEBUG_instID = 32'hDEADBEEF;  // the ID assignement logic can overwrite this later
+`endif
 
 
         // ALU begin
@@ -71,7 +75,7 @@ module decoder
         if (opcode == OP_ALU_I) begin
             case (funct3)
                 FN3_SRL_SRA, FN3_SLL: info.imm = {27'b0, inst.itype.imm[24:20]};
-                FN3_ADD_SUB, FN3_OR: info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
+                FN3_ADD_SUB, FN3_OR:  info.imm = {{20{inst.itype.imm[31]}}, inst.itype.imm};
                 default: begin
                     $display("INVALID INSTRUCTION: %h", inst.raw);
                     assert (FALSE);  // TODO: add other arithmetic instructions with immediate numbers 

@@ -8,3 +8,4 @@ firmware/*.mem
 firmware/*.hex
 firmware/*.elf
 firmware/*.asm
+sim/obj_dir
