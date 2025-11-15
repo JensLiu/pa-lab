@@ -4,7 +4,12 @@
 // reference
 //  - https://danielmangum.com/posts/risc-v-bytes-intro-instruction-formats
 
+`ifndef PKG_RISCV_INSTRUCTIONS_SV
+`define PKG_RISCV_INSTRUCTIONS_SV
+
+`ifndef LESS_EXPRESSIVE_GRAMMAR
 package pkg_riscv_instructions;
+`endif
 
     typedef enum logic [6:0] {
         OP_ALU_R =  7'b0110011,  // ALU: register-register
@@ -122,6 +127,7 @@ package pkg_riscv_instructions;
         instruction_jtype_t   jtype;
     } instruction_t;
 
+`ifndef LESS_EXPRESSIVE_GRAMMAR
     // RISC-V command generator
     function automatic instruction_t make_add(input logic [4:0] rd, input logic [4:0] rs1,
                                               input logic [4:0] rs2);
@@ -474,7 +480,7 @@ package pkg_riscv_instructions;
     //     inst.itype.opcode = OP_JALR;
     //     return inst;
     // endfunction
-
+`endif // LESS_EXPRESSIVE_GRAMMAR
     // Register indices
     parameter ZERO = 5'd0;
     parameter RA = 5'd1;
@@ -509,4 +515,8 @@ package pkg_riscv_instructions;
     parameter T5 = 5'd30;
     parameter T6 = 5'd31;
 
+`ifndef LESS_EXPRESSIVE_GRAMMAR
 endpackage : pkg_riscv_instructions
+`endif
+
+`endif // PKG_RISCV_INSTRUCTIONS_SV

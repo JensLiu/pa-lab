@@ -8,22 +8,14 @@ module tb_unified_memory;
     logic clk;
 
     // DUT signals / interface
-    request_control_interface request_if ();
-    addr_t addr;
-    logic isRead;
-    cacheline_data_t dataIn;
-    cacheline_data_t dataOut;
+    mem_request_if request_if ();
     cacheline_data_t pattern1;
     cacheline_data_t pattern2;
 
     // Instantiate DUT
     unified_memory dut (
         .request(request_if.slave),
-        .clk(clk),
-        .addr(addr),
-        .isRead(isRead),
-        .dataIn(dataIn),
-        .dataOut(dataOut)
+        .clk(clk)
     );
 
     // simple clock: 10ns period
@@ -33,9 +25,9 @@ module tb_unified_memory;
     // helpers
     task automatic write_cacheline(addr_t a, cacheline_data_t d);
         begin
-            addr = a;
-            isRead = 0;
-            dataIn = d;
+            request_if.addr = a;
+            request_if.isRead = 0;
+            request_if.dataToMem = d;
             request_if.request = TRUE;
             @(posedge clk);
 
@@ -48,8 +40,8 @@ module tb_unified_memory;
     task automatic read_cacheline_and_check(addr_t a, cacheline_data_t expected);
         integer i;
         begin
-            addr = a;
-            isRead = 1;
+            request_if.addr = a;
+            request_if.isRead = 1;
             request_if.request = TRUE;
             @(posedge clk);
 
@@ -57,15 +49,17 @@ module tb_unified_memory;
             wait (request_if.ready == TRUE);
             @(posedge clk);
 
-            // check returned dataOut bytes
+            // check returned dataFromMem bytes
             for (i = 0; i < 16; i = i + 1) begin
-                if (dataOut[i] !== expected[15-i]) begin
-                    $display("[FAIL] read mismatch at addr %0h byte %0d", addr + i, i);
-                    $display("  got %02x expected %02x", dataOut[i], expected[i]);
+                if (request_if.dataFromMem[i] !== expected[i]) begin
+                    $display("[FAIL] read mismatch at addr %0h byte %0d",
+                             request_if.addr + i, i);
+                    $display("  got %02x expected %02x",
+                             request_if.dataFromMem[i], expected[i]);
                     $fatal(1);
                 end
             end
-            $display("[PASS] read match at addr %0h", addr);
+            $display("[PASS] read match at addr %0h", request_if.addr);
         end
     endtask
 
@@ -78,11 +72,11 @@ module tb_unified_memory;
         // initialize interface signals
         request_if.request = FALSE;
         // request_if.ready is driven by DUT, do not drive it from TB
-        request_if.failed = FALSE;
+        // request_if.failed is driven by DUT, do not drive it from TB
 
-        addr = '0;
-        isRead = 0;
-        dataIn = '{default: '0};
+        request_if.addr = '0;
+        request_if.isRead = 0;
+        request_if.dataToMem = '{default: '0};
 
         // small wait for stable init
         repeat (2) @(posedge clk);

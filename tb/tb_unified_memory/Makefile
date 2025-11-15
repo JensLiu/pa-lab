@@ -26,4 +26,4 @@ include ../includes/tb_common.mk
 
 BASE_DIR = ../..
 TOP_MODULE = tb_unified_memory
-RTL_SOURCES = ${RTL_DIR}/unified_memory.sv
+RTL_SOURCES = ${RTL_DIR}/mem_request_if.sv ${RTL_DIR}/unified_memory.sv

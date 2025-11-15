@@ -3,14 +3,10 @@
 module unified_memory
     import pkg_global_defs::*;
 (
-    request_control_interface.slave request,
     input logic clk,
-    input addr_t addr,
-    input logic isRead,
-    input cacheline_data_t dataIn,
-    output cacheline_data_t dataOut
+    mem_request_if.slave request
 `ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS
-    ,input byte_t debug_MEM[MEM_SIZE]
+    ,output byte_t debug_MEM[MEM_SIZE]
 `endif
 );
     localparam MEMORY_ACCESS_DELAY = 10;
@@ -20,93 +16,76 @@ module unified_memory
     assign debug_MEM = mem;
 `endif
 
-    typedef enum logic [3:0] {
+    typedef enum logic [1:0] {
         IDLE,
         MOCK_DELAY,
-        FINISHED
+        DONE
     } memory_state_t;
 
     memory_state_t currentState, nextState;
     logic [3:0] delayCountdown;
 
-    always_comb begin
-        assert (addr < DATA_MEM_SIZE)
-        else $display("Invalid memory access @%h while max size is %h", addr + 15, DATA_MEM_SIZE);
-        if (isRead) begin
-            dataOut = {
-                mem[addr+0],
-                mem[addr+1],
-                mem[addr+2],
-                mem[addr+3],
-                mem[addr+4],
-                mem[addr+5],
-                mem[addr+6],
-                mem[addr+7],
-                mem[addr+8],
-                mem[addr+9],
-                mem[addr+10],
-                mem[addr+11],
-                mem[addr+12],
-                mem[addr+13],
-                mem[addr+14],
-                mem[addr+15]
-            };
-        end else begin
-            dataOut = 1234567891;
-        end
+    always_comb begin : DataResponse
+        assert (request.addr < DATA_MEM_SIZE)
+        else $display("Invalid memory access @%h while max size is %h", request.addr + 15, DATA_MEM_SIZE);
+
     end
 
-    always_ff @(posedge clk) begin
+    always_ff @(posedge clk) begin : StateUpdate
         currentState <= nextState;
-        if (currentState == IDLE && nextState == MOCK_DELAY) begin
-            delayCountdown <= MEMORY_ACCESS_DELAY - 1;
-        end else if (currentState == MOCK_DELAY && nextState == MOCK_DELAY) begin
-            assert (delayCountdown > 0);
-            delayCountdown <= delayCountdown - 1;
-        end else if (currentState == MOCK_DELAY && nextState == FINISHED) begin
-            mem[addr+0]  <= dataIn[0];
-            mem[addr+1]  <= dataIn[1];
-            mem[addr+2]  <= dataIn[2];
-            mem[addr+3]  <= dataIn[3];
-            mem[addr+4]  <= dataIn[4];
-            mem[addr+5]  <= dataIn[5];
-            mem[addr+6]  <= dataIn[6];
-            mem[addr+7]  <= dataIn[7];
-            mem[addr+8]  <= dataIn[8];
-            mem[addr+9]  <= dataIn[9];
-            mem[addr+10] <= dataIn[10];
-            mem[addr+11] <= dataIn[11];
-            mem[addr+12] <= dataIn[12];
-            mem[addr+13] <= dataIn[13];
-            mem[addr+14] <= dataIn[14];
-            mem[addr+15] <= dataIn[15];
-        end
     end
 
-    always_comb begin
+    always_comb begin : NextStateLogic
+        nextState = currentState;
         case (currentState)
             IDLE: begin
-                request.ready = FALSE;
-                request.failed = FALSE;
                 if (request.request) begin
                     nextState = MOCK_DELAY;
                 end
             end
             MOCK_DELAY: begin
                 if (delayCountdown == 0) begin
-                    nextState = FINISHED;
-                end else begin
-                    nextState = MOCK_DELAY;
+                    nextState = DONE;
                 end
             end
-            FINISHED: begin
-                request.ready  = TRUE;
-                request.failed = FALSE;
+            DONE: begin
                 nextState = IDLE;
             end
-            default assert(FALSE);
+            default: begin
+                assert (FALSE);
+            end
         endcase
     end
 
+    always_ff @(posedge clk) begin : CounterUpdate
+        if (currentState == IDLE && nextState == MOCK_DELAY) begin
+            delayCountdown <= MEMORY_ACCESS_DELAY - 1;
+        end else if (currentState == MOCK_DELAY) begin
+            delayCountdown <= delayCountdown - 1;
+        end
+    end
+
+    always_ff @(posedge clk) begin : RequestResponse
+        request.failed <= FALSE;
+        request.ready <= FALSE;
+        request.dataFromMem <= '0;
+        if (nextState == DONE) begin
+            request.ready <= TRUE;
+            if (request.isRead) begin
+                for (int  i = 0; i < 16; i++) begin
+                    request.dataFromMem[i] <= mem[request.addr + i];
+                end
+            end
+        end
+    end
+
+    always_ff @(posedge clk) begin : UpdateMemory
+        if (currentState == MOCK_DELAY && nextState == DONE && !request.isRead) begin
+            // visible at `DONE`. It's fine since we serve one read/write request at a time
+            for (int i = 0; i < 16; i++) begin
+                mem[request.addr + i] <= request.dataToMem[i];
+            end
+        end
+    end
+
 endmodule
-;

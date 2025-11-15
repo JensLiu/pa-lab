@@ -1,0 +1,24 @@
+# Lint-only filelist: packages + RTL modules (no testbenches)
+# packages (dependency order)
+includes/pkg_riscv_instructions.sv
+includes/pkg_global_defs.sv
+
+# include helpers / interfaces
+includes/request_control_interface.sv
+
+# RTL (top-level and submodules)
+// rtl/datapath/datapath_pipelined.sv
+// rtl/datapath/if_stage.sv
+// rtl/datapath/id_stage.sv
+// rtl/datapath/ex_stage.sv
+// rtl/datapath/mem_stage.sv
+// rtl/datapath/wb_stage.sv
+// rtl/datapath.sv
+// rtl/alu.sv
+// rtl/comparator.sv
+// rtl/decoder.sv
+// rtl/register_file.sv
+// rtl/memory.sv
+// rtl/memory_inst.sv
+// rtl/memory_data.sv
+// rtl/cache.sv

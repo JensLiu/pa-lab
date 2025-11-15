@@ -30,4 +30,3 @@ interface mem_request_if;
     );
 
 endinterface
-;
