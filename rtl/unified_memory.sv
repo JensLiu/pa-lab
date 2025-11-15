@@ -6,14 +6,25 @@ module unified_memory
     input logic clk,
     mem_request_if.slave request
 `ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS
-    ,output byte_t debug_MEM[MEM_SIZE]
+    ,output byte_t DEBUG_mem[MEM_SIZE]
 `endif
 );
     localparam MEMORY_ACCESS_DELAY = 10;
     byte_t mem[DATA_MEM_SIZE];
 
+    initial begin
+        $display("INST_MEM_SIZE=%d", INST_MEM_SIZE);
+        $readmemh("inst_mem.hex", mem);
+        // for (int i = 0; i < 100; i++) begin
+        //     if (i != 0 && i % 4 == 0) begin
+        //         $write("\n");
+        //     end
+        //     $write("%h ", mem[i]);
+        // end
+    end
+
 `ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS
-    assign debug_MEM = mem;
+    assign DEBUG_mem = mem;
 `endif
 
     typedef enum logic [1:0] {

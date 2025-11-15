@@ -32,7 +32,8 @@ module datapath_pipelined
     mem_hints_t memHints;
     wb_hints_t wbHints;
 
-    cache_request_if cacheRequest();
+    cache_request_if instCacheCpuRequest();
+    cache_request_if dataCacheCpuRequest();
 
     if_id_regs_t ifIdRegsP;
     if_stage ifStage (
@@ -43,7 +44,7 @@ module datapath_pipelined
         .ifControl(ifControl),
         .ifIdRegs(ifIdRegsP),
         .ifHints(ifHints),
-        .cacheRequest(cacheRequest)
+        .cacheRequest(instCacheCpuRequest.master)
     );
 
     id_ex_regs_t idExRegsP;
@@ -73,7 +74,7 @@ module datapath_pipelined
         .memControl(memControl),
         .memWbRegs(memWbRegsP),
         .memHints(memHints),
-        .cacheRequest(cacheRequest)
+        .cacheRequest(dataCacheCpuRequest.master)
     );
 
     wb_hints_t wbHintsP;
@@ -83,10 +84,39 @@ module datapath_pipelined
         .wbHints  (wbHints)
     );
 
+    mem_request_if instCacheMemRequest();
+    mem_request_if dataCacheMemRequest();
+    cache instructionCache(
+        .clk(clk),
+        .cpuRequest(instCacheCpuRequest.slave),
+        .memRequest(instCacheMemRequest.master)
+    );
+    cache dataCache (
+        .clk(clk),
+        .cpuRequest(dataCacheCpuRequest.slave),
+        .memRequest(dataCacheMemRequest.master)
+    );
+
+    mem_request_if memRequest();
+    memory_request_sequencer memRequestSequencer(
+        .instCacheRequest(instCacheMemRequest.slave),
+        .dataCacheRequest(dataCacheMemRequest.slave),
+        .memoryRequest(memRequest.master)
+    );
+
+    byte_t DEBUG_mem[DATA_MEM_SIZE];
+    unified_memory memory(
+        .clk(clk),
+        .request(memRequest.slave)
+`ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS
+        ,.DEBUG_mem(DEBUG_mem)
+`endif
+    );
+
     // Pipeline State Registers Propogation
     bool_t IfIdRegs_writeEnable, IdExRegs_writeEnable, ExMemRegs_writeEnable, MemWbRegs_writeEnable;
     bool_t IF_injectNop, ID_injectNop, EX_injectNop, MEM_injectNop;
-    always_ff @(posedge clk) begin : pipeline_propogation
+    always_ff @(posedge clk) begin : PipelinePropogation
         // IF -> ID
         if (IfIdRegs_writeEnable) begin
             if (IF_injectNop) begin
@@ -140,9 +170,9 @@ module datapath_pipelined
     end
 
     // Stage Control Assignment
-    always_comb begin : stage_control
+    always_comb begin : StageControl
         // IF Control
-        ifControl.halt = idHints.shouldHalt || memHints.shouldHalt;
+        ifControl.halt = ifHints.shouldHalt || idHints.shouldHalt || memHints.shouldHalt;
         ifControl.branchTaken = exHints.EX_branchTaken;
         ifControl.pcBr = exHints.EX_pcBr;
 
@@ -172,7 +202,7 @@ module datapath_pipelined
 
 
     // Pipeline Control Assignment
-    always_comb begin : pipeline_control
+    always_comb begin : PipelineControl
         IfIdRegs_writeEnable = TRUE;
         IdExRegs_writeEnable = TRUE;
         ExMemRegs_writeEnable = TRUE;
@@ -211,8 +241,5 @@ module datapath_pipelined
             MEM_injectNop = TRUE;
         end
     end
-
-
-
 
 endmodule
