@@ -1,7 +1,12 @@
 `timescale 1ns / 1ps
 
+
 `ifndef PKG_GLOBAL_DEFS_SV
 `define PKG_GLOBAL_DEFS_SV
+
+`include "rtl_common.svh"
+import pkg_riscv_instructions::instruction_t;
+import pkg_riscv_instructions::make_nop;
 
 `ifndef LESS_EXPRESSIVE_GRAMMAR
 import pkg_riscv_instructions::*;
@@ -106,7 +111,34 @@ package pkg_global_defs;
         signedness_t  stldSignedness;
         // branching
         branch_type_t branchType;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        instruction_t DEBUG_instBinary;
+        word_t        DEBUG_instID;
+`endif
     } inst_info_t;
+
+    function automatic instruction_t inst_make_nop();
+        instruction_t inst = make_nop();
+        return inst;
+    endfunction
+
+    function automatic inst_info_t inst_info_make_nop();
+        inst_info_t info;
+        info.rs1 = REG_NR_INVALID_FALLBACK;
+        info.rs2 = REG_NR_INVALID_FALLBACK;
+        info.rd = REG_NR_INVALID_FALLBACK;
+        info.imm = IMM_32_WHATEVER;
+        info.cmpIsSigned = FALSE;
+        info.aluOp = ALU_INVALID;
+        info.aluUseImmAsRs2 = FALSE;
+        info.isWriteback = FALSE;
+        info.isStore = FALSE;
+        info.isLoad = FALSE;
+        info.stldDataLen = DL_INVALID;
+        info.stldSignedness = SS_INVALID;
+        info.branchType = BR_INVALID;
+        return info;
+    endfunction
 
     typedef struct packed {
         logic zero;
@@ -133,6 +165,9 @@ package pkg_global_defs;
         reg_t pc;
         instruction_t inst;
         exception_t exceptions;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        word_t DEBUG_instID;
+`endif
     } if_id_regs_t;
 
     typedef struct packed {logic shouldHalt;} if_hints_t;
