@@ -28,7 +28,8 @@ package pkg_global_defs;
     typedef word_t imm_arith_t;
     typedef word_t addr_t;
     typedef word_t reg_t;
-    typedef byte_t [15:0] cacheline_data_t;
+    // typedef byte_t [15:0] cacheline_data_t;
+    typedef logic [127:0] cacheline_data_t;
 
     // instructions
     typedef enum logic [3:1] {

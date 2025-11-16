@@ -9,6 +9,7 @@ interface cache_request_if;
     addr_t addr;
     word_t dataToCache;
     word_t dataFromCache;
+    
 
     modport master (
         output request,

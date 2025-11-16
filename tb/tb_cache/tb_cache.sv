@@ -11,6 +11,11 @@ module tb_cache;
         forever #5 clk = ~clk;  // 10ns period = 100MHz
     end
 
+    logic [31:0] cycle_count;
+    always_ff @(posedge clk) begin
+        cycle_count <= cycle_count + 1;
+    end
+
     // Interfaces
     cache_request_if cpuRequest ();
     mem_request_if memRequest ();
@@ -19,7 +24,7 @@ module tb_cache;
     logic [127:0] backing_memory[bit [31:0]];  // Associative array for sparse memory
 
     // DUT
-    cache dut (
+    cache_fast dut (
         .clk(clk),
         .cpuRequest(cpuRequest.slave),
         .memRequest(memRequest.master)
@@ -59,11 +64,12 @@ module tb_cache;
                 end
             end
             MOCK_MEM_DONE: begin
-                memRequest.ready <= '0; // visible in the IDLE state
+                memRequest.ready <= '0;  // visible in the IDLE state
                 mockMemState <= MOCK_MEM_IDLE;
             end
             default: assert (FALSE);
         endcase
+        $display("@%d: memory state = %d", cycle_count, mockMemState);
     end
 
     // Test variables
@@ -73,11 +79,12 @@ module tb_cache;
     // Task to check results
     task automatic check_eq(string name, logic [31:0] actual, logic [31:0] expected);
         if (actual === expected) begin
-            $display("[PASS] Test %0d - %s: 0x%h == 0x%h", test_num, name, actual, expected);
+            $display("[PASS] @%0d Test %0d - %s: 0x%h == 0x%h", cycle_count, test_num, name,
+                     actual, expected);
             passed++;
         end else begin
-            $display("[FAIL] Test %0d - %s: 0x%h != 0x%h (expected)", test_num, name, actual,
-                     expected);
+            $display("[FAIL] @%0d Test %0d - %s: 0x%h != 0x%h (expected)", cycle_count, test_num,
+                     name, actual, expected);
             failed++;
         end
     endtask
@@ -86,28 +93,30 @@ module tb_cache;
     task automatic cache_read(input addr_t addr, input word_t expected_data,
                               input string test_name);
         test_num++;
-        $display("\nTest %0d: %s", test_num, test_name);
+        $display("\n@%0d Test %0d: %s", cycle_count, test_num, test_name);
         $display("  Reading from address 0x%h", addr);
 
         cpuRequest.request = 1'b1;
         cpuRequest.isRead = 1'b1;
         cpuRequest.addr = addr;
         cpuRequest.invalidateAll = 1'b0;
-
+        // otherwise it would read ready from the previous instruction 
+        // (guaranteed to hit since it is loaded to the cache)
+        @(posedge clk);
         // Wait for ready
         wait (cpuRequest.ready == 1'b1);
+        $display("  @%d: detected ready after read request", cycle_count);
         @(posedge clk);
+
         $display("  Data read from cache: 0x%h", cpuRequest.dataFromCache);
         check_eq(test_name, cpuRequest.dataFromCache, expected_data);
-
-        cpuRequest.request = 1'b0;
         @(posedge clk);
     endtask
 
     // Task to perform a cache write
     task automatic cache_write(input addr_t addr, input word_t data, input string test_name);
         test_num++;
-        $display("\nTest %0d: %s", test_num, test_name);
+        $display("\n@%0d Test %0d: %s", cycle_count, test_num, test_name);
         $display("  Writing 0x%h to address 0x%h", data, addr);
 
         cpuRequest.request = 1'b1;
@@ -117,14 +126,17 @@ module tb_cache;
         cpuRequest.invalidateAll = 1'b0;
 
         // Wait for ready
+        @(posedge clk);
         wait (cpuRequest.ready == 1'b1);
+        $display("  @%d: detected ready after write request", cycle_count);
         @(posedge clk);
 
-        $display("  [PASS] Write completed");
+        // TODO: this does not hold, why?
+        // assert (cpuRequest.ready == 1'b1);
+        $display("  @%d: [PASS] Write completed", cycle_count);
         passed++;
-
-        cpuRequest.request = 1'b0;
         @(posedge clk);
+
     endtask
 
     // Task to invalidate cache
@@ -138,7 +150,7 @@ module tb_cache;
         cpuRequest.invalidateAll = 1'b0;
         @(posedge clk);
 
-        $display("  [PASS] Cache invalidated");
+        $display("  @%d: [PASS] Cache invalidated", $time);
         passed++;
     endtask
 
@@ -161,7 +173,7 @@ module tb_cache;
         $display("========================================");
         $display("tb_cache starting");
         $display("========================================");
-        $dumpfile("tb_cache.vcd");
+        $dumpfile("tb_cache.fst");
         $dumpvars(0, tb_cache);
 
         // Initialize signals
@@ -187,24 +199,20 @@ module tb_cache;
         // ========================================
         cache_read(32'h0000_0004, 32'h33333333, "Read hit - Set 0, Way 0, offset 4");
         cache_read(32'h0000_0008, 32'h22222222, "Read hit - Set 0, Way 0, offset 8");
-
-        // ========================================
-        // Test 3: Read miss to different tag, same set (Way 1)
-        // ========================================
+        // // ========================================
+        // // Test 3: Read miss to different tag, same set (Way 1)
+        // // ========================================
         cache_read(32'h0200_0000, 32'hDDDDDDDD, "Read miss - Set 0, Way 1, offset 0");
-
         // ========================================
         // Test 4: Verify both ways still hit
         // ========================================
         cache_read(32'h0000_0000, 32'h44444444, "Read hit - Set 0, Way 0 (verify)");
         cache_read(32'h0200_0004, 32'hCCCCCCCC, "Read hit - Set 0, Way 1");
-
         // ========================================
         // Test 5: Read miss causing eviction (LRU)
         // ========================================
         // This should evict the least recently used way
         cache_read(32'h0400_0000, 32'h00000000, "Read miss - Set 0, causing eviction");
-
         // ========================================
         // Test 6: Write to cache (write allocate)
         // ========================================
@@ -215,6 +223,7 @@ module tb_cache;
         // ========================================
         // Test 7: Read back written data
         // ========================================
+        // TODO: with and without this, the cache is different, why?
         cache_read(32'h0000_0010, 32'hDEADBEEF, "Read hit - verify write");
 
         // ========================================

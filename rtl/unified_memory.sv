@@ -9,7 +9,7 @@ module unified_memory
     ,output byte_t DEBUG_mem[MEM_SIZE]
 `endif
 );
-    localparam MEMORY_ACCESS_DELAY = 10;
+    localparam MEMORY_ACCESS_DELAY = 3;
     byte_t mem[DATA_MEM_SIZE];
 
     initial begin
@@ -78,7 +78,7 @@ module unified_memory
             request.ready <= TRUE;
             if (request.isRead) begin
                 for (int  i = 0; i < 16; i++) begin
-                    request.dataFromMem[i] <= mem[request.addr + i];
+                    request.dataFromMem[i*8+:8] <= mem[request.addr + i];
                 end
             end
         end
