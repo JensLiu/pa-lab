@@ -4,7 +4,8 @@ includes/pkg_riscv_instructions.sv
 includes/pkg_global_defs.sv
 
 # include helpers / interfaces
-includes/request_control_interface.sv
+rtl/cache_request_if.sv
+rtl/mem_request_if.sv
 
 # RTL (top-level and submodules)
 // rtl/datapath/datapath_pipelined.sv
