@@ -91,7 +91,7 @@ module datapath_pipelined
         .cpuRequest(instCacheCpuRequest.slave),
         .memRequest(instCacheMemRequest.master)
     );
-    cache dataCache (
+    cache_fast dataCache (
         .clk(clk),
         .cpuRequest(dataCacheCpuRequest.slave),
         .memRequest(dataCacheMemRequest.master)

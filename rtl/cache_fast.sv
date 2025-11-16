@@ -3,34 +3,34 @@
 import pkg_global_defs::*;
 import pkg_riscv_instructions::*;
 
-// // data line: 128-bit (16 bytes)
-// # of sets: 8 -> 3-bit addressing
-// # of ways: 2
-// offset within the cacheline: 4-bit
-//  - 128 bits within the cache line => 16 bytes => 4-bit addressing
-// [tag][set][offset]
-typedef struct {
-    logic [24:0]  tag;    // 25 bits de tag
-    logic [127:0] data;   // 16 bytes = 128 bits
-    bool_t        valid;
-    bool_t        dirty;
-} cache_line_t;
-
-typedef cache_line_t cache_set_t[2];  //2 way associative
-typedef cache_set_t cache_t[8];  // 8 sets
-typedef struct {bool_t lastUsed;} cache_lru_policy_t;
-typedef struct packed {
-    logic [24:0] tag;     // 25-bit tag
-    logic [2:0]  setIdx;  // 3-bit set address (8 sets)
-    logic [3:0]  offset;  // 4-bit byte offset address
-} addr_access_t;
-
 
 module cache_fast (
     input logic clk,
     cache_request_if.slave cpuRequest,
     mem_request_if.master memRequest
 );
+
+    // // data line: 128-bit (16 bytes)
+    // # of sets: 8 -> 3-bit addressing
+    // # of ways: 2
+    // offset within the cacheline: 4-bit
+    //  - 128 bits within the cache line => 16 bytes => 4-bit addressing
+    // [tag][set][offset]
+    typedef struct {
+        logic [24:0]  tag;    // 25 bits de tag
+        logic [127:0] data;   // 16 bytes = 128 bits
+        bool_t        valid;
+        bool_t        dirty;
+    } cache_line_t;
+
+    typedef cache_line_t cache_set_t[2];  //2 way associative
+    typedef cache_set_t cache_t[8];  // 8 sets
+    typedef struct {bool_t lastUsed;} cache_lru_policy_t;
+    typedef struct packed {
+        logic [24:0] tag;     // 25-bit tag
+        logic [2:0]  setIdx;  // 3-bit set address (8 sets)
+        logic [3:0]  offset;  // 4-bit byte offset address
+    } addr_access_t;
 
     // NOTE: here we assume that input cpuRequest.* stays unchanged
     //       as long as cpuRequest.request is asserted
