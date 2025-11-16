@@ -94,13 +94,16 @@ test_driver:
 	@echo "  -> ./sim_main"
 
 run: test_driver tests
+	rm -f */failed
 	@echo "==> Running simulation"
 	./obj_dir/Vdatapath_pipelined
 
 clean:
 	@echo "Cleaning build artifacts..."
 	-rm -rf */build
-	-rm -f */inst.mem
+	-rm -f */memory.hex
+	-rm -f */*.fst
+	-rm -f */failed
 	-rm -rf obj_dir
 	-rm -f sim_main
 

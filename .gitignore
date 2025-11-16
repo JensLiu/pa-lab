@@ -14,4 +14,6 @@ test/obj_dir
 test/*/build
 test/*/mem.hex
 test/*/*.fst
+test/*/failed
+test/*/*.log
 filelist_lint.f

@@ -5,12 +5,14 @@
 #include "verilated_fst_c.h"
 #include <iostream>
 
+typedef Vdatapath_pipelined SimClass;
+
 int main(int argc, char **argv) {
   Verilated::commandArgs(argc, argv);
   Verilated::traceEverOn(true);
 
   SimClass *sim = new SimClass;
-  const std::string dumpfile = "simulation.log";
+  std::ofstream dumpfile("simulation.log");
   PipelineStageLogger<SimClass> logger(sim, dumpfile);
 
   VerilatedFstC *tfp = new VerilatedFstC;
@@ -27,6 +29,7 @@ int main(int argc, char **argv) {
     sim->eval();
     tfp->dump(cycle * 10);
     logger.on_tick();
+    logger.dump();
 
     sim->clk = 0;
     sim->eval();

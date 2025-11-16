@@ -12,6 +12,7 @@
 #include <vector>
 
 namespace fs = std::filesystem;
+typedef Vdatapath_pipelined SimClass;
 
 // Map RISC-V ABI register names to register numbers
 static const std::map<std::string, int> reg_aliases = {
@@ -126,8 +127,7 @@ static bool run_testcase(const fs::path &testdir) {
   VerilatedContext *contextp = new VerilatedContext;
   contextp->traceEverOn(true);
   SimClass *sim = new SimClass(contextp, testdir.filename().c_str());
-  const std::string dumpfile =
-      (testdir.filename().string() + std::string(".log"));
+  std::ofstream dumpfile(testdir / (testdir.filename().string() + std::string(".log")));
   PipelineStageLogger<SimClass> logger(sim, dumpfile);
 
   VerilatedFstC *tfp = new VerilatedFstC;
@@ -148,6 +148,8 @@ static bool run_testcase(const fs::path &testdir) {
     sim->clk = 1;
     sim->eval();
     tfp->dump(cycle * 10);
+    logger.on_tick();
+    logger.dump();
 
     sim->clk = 0;
     sim->eval();
@@ -186,6 +188,13 @@ static bool run_testcase(const fs::path &testdir) {
               << std::endl;
   }
 
+  if (!pass) {
+    const std::string errorfile = (testdir / "failed").string();
+    std::ofstream ef(errorfile);
+    ef << "Testcase failed\n";
+    ef.close();
+  }
+
   delete tfp;
   delete sim;
   delete contextp;
@@ -207,7 +216,8 @@ int main(int argc, char **argv) {
     for (auto &entry : fs::recursive_directory_iterator(fs::current_path())) {
       if (!entry.is_regular_file())
         continue;
-      if (entry.path().filename() == "memory.hex" && entry.path() != fs::current_path() / "memory.hex") {
+      if (entry.path().filename() == "memory.hex" &&
+          entry.path() != fs::current_path() / "memory.hex") {
         testdirs.push_back(entry.path().parent_path());
       }
     }

@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <unordered_map>
 
@@ -24,8 +25,6 @@
 #define PIPELINE_ACCESS(...) DATA_ACCESS(datapath_pipelined, __VA_ARGS__)
 
 #define DATA_PRIVATE(x) __PVT__##x
-
-typedef Vdatapath_pipelined SimClass;
 
 enum PipelineStageID {
   STAGE_IF = 0,
@@ -51,6 +50,12 @@ auto pipeline_stage_id_to_string(const PipelineStageID stage) -> std::string {
     return "UNKNOWN";
   }
 }
+
+static std::unordered_map<int32_t, std::string> cache_state_string = {
+    {0, "IDLE"}, {1, "EVICT_WAIT"}, {2, "REFILL_WAIT"}, {3, "DONE"}};
+
+static std::unordered_map<int32_t, std::string> memory_state_string = {
+    {0, "IDLE"}, {1, "MOCK_DELAY"}, {2, "DONE"}};
 
 struct PipelineStageState {
   const int id;
@@ -114,7 +119,7 @@ public:
 template <typename SimClass> class PipelineStageLogger {
 private:
   const SimClass *sim;
-  const std::string dumpfile;
+  std::ostream &os;
   uint64_t tick;
   std::unordered_set<int32_t> instructions_flushed;
 
@@ -255,42 +260,37 @@ public:
     return {id, STAGE_WB, pc, instruction};
   }
 
-  void stage_state_print() {
+  void stage_state_dump() {
     const auto &if_states = get_if_states();
     const auto &id_states = get_id_states();
     const auto &ex_states = get_ex_states();
     const auto &mem_states = get_mem_states();
     const auto &wb_states = get_wb_states();
-    std::cout << "=== Cycle " << tick << " ===" << std::endl;
-    std::cout << "IF: PC=0x" << std::hex << if_states.pc
-              << "\tINST_ID=" << if_states.id << "\tINST="
-              << RISCVInstructions::RISCVDecoder::toAssembly(
-                     if_states.instruction)
-              << std::endl;
-    std::cout << "ID: PC=0x" << std::hex << id_states.pc
-              << "\tINST_ID=" << id_states.id << "\tINST="
-              << RISCVInstructions::RISCVDecoder::toAssembly(
-                     id_states.instruction)
-              << std::endl;
-    std::cout << "EX: PC=0x" << std::hex << ex_states.pc
-              << "\tINST_ID=" << ex_states.id << "\tINST="
-              << RISCVInstructions::RISCVDecoder::toAssembly(
-                     ex_states.instruction)
-              << std::endl;
-    std::cout << "MEM: PC=0x" << std::hex << mem_states.pc
-              << "\tINST_ID=" << mem_states.id << "\tINST="
-              << RISCVInstructions::RISCVDecoder::toAssembly(
-                     mem_states.instruction)
-              << std::endl;
-    std::cout << "WB: PC=0x" << std::hex << wb_states.pc
-              << "\tINST_ID=" << wb_states.id << "\tINST="
-              << RISCVInstructions::RISCVDecoder::toAssembly(
-                     wb_states.instruction)
-              << std::endl;
-    std::cout << std::endl;
+    os << "=== Cycle " << tick << " ===" << std::endl;
+    os << "IF: PC=0x" << std::hex << if_states.pc
+       << "\tINST_ID=" << if_states.id << "\tINST="
+       << RISCVInstructions::RISCVDecoder::toAssembly(if_states.instruction)
+       << std::endl;
+    os << "ID: PC=0x" << std::hex << id_states.pc
+       << "\tINST_ID=" << id_states.id << "\tINST="
+       << RISCVInstructions::RISCVDecoder::toAssembly(id_states.instruction)
+       << std::endl;
+    os << "EX: PC=0x" << std::hex << ex_states.pc
+       << "\tINST_ID=" << ex_states.id << "\tINST="
+       << RISCVInstructions::RISCVDecoder::toAssembly(ex_states.instruction)
+       << std::endl;
+    os << "MEM: PC=0x" << std::hex << mem_states.pc
+       << "\tINST_ID=" << mem_states.id << "\tINST="
+       << RISCVInstructions::RISCVDecoder::toAssembly(mem_states.instruction)
+       << std::endl;
+    os << "WB: PC=0x" << std::hex << wb_states.pc
+       << "\tINST_ID=" << wb_states.id << "\tINST="
+       << RISCVInstructions::RISCVDecoder::toAssembly(wb_states.instruction)
+       << std::endl;
+    os << std::endl;
   }
 
-  void inst_cache_state_print() {
+  void inst_cache_state_dump() {
     const auto &current_state =
         sim->rootp->PIPELINE_ACCESS(instructionCache, currentState);
     const auto &next_state =
@@ -304,39 +304,40 @@ public:
     const auto &policy_metadata =
         sim->rootp->PIPELINE_ACCESS(instructionCache, policyMetadata);
 
-    std::cout << "Instruction Cache State:" << std::endl;
-    std::cout << "  Current State: " << current_state << std::endl;
-    std::cout << "  Next State: " << next_state << std::endl;
-    std::cout << "  Target Way Index: " << static_cast<int>(target_way_idx)
-              << std::endl;
-    std::cout << "  Victim Address: 0x" << std::hex << victim_addr << std::dec
-              << std::endl;
-    std::cout << "  Cache Memory Contents:" << std::endl;
+    os << "Instruction Cache State:" << std::endl;
+    os << "  Current State: " << cache_state_string.at(current_state)
+       << std::endl;
+    os << "  Next State: " << cache_state_string.at(next_state) << std::endl;
+    os << "  Target Way Index: " << static_cast<int>(target_way_idx)
+       << std::endl;
+    os << "  Victim Address: 0x" << std::hex << victim_addr << std::dec
+       << std::endl;
+    os << "  Cache Memory Contents:" << std::endl;
     for (size_t set_idx = 0; set_idx < cache_mem.size(); ++set_idx) {
       for (size_t way_idx = 0; way_idx < cache_mem[set_idx].size(); ++way_idx) {
         const auto &line = cache_mem[set_idx][way_idx];
-        std::cout << "    Set " << set_idx << ", Way " << way_idx << ": "
-                  << "Tag=0x" << std::hex << line.DATA_PRIVATE(tag)
-                  << ", Valid=" << static_cast<int>(line.DATA_PRIVATE(valid))
-                  << ", Dirty=" << static_cast<int>(line.DATA_PRIVATE(dirty))
-                  << ", Data=[";
+        os << "    Set " << set_idx << ", Way " << way_idx << ": "
+           << "Tag=0x" << std::hex << line.DATA_PRIVATE(tag)
+           << ", Valid=" << static_cast<int>(line.DATA_PRIVATE(valid))
+           << ", Dirty=" << static_cast<int>(line.DATA_PRIVATE(dirty))
+           << ", Data=[";
         ;
         for (size_t byte_idx = 0; byte_idx < 16; ++byte_idx) {
-          std::cout << std::hex
-                    << ((line.DATA_PRIVATE(data)[byte_idx / 8] >>
-                         ((byte_idx % 8) * 8)) &
-                        0xFF);
+          os << std::hex
+             << ((line.DATA_PRIVATE(data)[byte_idx / 8] >>
+                  ((byte_idx % 8) * 8)) &
+                 0xFF);
           if (byte_idx != 15)
-            std::cout << " ";
+            os << " ";
         }
-        std::cout << "]" << std::dec << std::endl;
+        os << "]" << std::dec << std::endl;
       }
     }
 
-    std::cout << std::endl;
+    os << std::endl;
   }
 
-  void data_cache_state_print() {
+  void data_cache_state_dump() {
     const auto &current_state =
         sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
     const auto &next_state = sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
@@ -348,41 +349,53 @@ public:
     const auto &policy_metadata =
         sim->rootp->PIPELINE_ACCESS(dataCache, policyMetadata);
 
-    std::cout << "Data Cache State:" << std::endl;
-    std::cout << "  Current State: " << current_state << std::endl;
-    std::cout << "  Next State: " << next_state << std::endl;
-    std::cout << "  Target Way Index: " << static_cast<int>(target_way_idx)
-              << std::endl;
-    std::cout << "  Victim Address: 0x" << std::hex << victim_addr << std::dec
-              << std::endl;
-    std::cout << "  Cache Memory Contents:" << std::endl;
+    os << "Data Cache State:" << std::endl;
+    os << "  Current State: " << cache_state_string.at(current_state)
+       << std::endl;
+    os << "  Next State: " << cache_state_string.at(next_state) << std::endl;
+    os << "  Target Way Index: " << static_cast<int>(target_way_idx)
+       << std::endl;
+    os << "  Victim Address: 0x" << std::hex << victim_addr << std::dec
+       << std::endl;
+    os << "  Cache Memory Contents:" << std::endl;
     for (size_t set_idx = 0; set_idx < cache_mem.size(); ++set_idx) {
       for (size_t way_idx = 0; way_idx < cache_mem[set_idx].size(); ++way_idx) {
         const auto &line = cache_mem[set_idx][way_idx];
-        std::cout << "    Set " << set_idx << ", Way " << way_idx << ": "
-                  << "Tag=0x" << std::hex << line.DATA_PRIVATE(tag)
-                  << ", Valid=" << static_cast<int>(line.DATA_PRIVATE(valid))
-                  << ", Dirty=" << static_cast<int>(line.DATA_PRIVATE(dirty))
-                  << ", Data=[";
+        os << "    Set " << set_idx << ", Way " << way_idx << ": "
+           << "Tag=0x" << std::hex << line.DATA_PRIVATE(tag)
+           << ", Valid=" << static_cast<int>(line.DATA_PRIVATE(valid))
+           << ", Dirty=" << static_cast<int>(line.DATA_PRIVATE(dirty))
+           << ", Data=[";
         ;
         for (size_t byte_idx = 0; byte_idx < 16; ++byte_idx) {
-          std::cout << std::hex
-                    << ((line.DATA_PRIVATE(data)[byte_idx / 8] >>
-                         ((byte_idx % 8) * 8)) &
-                        0xFF);
+          os << std::hex
+             << ((line.DATA_PRIVATE(data)[byte_idx / 8] >>
+                  ((byte_idx % 8) * 8)) &
+                 0xFF);
           if (byte_idx != 15)
-            std::cout << " ";
+            os << " ";
         }
-        std::cout << "]" << std::dec << std::endl;
+        os << "]" << std::dec << std::endl;
       }
     }
 
-    std::cout << std::endl;
+    os << std::endl;
   }
 
-  void memory_state_print() {
+  void memory_state_dump() {
     const auto &memory = sim->rootp->PIPELINE_ACCESS(memory, mem);
-    std::cout << "Memory State:" << std::endl;
+    os << "Memory State:" << std::endl;
+    const auto current_state = sim->rootp->PIPELINE_ACCESS(memory, currentState);
+    const auto next_state = sim->rootp->PIPELINE_ACCESS(memory, nextState);
+    const auto delay_counter = sim->rootp->PIPELINE_ACCESS(memory, delayCountdown);
+    
+    os << "  Current State: " << memory_state_string.at(current_state)
+       << " (delay_counter=" << std::to_string(delay_counter) << ")"
+       << std::endl;
+    os << "  Next State: " << memory_state_string.at(next_state)
+       << " (delay_counter=" << std::to_string(delay_counter) << ")"
+       << std::endl;
+    os << "  Memory Contents (non-zero words):" << std::endl;
     std::vector<std::pair<size_t, uint32_t>> non_zero_addrs;
 
     // Check word-aligned addresses (every 4 bytes)
@@ -403,28 +416,29 @@ public:
       const size_t cols = 4; // Number of columns in the grid
       for (size_t i = 0; i < non_zero_addrs.size(); ++i) {
         const auto &[addr, word] = non_zero_addrs[i];
-        printf("  [0x%08zx]=0x%08x", addr, word);
+        os << "  [0x" << std::hex << std::setw(8) << std::setfill('0') << addr
+           << "]=0x" << std::setw(8) << word << std::dec;
         if ((i + 1) % cols == 0 || i == non_zero_addrs.size() - 1) {
-          std::cout << std::endl;
+          os << std::endl;
         }
       }
     } else {
-      std::cout << "  (all zeros)" << std::endl;
+      os << "  (all zeros)" << std::endl;
     }
 
-    std::cout << std::endl;
-  }
-
-  void on_tick() {
-    stage_state_print();
-    inst_cache_state_print();
-    data_cache_state_print();
-    memory_state_print();
-    tick++;
+    os << std::endl;
   }
 
 public:
-  PipelineStageLogger(const SimClass *sim, std::string dumpfile)
-      : sim(sim), dumpfile(dumpfile), tick(0) {}
+  PipelineStageLogger(const SimClass *sim, std::ostream &os)
+      : sim(sim), os(os), tick(0) {}
+
+  void on_tick() { tick++; }
+  void dump() {
+    stage_state_dump();
+    inst_cache_state_dump();
+    data_cache_state_dump();
+    memory_state_dump();
+  }
 };
 #endif // SIM_PIPELINE_STAGE_LOGGER_HPP
