@@ -1,0 +1,430 @@
+#ifndef SIM_PIPELINE_STAGE_LOGGER_HPP
+#define SIM_PIPELINE_STAGE_LOGGER_HPP
+#include "riscv_instructions.hpp"
+#include "verilated.h"
+#include <assert.h>
+#include <ctime>
+#include <fstream>
+#include <iostream>
+#include <unordered_map>
+
+#define DATA_ACCESS_1(x) x
+#define DATA_ACCESS_2(x, y) x##__DOT__##y
+#define DATA_ACCESS_3(x, y, z) x##__DOT__##y##__DOT__##z
+#define DATA_ACCESS_4(x, y, z, w) x##__DOT__##y##__DOT__##z##__DOT__##w
+#define DATA_ACCESS_5(x, y, z, w, v)                                           \
+  x##__DOT__##y##__DOT__##z##__DOT__##w##__DOT__##v
+#define DATA_ACCESS_6(x, y, z, w, v, u)                                        \
+  x##__DOT__##y##__DOT__##z##__DOT__##w##__DOT__##v##__DOT__##u
+#define DATA_ACCESS_GET_MACRO(_1, _2, _3, _4, _5, _6, NAME, ...) NAME
+#define DATA_ACCESS(...)                                                       \
+  DATA_ACCESS_GET_MACRO(__VA_ARGS__, DATA_ACCESS_6, DATA_ACCESS_5,             \
+                        DATA_ACCESS_4, DATA_ACCESS_3, DATA_ACCESS_2,           \
+                        DATA_ACCESS_1)(__VA_ARGS__)
+#define PIPELINE_ACCESS(...) DATA_ACCESS(datapath_pipelined, __VA_ARGS__)
+
+#define DATA_PRIVATE(x) __PVT__##x
+
+typedef Vdatapath_pipelined SimClass;
+
+enum PipelineStageID {
+  STAGE_IF = 0,
+  STAGE_ID = 1,
+  STAGE_EX = 2,
+  STAGE_MEM = 3,
+  STAGE_WB = 4,
+};
+
+auto pipeline_stage_id_to_string(const PipelineStageID stage) -> std::string {
+  switch (stage) {
+  case STAGE_IF:
+    return "IF";
+  case STAGE_ID:
+    return "ID";
+  case STAGE_EX:
+    return "EX";
+  case STAGE_MEM:
+    return "MEM";
+  case STAGE_WB:
+    return "WB";
+  default:
+    return "UNKNOWN";
+  }
+}
+
+struct PipelineStageState {
+  const int id;
+  const PipelineStageID stage;
+  const uint32_t pc;
+  const RISCVInstructions::DecodedInstruction instruction;
+  const bool is_nop; // true if this is a NOP (PC == 0)
+
+public:
+  PipelineStageState(const uint32_t id, const PipelineStageID stage,
+                     const uint32_t pc,
+                     const RISCVInstructions::DecodedInstruction instruction)
+      : id(id), stage(stage), pc(pc), instruction(instruction),
+        is_nop(pc == 0) {}
+};
+
+class OnikiriGenerator {
+  static auto gen_first_encounter_inner(const PipelineStageState &state)
+      -> std::string {
+    std::string asm_str =
+        RISCVInstructions::RISCVDecoder::toAssembly(state.instruction);
+    std::string onikiri_declare = "I\t" + std::to_string(state.id) + "\t" +
+                                  std::to_string(state.pc) + "\t" + "0";
+    std::string onikiri_comment =
+        "L\t" + std::to_string(state.id) + "\t0\t" + asm_str;
+    return onikiri_declare + "\n" + onikiri_comment;
+  }
+
+  static auto gen_stage_inner(const PipelineStageState &state) -> std::string {
+    std::string onikiri_stage = "S\t" + std::to_string(state.id) + "\t0\t" +
+                                pipeline_stage_id_to_string(state.stage);
+    return onikiri_stage;
+  }
+
+public:
+  static auto gen_stage(const PipelineStageState &state) -> std::string {
+    std::string onikiri_str;
+    // Declare instruction when first seen in IF stage (and it's not a NOP)
+    if (state.stage == STAGE_IF && !state.is_nop) {
+      onikiri_str += gen_first_encounter_inner(state) + "\n";
+    }
+    // Always show stage transition
+    onikiri_str += gen_stage_inner(state);
+    return onikiri_str;
+  }
+
+  static auto gen_flush(const int32_t inst_id, const PipelineStageState &state)
+      -> std::string {
+    std::string onikiri_flush = "F\t" + std::to_string(inst_id) + "\t0\t" +
+                                pipeline_stage_id_to_string(state.stage);
+    return onikiri_flush;
+  }
+
+  static auto gen_next_cycle() -> std::string { return "C\t1"; }
+
+  static auto gen_header(const int start_cycle = 0) -> std::string {
+    return "Kanata\t0004\nC=\t" + std::to_string(start_cycle);
+  }
+};
+
+template <typename SimClass> class PipelineStageLogger {
+private:
+  const SimClass *sim;
+  const std::string dumpfile;
+  uint64_t tick;
+  std::unordered_set<int32_t> instructions_flushed;
+
+public:
+  void test() {
+    const auto &if_id_regs_p = sim->rootp->PIPELINE_ACCESS(ifIdRegsP);
+    const auto &id_ex_regs_p = sim->rootp->PIPELINE_ACCESS(idExRegsP);
+    const auto &ex_mem_regs_p = sim->rootp->PIPELINE_ACCESS(exMemRegsP);
+    const auto &mem_wb_regs_p = sim->rootp->PIPELINE_ACCESS(memWbRegsP);
+    const auto &mem_wb_regs_P = sim->rootp->PIPELINE_ACCESS(memWbRegsP);
+
+    const auto &if_control = sim->rootp->PIPELINE_ACCESS(ifControl);
+    const auto &id_control = sim->rootp->PIPELINE_ACCESS(idControl);
+    // const auto &if_hints = sim->rootp->PIPELINE_ACCESS(ifControl);
+    const auto &id_hints = sim->rootp->PIPELINE_ACCESS(idHints);
+
+    std::unordered_map<int32_t, PipelineStageID> valid_instructions;
+    {
+      const int32_t if_inst_id = if_id_regs_p.DATA_PRIVATE(DEBUG_instID);
+      const int32_t id_inst_id =
+          id_ex_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+      const int32_t ex_inst_id =
+          ex_mem_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+      const int32_t mem_inst_id =
+          mem_wb_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+      const int32_t wb_inst_id =
+          mem_wb_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+      std::unordered_map<int32_t, std::set<PipelineStageID>>
+          current_instructions;
+      current_instructions[if_inst_id].insert(STAGE_IF);
+      current_instructions[id_inst_id].insert(STAGE_ID);
+      current_instructions[ex_inst_id].insert(STAGE_EX);
+      current_instructions[mem_inst_id].insert(STAGE_MEM);
+      current_instructions[wb_inst_id].insert(STAGE_WB);
+
+      for (const auto &pair : current_instructions) {
+        const int32_t inst_id = pair.first;
+        const PipelineStageID last_stage = *pair.second.rbegin();
+        valid_instructions[inst_id] = last_stage;
+      }
+    }
+
+    for (const auto &pair : valid_instructions) {
+      const int32_t inst_id = pair.first;
+      const PipelineStageID last_stage = pair.second;
+      switch (last_stage) {
+      case STAGE_IF: {
+        const auto &if_states = get_if_states();
+        break;
+      }
+      case STAGE_ID: {
+        const auto &id_states = get_id_states();
+        break;
+      }
+      case STAGE_EX: {
+        const auto &ex_states = get_ex_states();
+        break;
+      }
+      case STAGE_MEM: {
+        const auto &mem_states = get_mem_states();
+        break;
+      }
+      case STAGE_WB: {
+        const auto &wb_states = get_wb_states();
+        break;
+      }
+      default:
+        assert(false && "Invalid pipeline stage");
+      }
+    }
+  }
+  auto get_if_states() -> PipelineStageState {
+    const auto &if_id_regs_p = sim->rootp->PIPELINE_ACCESS(ifIdRegsP);
+    const auto &if_control = sim->rootp->PIPELINE_ACCESS(ifControl);
+    // const auto &if_hints = sim->rootp->PIPELINE_ACCESS(ifControl);
+    const uint32_t id = if_id_regs_p.DATA_PRIVATE(DEBUG_instID);
+    const uint32_t pc = if_id_regs_p.DATA_PRIVATE(pc);
+    const uint32_t inst = (uint32_t)if_id_regs_p.DATA_PRIVATE(inst);
+    const auto &instruction = RISCVInstructions::RISCVDecoder::decode(inst);
+    return {id, STAGE_IF, pc, instruction};
+  }
+  auto get_id_states() -> PipelineStageState {
+    const auto &if_id_regs_q = sim->rootp->PIPELINE_ACCESS(ifIdRegsQ);
+    const auto &id_ex_regs_p = sim->rootp->PIPELINE_ACCESS(idExRegsP);
+    const auto &id_control = sim->rootp->PIPELINE_ACCESS(ifControl);
+    const auto &id_hints = sim->rootp->PIPELINE_ACCESS(ifControl);
+    const uint32_t id =
+        id_ex_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+    const uint32_t pc = id_ex_regs_p.DATA_PRIVATE(pc);
+    const uint32_t inst =
+        (uint32_t)id_ex_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(
+            DEBUG_instBinary);
+    const auto &instruction = RISCVInstructions::RISCVDecoder::decode(inst);
+    return {id, STAGE_ID, pc, instruction};
+  }
+
+  auto get_ex_states() -> PipelineStageState {
+    const auto &id_ex_regs_q = sim->rootp->PIPELINE_ACCESS(idExRegsQ);
+    const auto &ex_mem_regs_p = sim->rootp->PIPELINE_ACCESS(exMemRegsP);
+    const auto &ex_control = sim->rootp->PIPELINE_ACCESS(idControl);
+    const auto &ex_hints = sim->rootp->PIPELINE_ACCESS(idHints);
+    const uint32_t id =
+        ex_mem_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+    const uint32_t pc = ex_mem_regs_p.DATA_PRIVATE(pc);
+    const uint32_t inst =
+        (uint32_t)ex_mem_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(
+            DEBUG_instBinary);
+    const auto &instruction = RISCVInstructions::RISCVDecoder::decode(inst);
+    return {id, STAGE_EX, pc, instruction};
+  }
+
+  auto get_mem_states() -> PipelineStageState {
+    const auto &ex_mem_regs_q = sim->rootp->PIPELINE_ACCESS(exMemRegsQ);
+    const auto &mem_wb_regs_p = sim->rootp->PIPELINE_ACCESS(memWbRegsP);
+    // const auto &mem_control = sim->rootp->PIPELINE_ACCESS(exControl);
+    const auto &mem_hints = sim->rootp->PIPELINE_ACCESS(exHints);
+    const uint32_t id =
+        mem_wb_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+    const uint32_t pc = mem_wb_regs_p.DATA_PRIVATE(pc);
+    const uint32_t inst =
+        (uint32_t)mem_wb_regs_p.DATA_PRIVATE(instInfo).DATA_PRIVATE(
+            DEBUG_instBinary);
+    const auto &instruction = RISCVInstructions::RISCVDecoder::decode(inst);
+    return {id, STAGE_MEM, pc, instruction};
+  }
+
+  auto get_wb_states() -> PipelineStageState {
+    const auto &mem_wb_regs_q = sim->rootp->PIPELINE_ACCESS(memWbRegsQ);
+    // const auto &wb_control = sim->rootp->PIPELINE_ACCESS(memControl);
+    const auto &wb_hints = sim->rootp->PIPELINE_ACCESS(memHints);
+    const uint32_t id =
+        mem_wb_regs_q.DATA_PRIVATE(instInfo).DATA_PRIVATE(DEBUG_instID);
+    const uint32_t pc = mem_wb_regs_q.DATA_PRIVATE(pc);
+    const uint32_t inst =
+        (uint32_t)mem_wb_regs_q.DATA_PRIVATE(instInfo).DATA_PRIVATE(
+            DEBUG_instBinary);
+    const auto &instruction = RISCVInstructions::RISCVDecoder::decode(inst);
+    return {id, STAGE_WB, pc, instruction};
+  }
+
+  void stage_state_print() {
+    const auto &if_states = get_if_states();
+    const auto &id_states = get_id_states();
+    const auto &ex_states = get_ex_states();
+    const auto &mem_states = get_mem_states();
+    const auto &wb_states = get_wb_states();
+    std::cout << "=== Cycle " << tick << " ===" << std::endl;
+    std::cout << "IF: PC=0x" << std::hex << if_states.pc
+              << "\tINST_ID=" << if_states.id << "\tINST="
+              << RISCVInstructions::RISCVDecoder::toAssembly(
+                     if_states.instruction)
+              << std::endl;
+    std::cout << "ID: PC=0x" << std::hex << id_states.pc
+              << "\tINST_ID=" << id_states.id << "\tINST="
+              << RISCVInstructions::RISCVDecoder::toAssembly(
+                     id_states.instruction)
+              << std::endl;
+    std::cout << "EX: PC=0x" << std::hex << ex_states.pc
+              << "\tINST_ID=" << ex_states.id << "\tINST="
+              << RISCVInstructions::RISCVDecoder::toAssembly(
+                     ex_states.instruction)
+              << std::endl;
+    std::cout << "MEM: PC=0x" << std::hex << mem_states.pc
+              << "\tINST_ID=" << mem_states.id << "\tINST="
+              << RISCVInstructions::RISCVDecoder::toAssembly(
+                     mem_states.instruction)
+              << std::endl;
+    std::cout << "WB: PC=0x" << std::hex << wb_states.pc
+              << "\tINST_ID=" << wb_states.id << "\tINST="
+              << RISCVInstructions::RISCVDecoder::toAssembly(
+                     wb_states.instruction)
+              << std::endl;
+    std::cout << std::endl;
+  }
+
+  void inst_cache_state_print() {
+    const auto &current_state =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, currentState);
+    const auto &next_state =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, nextState);
+    const auto &target_way_idx =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, targetWayIdx);
+    const auto &victim_addr =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, victimAddr);
+    const auto &cache_mem =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, cacheMem);
+    const auto &policy_metadata =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, policyMetadata);
+
+    std::cout << "Instruction Cache State:" << std::endl;
+    std::cout << "  Current State: " << current_state << std::endl;
+    std::cout << "  Next State: " << next_state << std::endl;
+    std::cout << "  Target Way Index: " << static_cast<int>(target_way_idx)
+              << std::endl;
+    std::cout << "  Victim Address: 0x" << std::hex << victim_addr << std::dec
+              << std::endl;
+    std::cout << "  Cache Memory Contents:" << std::endl;
+    for (size_t set_idx = 0; set_idx < cache_mem.size(); ++set_idx) {
+      for (size_t way_idx = 0; way_idx < cache_mem[set_idx].size(); ++way_idx) {
+        const auto &line = cache_mem[set_idx][way_idx];
+        std::cout << "    Set " << set_idx << ", Way " << way_idx << ": "
+                  << "Tag=0x" << std::hex << line.DATA_PRIVATE(tag)
+                  << ", Valid=" << static_cast<int>(line.DATA_PRIVATE(valid))
+                  << ", Dirty=" << static_cast<int>(line.DATA_PRIVATE(dirty))
+                  << ", Data=[";
+        ;
+        for (size_t byte_idx = 0; byte_idx < 16; ++byte_idx) {
+          std::cout << std::hex
+                    << ((line.DATA_PRIVATE(data)[byte_idx / 8] >>
+                         ((byte_idx % 8) * 8)) &
+                        0xFF);
+          if (byte_idx != 15)
+            std::cout << " ";
+        }
+        std::cout << "]" << std::dec << std::endl;
+      }
+    }
+
+    std::cout << std::endl;
+  }
+
+  void data_cache_state_print() {
+    const auto &current_state =
+        sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
+    const auto &next_state = sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
+    const auto &target_way_idx =
+        sim->rootp->PIPELINE_ACCESS(dataCache, targetWayIdx);
+    const auto &victim_addr =
+        sim->rootp->PIPELINE_ACCESS(dataCache, victimAddr);
+    const auto &cache_mem = sim->rootp->PIPELINE_ACCESS(dataCache, cacheMem);
+    const auto &policy_metadata =
+        sim->rootp->PIPELINE_ACCESS(dataCache, policyMetadata);
+
+    std::cout << "Data Cache State:" << std::endl;
+    std::cout << "  Current State: " << current_state << std::endl;
+    std::cout << "  Next State: " << next_state << std::endl;
+    std::cout << "  Target Way Index: " << static_cast<int>(target_way_idx)
+              << std::endl;
+    std::cout << "  Victim Address: 0x" << std::hex << victim_addr << std::dec
+              << std::endl;
+    std::cout << "  Cache Memory Contents:" << std::endl;
+    for (size_t set_idx = 0; set_idx < cache_mem.size(); ++set_idx) {
+      for (size_t way_idx = 0; way_idx < cache_mem[set_idx].size(); ++way_idx) {
+        const auto &line = cache_mem[set_idx][way_idx];
+        std::cout << "    Set " << set_idx << ", Way " << way_idx << ": "
+                  << "Tag=0x" << std::hex << line.DATA_PRIVATE(tag)
+                  << ", Valid=" << static_cast<int>(line.DATA_PRIVATE(valid))
+                  << ", Dirty=" << static_cast<int>(line.DATA_PRIVATE(dirty))
+                  << ", Data=[";
+        ;
+        for (size_t byte_idx = 0; byte_idx < 16; ++byte_idx) {
+          std::cout << std::hex
+                    << ((line.DATA_PRIVATE(data)[byte_idx / 8] >>
+                         ((byte_idx % 8) * 8)) &
+                        0xFF);
+          if (byte_idx != 15)
+            std::cout << " ";
+        }
+        std::cout << "]" << std::dec << std::endl;
+      }
+    }
+
+    std::cout << std::endl;
+  }
+
+  void memory_state_print() {
+    const auto &memory = sim->rootp->PIPELINE_ACCESS(memory, mem);
+    std::cout << "Memory State:" << std::endl;
+    std::vector<std::pair<size_t, uint32_t>> non_zero_addrs;
+
+    // Check word-aligned addresses (every 4 bytes)
+    for (size_t addr = 0; addr < memory.size(); addr += 4) {
+      // Read 4 bytes to form a 32-bit word (little-endian)
+      if (addr + 3 < memory.size()) {
+        uint32_t word = (uint32_t)memory[addr] |
+                        ((uint32_t)memory[addr + 1] << 8) |
+                        ((uint32_t)memory[addr + 2] << 16) |
+                        ((uint32_t)memory[addr + 3] << 24);
+        if (word != 0) {
+          non_zero_addrs.push_back({addr, word});
+        }
+      }
+    }
+
+    if (!non_zero_addrs.empty()) {
+      const size_t cols = 4; // Number of columns in the grid
+      for (size_t i = 0; i < non_zero_addrs.size(); ++i) {
+        const auto &[addr, word] = non_zero_addrs[i];
+        printf("  [0x%08zx]=0x%08x", addr, word);
+        if ((i + 1) % cols == 0 || i == non_zero_addrs.size() - 1) {
+          std::cout << std::endl;
+        }
+      }
+    } else {
+      std::cout << "  (all zeros)" << std::endl;
+    }
+
+    std::cout << std::endl;
+  }
+
+  void on_tick() {
+    stage_state_print();
+    inst_cache_state_print();
+    data_cache_state_print();
+    memory_state_print();
+    tick++;
+  }
+
+public:
+  PipelineStageLogger(const SimClass *sim, std::string dumpfile)
+      : sim(sim), dumpfile(dumpfile), tick(0) {}
+};
+#endif // SIM_PIPELINE_STAGE_LOGGER_HPP

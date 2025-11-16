@@ -18,7 +18,7 @@ typedef struct {
 
 typedef cache_line_t cache_set_t[2];  //2 way associative
 typedef cache_set_t cache_t[8];  // 8 sets
-typedef struct packed {bool_t lastUsed;} cache_lru_policy_t;
+typedef struct {bool_t lastUsed;} cache_lru_policy_t;
 typedef struct packed {
     logic [24:0] tag;     // 25-bit tag
     logic [2:0]  setIdx;  // 3-bit set address (8 sets)

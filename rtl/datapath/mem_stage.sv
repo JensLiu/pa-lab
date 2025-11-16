@@ -35,19 +35,17 @@ module mem_stage
         end
     end
 
-    bool_t cacheRequestDone;
     always_comb begin
         cacheRequest.request = MEM_writeEnabled || MEM_writeEnabled;
         cacheRequest.isRead = MEM_readEnabled;
         cacheRequest.addr = MEM_addr;
         cacheRequest.dataToCache = MEM_writeData;
         MEM_readData = cacheRequest.dataFromCache;
-        cacheRequestDone = cacheRequest.ready;
     end
 
     word_t MEM_result;
     always_comb begin
-        if (MEM_instInfo.isLoad && cacheRequestDone) begin
+        if (MEM_instInfo.isLoad && cacheRequest.ready) begin
             case (MEM_instInfo.stldDataLen)
                 DL_BYTE: MEM_result = {{24{1'b0}}, MEM_readData[7:0]};
                 DL_HALF: MEM_result = {{16{1'b0}}, MEM_readData[15:0]};
@@ -67,7 +65,7 @@ module mem_stage
         memWbRegs.memResult = MEM_result;
         memWbRegs.exceptions = exMemRegs.exceptions;
         // emit signal
-        memHints.shouldHalt = !cacheRequestDone;
+        memHints.shouldHalt = cacheRequest.request && !cacheRequest.ready;
         memHints.MEM_rd = MEM_instInfo.rd;
         memHints.MEM_isWriteback = MEM_instInfo.isWriteback;
         memHints.MEM_memResult = MEM_result;

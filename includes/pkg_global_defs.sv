@@ -1,12 +1,8 @@
 `timescale 1ns / 1ps
-
-
 `ifndef PKG_GLOBAL_DEFS_SV
 `define PKG_GLOBAL_DEFS_SV
 
 `include "rtl_common.svh"
-import pkg_riscv_instructions::instruction_t;
-import pkg_riscv_instructions::make_nop;
 
 `ifndef LESS_EXPRESSIVE_GRAMMAR
 import pkg_riscv_instructions::*;
@@ -85,13 +81,13 @@ package pkg_global_defs;
     } mem_stlen_t;
 
     // Comparator result
-    typedef struct packed {
+    typedef struct {
         bool_t eq;
         bool_t lt;
         bool_t gt;
     } cmp_result_t;
 
-    typedef struct packed {
+    typedef struct {
         reg_nr_t      rs1;
         reg_nr_t      rs2;
         reg_nr_t      rd;
@@ -117,30 +113,7 @@ package pkg_global_defs;
 `endif
     } inst_info_t;
 
-    function automatic instruction_t inst_make_nop();
-        instruction_t inst = make_nop();
-        return inst;
-    endfunction
-
-    function automatic inst_info_t inst_info_make_nop();
-        inst_info_t info;
-        info.rs1 = REG_NR_INVALID_FALLBACK;
-        info.rs2 = REG_NR_INVALID_FALLBACK;
-        info.rd = REG_NR_INVALID_FALLBACK;
-        info.imm = IMM_32_WHATEVER;
-        info.cmpIsSigned = FALSE;
-        info.aluOp = ALU_INVALID;
-        info.aluUseImmAsRs2 = FALSE;
-        info.isWriteback = FALSE;
-        info.isStore = FALSE;
-        info.isLoad = FALSE;
-        info.stldDataLen = DL_INVALID;
-        info.stldSignedness = SS_INVALID;
-        info.branchType = BR_INVALID;
-        return info;
-    endfunction
-
-    typedef struct packed {
+    typedef struct {
         logic zero;
         logic negative;
         logic overflow;
@@ -148,20 +121,20 @@ package pkg_global_defs;
         logic carry;
     } alu_flags_t;
 
-    typedef struct packed {
+    typedef struct {
         bool_t illegalInstruction;
         bool_t illegalMemoryAccess;
         bool_t divideByZero;
     } exception_t;
 
-    typedef struct packed {
+    typedef struct {
         bool_t halt;
         bool_t branchTaken;
         addr_t pcBr;
         exception_t exception;
     } if_control_t;
 
-    typedef struct packed {
+    typedef struct {
         reg_t pc;
         instruction_t inst;
         exception_t exceptions;
@@ -170,9 +143,9 @@ package pkg_global_defs;
 `endif
     } if_id_regs_t;
 
-    typedef struct packed {logic shouldHalt;} if_hints_t;
+    typedef struct {logic shouldHalt;} if_hints_t;
 
-    typedef struct packed {
+    typedef struct {
         bool_t   WB_isWriteback;
         reg_nr_t WB_rd;
         word_t   WB_rdData;
@@ -189,7 +162,7 @@ package pkg_global_defs;
         word_t   MEM_memResult;
     } id_control_t;
 
-    typedef struct packed {
+    typedef struct {
         reg_t pc;
         inst_info_t instInfo;
         exception_t exceptions;
@@ -197,12 +170,12 @@ package pkg_global_defs;
         reg_t rs2Data;
     } id_ex_regs_t;
 
-    typedef struct packed {
+    typedef struct {
         bool_t shouldHalt;  // halt for data hazards
     } id_hints_t;
 
-    typedef struct packed {bool_t placeholder;} ex_control_t;
-    typedef struct packed {
+    typedef struct {bool_t placeholder;} ex_control_t;
+    typedef struct {
         bool_t   EX_branchTaken;
         addr_t   EX_pcBr;
         bool_t   EX_isWriteback;
@@ -211,7 +184,7 @@ package pkg_global_defs;
         word_t   EX_aluResult;
     } ex_hints_t;
 
-    typedef struct packed {
+    typedef struct {
         reg_t pc;
         inst_info_t instInfo;
         word_t aluResult;
@@ -219,25 +192,25 @@ package pkg_global_defs;
         exception_t exceptions;
     } ex_mem_regs_t;
 
-    typedef struct packed {bool_t placeholder;} mem_control_t;
+    typedef struct {bool_t placeholder;} mem_control_t;
 
-    typedef struct packed {
+    typedef struct {
         bool_t   shouldHalt;
         reg_nr_t MEM_rd;
         bool_t   MEM_isWriteback;
         word_t   MEM_memResult;
     } mem_hints_t;
 
-    typedef struct packed {
+    typedef struct {
         reg_t pc;
         inst_info_t instInfo;
         word_t memResult;
         exception_t exceptions;
     } mem_wb_regs_t;
 
-    typedef struct packed {bool_t placeholder;} wb_control_t;
+    typedef struct {bool_t placeholder;} wb_control_t;
 
-    typedef struct packed {
+    typedef struct {
         bool_t WB_isWriteback;
         reg_nr_t WB_rd;
         word_t WB_rdData;
@@ -266,6 +239,15 @@ package pkg_global_defs;
         info.stldDataLen = DL_INVALID;
         info.stldSignedness = SS_INVALID;
         info.branchType = BR_INVALID;
+        return info;
+    endfunction
+
+    // variant that preserves a provided DEBUG inst id (used when DEBUG_INST_INFO_EXTENSION is enabled)
+    function automatic inst_info_t inst_info_make_nop_with_inst_id(input word_t debug_id);
+        inst_info_t info = inst_info_make_nop();
+`ifdef DEBUG_INST_INFO_EXTENSION
+        info.DEBUG_instID = debug_id;
+`endif
         return info;
     endfunction
 

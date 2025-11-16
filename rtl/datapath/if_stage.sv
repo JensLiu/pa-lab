@@ -40,6 +40,7 @@ module if_stage
         IF_inst = cacheRequest.dataFromCache;
         cacheRequest.addr = IF_pcQ;
         cacheRequest.isRead = TRUE;
+        cacheRequest.request = TRUE;
         cacheRequestDone = cacheRequest.ready;
     end
 
@@ -47,6 +48,7 @@ module if_stage
     always_comb begin
         ifIdRegs.pc   = IF_pcQ;
         ifIdRegs.inst = IF_inst;
+        assert (cacheRequest.request);  // should always be true
         ifHints.shouldHalt = !cacheRequestDone;
 `ifdef DEBUG_INST_INFO_EXTENSION
         ifIdRegs.DEBUG_instID = DEBUG_nextInstID;

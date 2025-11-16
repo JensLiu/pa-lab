@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 module memory_request_sequencer
     import pkg_global_defs::*;
 (
