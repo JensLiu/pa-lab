@@ -14,13 +14,7 @@ module unified_memory
 
     initial begin
         $display("INST_MEM_SIZE=%d", INST_MEM_SIZE);
-        $readmemh("inst_mem.hex", mem);
-        // for (int i = 0; i < 100; i++) begin
-        //     if (i != 0 && i % 4 == 0) begin
-        //         $write("\n");
-        //     end
-        //     $write("%h ", mem[i]);
-        // end
+        $readmemh("memory.hex", mem);
     end
 
 `ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS

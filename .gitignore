@@ -2,10 +2,16 @@
 tb/**/obj_dir
 tb/**/*.vcd
 tb/**/*.hex
-*.hdl_checker
 firmware/*.o
 firmware/*.mem
 firmware/*.hex
 firmware/*.elf
 firmware/*.asm
 sim/obj_dir
+sim/mem.hex
+sim/*.fst
+test/obj_dir
+test/*/build
+test/*/mem.hex
+test/*/*.fst
+filelist_lint.f

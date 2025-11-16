@@ -98,16 +98,16 @@ static std::map<int, uint32_t> parse_result_check(const fs::path &p) {
 static bool run_testcase(const fs::path &testdir) {
   std::cout << "Running testcase: " << testdir << std::endl;
 
-  const fs::path inst_src = testdir / "inst.mem";
+  const fs::path inst_src = testdir / "memory.hex";
   const fs::path result_check = testdir / "result_check";
   if (!fs::exists(inst_src)) {
-    std::cout << "  skip: inst.mem not found in " << testdir << std::endl;
+    std::cout << "  skip: memory.hex not found in " << testdir << std::endl;
     return false;
   }
 
   // copy inst.mem into current working directory so the Verilog memory will
   // load it
-  const fs::path inst_dst = fs::current_path() / "inst_mem.hex";
+  const fs::path inst_dst = fs::current_path() / "memory.hex";
   try {
     fs::copy_file(inst_src, inst_dst, fs::copy_options::overwrite_existing);
   } catch (const std::exception &e) {
@@ -133,7 +133,9 @@ static bool run_testcase(const fs::path &testdir) {
   VerilatedFstC *tfp = new VerilatedFstC;
   sim->trace(tfp, 99);
   const std::string fstname =
-      (testdir.filename().string() + std::string(".fst"));
+      (testdir / (testdir.filename().string() + std::string(".fst"))).string();
+
+  std::cout << "fst" << fstname << std::endl;
   tfp->open(fstname.c_str());
 
   const int max_cycles = 1000;
@@ -170,12 +172,13 @@ static bool run_testcase(const fs::path &testdir) {
         continue;
       }
       if (got != want) {
-        std::cout << "  MISMATCH reg " << reg_aliases_rev.at(reg) << ": got 0x" << std::hex << got
-                  << " want 0x" << want << std::dec << std::endl;
+        std::cout << "  MISMATCH reg " << reg_aliases_rev.at(reg) << ": got 0x"
+                  << std::hex << got << " want 0x" << want << std::dec
+                  << std::endl;
         pass = false;
       } else {
-        std::cout << "  OK reg " << reg_aliases_rev.at(reg) << " == 0x" << std::hex << got
-                  << std::dec << std::endl;
+        std::cout << "  OK reg " << reg_aliases_rev.at(reg) << " == 0x"
+                  << std::hex << got << std::dec << std::endl;
       }
     }
   } else {
@@ -204,7 +207,7 @@ int main(int argc, char **argv) {
     for (auto &entry : fs::recursive_directory_iterator(fs::current_path())) {
       if (!entry.is_regular_file())
         continue;
-      if (entry.path().filename() == "inst.mem") {
+      if (entry.path().filename() == "memory.hex" && entry.path() != fs::current_path() / "memory.hex") {
         testdirs.push_back(entry.path().parent_path());
       }
     }
@@ -215,7 +218,7 @@ int main(int argc, char **argv) {
   }
 
   if (testdirs.empty()) {
-    std::cout << "No testcases (inst.mem) found under " << fs::current_path()
+    std::cout << "No testcases (memory.hex) found under " << fs::current_path()
               << std::endl;
     return 0;
   }

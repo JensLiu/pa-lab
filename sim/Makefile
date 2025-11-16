@@ -22,7 +22,7 @@ build:
 		$(CPP_SOURCES)
 
 firmware_obj:
-	$(MAKE) -C ${BASE_DIR}/firmware && cp ${BASE_DIR}/firmware/firmware.mem inst_mem.hex
+	$(MAKE) -C ${BASE_DIR}/firmware && cp ${BASE_DIR}/firmware/firmware.mem memory.hex
 
 sim: build firmware_obj
 	./obj_dir/Vdatapath_pipelined

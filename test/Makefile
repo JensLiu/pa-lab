@@ -71,11 +71,11 @@ tests: $(patsubst %, %/inst.mem, $(TEST_DIRS))
 	}
 	# create hex, verilog mem and asm listing inside the per-test build folder
 	$(OBJCOPY) -O ihex $(@D)/build/inst.elf $(@D)/build/inst.hex
-	$(OBJCOPY) -I ihex -O verilog $(@D)/build/inst.hex $(@D)/build/inst.mem
+	$(OBJCOPY) -I ihex -O verilog $(@D)/build/inst.hex $(@D)/build/verilog.hex
 	$(OBJDUMP) -D $(@D)/build/inst.elf > $(@D)/build/inst.asm
 	# copy only the verilog-format mem into the test root (user requested)
-	cp $(@D)/build/inst.mem $(@D)/inst.mem
-	@echo "  -> $(@D)/inst.mem"
+	cp $(@D)/build/verilog.hex $(@D)/memory.hex
+	@echo "  -> $(@D)/memory.hex"
 
 # Build sim_main
 test_driver:
