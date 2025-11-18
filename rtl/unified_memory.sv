@@ -66,8 +66,11 @@ module unified_memory
         if (currentState == IDLE && nextState == MOCK_DELAY) begin
             delayCountdown <= MEMORY_ACCESS_DELAY - 1;
         end else if (currentState == MOCK_DELAY) begin
-            delayCountdown <= delayCountdown - 1;
+            if (delayCountdown > 0) begin
+                delayCountdown <= delayCountdown - 1;
+            end
         end
+        assert (delayCountdown < MEMORY_ACCESS_DELAY);
     end
 
     always_ff @(posedge clk) begin : RequestResponse
@@ -88,7 +91,7 @@ module unified_memory
         if (currentState == MOCK_DELAY && nextState == DONE && !request.isRead) begin
             // visible at `DONE`. It's fine since we serve one read/write request at a time
             for (int i = 0; i < 16; i++) begin
-                mem[request.addr + i] <= request.dataToMem[i];
+                mem[request.addr + i] <= request.dataToMem[i*8+:8];
             end
         end
     end

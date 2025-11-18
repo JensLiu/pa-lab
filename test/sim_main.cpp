@@ -1,6 +1,6 @@
 #include "Vdatapath_pipelined.h"
 #include "Vdatapath_pipelined__Syms.h"
-#include "pipeline_stage_logger.hpp"
+#include "riscv_instructions.hpp"
 #include "verilated.h"
 #include "verilated_fst_c.h"
 #include <cstdlib>
@@ -11,24 +11,12 @@
 #include <regex>
 #include <vector>
 
+#ifdef USE_LOGGER
+#include "pipeline_stage_logger.hpp"
+#endif
+
 namespace fs = std::filesystem;
 typedef Vdatapath_pipelined SimClass;
-
-// Map RISC-V ABI register names to register numbers
-static const std::map<std::string, int> reg_aliases = {
-    {"zero", 0}, {"ra", 1},  {"sp", 2},  {"gp", 3},   {"tp", 4},   {"t0", 5},
-    {"t1", 6},   {"t2", 7},  {"s0", 8},  {"fp", 8},   {"s1", 9},   {"a0", 10},
-    {"a1", 11},  {"a2", 12}, {"a3", 13}, {"a4", 14},  {"a5", 15},  {"a6", 16},
-    {"a7", 17},  {"s2", 18}, {"s3", 19}, {"s4", 20},  {"s5", 21},  {"s6", 22},
-    {"s7", 23},  {"s8", 24}, {"s9", 25}, {"s10", 26}, {"s11", 27}, {"t3", 28},
-    {"t4", 29},  {"t5", 30}, {"t6", 31}};
-static const std::map<int, std::string> reg_aliases_rev = {
-    {0, "zero"}, {1, "ra"},  {2, "sp"},   {3, "gp"},   {4, "tp"},  {5, "t0"},
-    {6, "t1"},   {7, "t2"},  {8, "s0"},   {9, "s1"},   {10, "a0"}, {11, "a1"},
-    {12, "a2"},  {13, "a3"}, {14, "a4"},  {15, "a5"},  {16, "a6"}, {17, "a7"},
-    {18, "s2"},  {19, "s3"}, {20, "s4"},  {21, "s5"},  {22, "s6"}, {23, "s7"},
-    {24, "s8"},  {25, "s9"}, {26, "s10"}, {27, "s11"}, {28, "t3"}, {29, "t4"},
-    {30, "t5"},  {31, "t6"}};
 
 // Blank lines and lines starting with # or // are ignored.
 static std::map<int, uint32_t> parse_result_check(const fs::path &p) {
@@ -71,10 +59,7 @@ static std::map<int, uint32_t> parse_result_check(const fs::path &p) {
     } else if (std::isdigit(reg_str[0])) {
       reg_num = std::stoi(reg_str);
     } else {
-      auto it = reg_aliases.find(reg_str);
-      if (it != reg_aliases.end()) {
-        reg_num = it->second;
-      }
+      reg_num = RISCVInstructions::regNumber(reg_str);
     }
 
     if (reg_num < 0 || reg_num > 31)
@@ -127,8 +112,9 @@ static bool run_testcase(const fs::path &testdir) {
   VerilatedContext *contextp = new VerilatedContext;
   contextp->traceEverOn(true);
   SimClass *sim = new SimClass(contextp, testdir.filename().c_str());
-  std::ofstream dumpfile(testdir / (testdir.filename().string() + std::string(".log")));
-  PipelineStageLogger<SimClass> logger(sim, dumpfile);
+  std::ofstream dumpfile(testdir /
+                         (testdir.filename().string() + std::string(".log")));
+  // PipelineStageLogger<SimClass> logger(sim, dumpfile);
 
   VerilatedFstC *tfp = new VerilatedFstC;
   sim->trace(tfp, 99);
@@ -148,8 +134,8 @@ static bool run_testcase(const fs::path &testdir) {
     sim->clk = 1;
     sim->eval();
     tfp->dump(cycle * 10);
-    logger.on_tick();
-    logger.dump();
+    // logger.on_tick();
+    // logger.dump();
 
     sim->clk = 0;
     sim->eval();
@@ -174,12 +160,12 @@ static bool run_testcase(const fs::path &testdir) {
         continue;
       }
       if (got != want) {
-        std::cout << "  MISMATCH reg " << reg_aliases_rev.at(reg) << ": got 0x"
-                  << std::hex << got << " want 0x" << want << std::dec
-                  << std::endl;
+        std::cout << "  MISMATCH reg " << RISCVInstructions::regName(reg)
+                  << ": got 0x" << std::hex << got << " want 0x" << want
+                  << std::dec << std::endl;
         pass = false;
       } else {
-        std::cout << "  OK reg " << reg_aliases_rev.at(reg) << " == 0x"
+        std::cout << "  OK reg " << RISCVInstructions::regName(reg) << " == 0x"
                   << std::hex << got << std::dec << std::endl;
       }
     }

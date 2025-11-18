@@ -28,7 +28,7 @@ done))
 VERILATOR_UNIQUE_FLAGS = -x-assign unique -x-initial unique
 VERILATOR_BUILD_FLAGS = --cc -exe --main --timing --build --exe -j 0
 VERILATOR_TRACE_FLAGS = --trace-fst --trace-params --trace-structs --trace-underscore
-VERILATOR_FLAGS = --sv -CFLAGS -fcoroutines "-Iobj_dir"  $(VERILATOR_UNIQUE_FLAGS) $(VERILATOR_TRACE_FLAGS) $(VERILATOR_BUILD_FLAGS) --timing
+VERILATOR_FLAGS = --sv --public -CFLAGS -fcoroutines "-Iobj_dir"  $(VERILATOR_UNIQUE_FLAGS) $(VERILATOR_TRACE_FLAGS) $(VERILATOR_BUILD_FLAGS) --timing
 SIM_CPP = sim_main.cpp
 BASE_DIR = ..
 

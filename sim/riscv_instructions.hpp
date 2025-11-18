@@ -2,10 +2,46 @@
 #define RISCV_INSTRUCTIONS_HPP
 
 #include <cstdint>
+#include <sstream>
+#include <map>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
 namespace RISCVInstructions {
+
+// Map RISC-V ABI register names to register numbers
+static const std::map<std::string, int> reg_aliases = {
+    {"zero", 0}, {"ra", 1},  {"sp", 2},  {"gp", 3},   {"tp", 4},   {"t0", 5},
+    {"t1", 6},   {"t2", 7},  {"s0", 8},  {"fp", 8},   {"s1", 9},   {"a0", 10},
+    {"a1", 11},  {"a2", 12}, {"a3", 13}, {"a4", 14},  {"a5", 15},  {"a6", 16},
+    {"a7", 17},  {"s2", 18}, {"s3", 19}, {"s4", 20},  {"s5", 21},  {"s6", 22},
+    {"s7", 23},  {"s8", 24}, {"s9", 25}, {"s10", 26}, {"s11", 27}, {"t3", 28},
+    {"t4", 29},  {"t5", 30}, {"t6", 31}};
+static const std::map<int, std::string> reg_aliases_rev = {
+    {0, "zero"}, {1, "ra"},  {2, "sp"},   {3, "gp"},   {4, "tp"},  {5, "t0"},
+    {6, "t1"},   {7, "t2"},  {8, "s0"},   {9, "s1"},   {10, "a0"}, {11, "a1"},
+    {12, "a2"},  {13, "a3"}, {14, "a4"},  {15, "a5"},  {16, "a6"}, {17, "a7"},
+    {18, "s2"},  {19, "s3"}, {20, "s4"},  {21, "s5"},  {22, "s6"}, {23, "s7"},
+    {24, "s8"},  {25, "s9"}, {26, "s10"}, {27, "s11"}, {28, "t3"}, {29, "t4"},
+    {30, "t5"},  {31, "t6"}};
+
+auto regName(int reg) -> std::string {
+  auto it = reg_aliases_rev.find(reg);
+  if (it != reg_aliases_rev.end()) {
+    return it->second;
+  }
+  throw std::invalid_argument("Invalid register number: " +
+                              std::to_string(reg));
+}
+
+auto regNumber(const std::string &name) -> int {
+  auto it = reg_aliases.find(name);
+  if (it != reg_aliases.end()) {
+    return it->second;
+  }
+  throw std::invalid_argument("Invalid register name: " + name);
+}
 
 // Opcodes
 enum class Opcode : uint8_t {
@@ -182,8 +218,11 @@ public:
       break;
 
     default:
+      std::stringstream sstream;
+      sstream << std::hex << instruction;
+      std::string result = sstream.str();
       decoded.format = "UNKNOWN";
-      decoded.mnemonic = "UNKNOWN";
+      decoded.mnemonic = "UNKNOWN(" + result + ")";
       decoded.imm = 0;
     }
 
@@ -192,40 +231,37 @@ public:
 
   // Get assembly string representation
   static std::string toAssembly(const DecodedInstruction &decoded) {
+    using reg_aliases_rev = decltype(RISCVInstructions::reg_aliases_rev);
+
     std::string asm_str = decoded.mnemonic;
 
     if (decoded.format == "R") {
-      asm_str += " x" + std::to_string(decoded.rd) + ", x" +
-                 std::to_string(decoded.rs1) + ", x" +
-                 std::to_string(decoded.rs2);
+      asm_str += " " + regName(decoded.rd) + ", " + regName(decoded.rs1) +
+                 ", " + regName(decoded.rs2);
     } else if (decoded.format == "I") {
       if (decoded.opcode == Opcode::OP_LD ||
           decoded.opcode == Opcode::OP_JALR) {
-        asm_str += " x" + std::to_string(decoded.rd) + ", " +
-                   std::to_string(decoded.imm) + "(x" +
-                   std::to_string(decoded.rs1) + ")";
+        asm_str += " " + regName(decoded.rd) + ", " +
+                   std::to_string(decoded.imm) + "(" + regName(decoded.rs1) +
+                   ")";
       } else {
-        asm_str += " x" + std::to_string(decoded.rd) + ", x" +
-                   std::to_string(decoded.rs1) + ", " +
-                   std::to_string(decoded.imm);
+        asm_str += " " + regName(decoded.rd) + ", " + regName(decoded.rs1) +
+                   ", " + std::to_string(decoded.imm);
       }
     } else if (decoded.format == "S") {
-      asm_str += " x" + std::to_string(decoded.rs2) + ", " +
-                 std::to_string(decoded.imm) + "(x" +
-                 std::to_string(decoded.rs1) + ")";
+      asm_str += " " + regName(decoded.rs2) + ", " +
+                 std::to_string(decoded.imm) + "(" + regName(decoded.rs1) + ")";
     } else if (decoded.format == "B") {
-      asm_str += " x" + std::to_string(decoded.rs1) + ", x" +
-                 std::to_string(decoded.rs2) + ", " +
-                 std::to_string(decoded.imm);
+      asm_str += " " + regName(decoded.rs1) + ", " + regName(decoded.rs2) +
+                 ", " + std::to_string(decoded.imm);
     } else if (decoded.format == "U") {
-      asm_str += " x" + std::to_string(decoded.rd) + ", " +
-                 std::to_string(decoded.imm >> 12);
+      asm_str +=
+          " " + regName(decoded.rd) + ", " + std::to_string(decoded.imm >> 12);
     } else if (decoded.format == "J") {
-      asm_str += " x" + std::to_string(decoded.rd) + ", " +
-                 std::to_string(decoded.imm);
+      asm_str += " " + regName(decoded.rd) + ", " + std::to_string(decoded.imm);
     }
 
-    if (asm_str == "addi x0, x0, 0") {
+    if (asm_str == "addi zero, zero, 0") {
       asm_str = "nop";
     }
 

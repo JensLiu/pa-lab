@@ -36,10 +36,11 @@ module mem_stage
     end
 
     always_comb begin
-        cacheRequest.request = MEM_writeEnabled || MEM_writeEnabled;
+        cacheRequest.request = MEM_readEnabled || MEM_writeEnabled;
         cacheRequest.isRead = MEM_readEnabled;
         cacheRequest.addr = MEM_addr;
         cacheRequest.dataToCache = MEM_writeData;
+        cacheRequest.dataLen = MEM_writeDataLen;
         MEM_readData = cacheRequest.dataFromCache;
     end
 

@@ -18,5 +18,6 @@ RTL_SOURCES = ${RTL_DIR}/alu.sv \
               ${RTL_DIR}/unified_memory.sv  \
               ${RTL_DIR}/memory_request_sequencer.sv \
               ${RTL_DIR}/cache.sv   \
+              ${RTL_DIR}/cache_fast.sv \
               ${RTL_DIR}/cache_request_if.sv \
               ${RTL_DIR}/mem_request_if.sv

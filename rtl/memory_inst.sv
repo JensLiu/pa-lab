@@ -5,31 +5,28 @@ module memory_inst
     import pkg_global_defs::*;
     import pkg_riscv_instructions::*;
 (
-    input  clk_t         clk,
-    input  addr_t        addr,
-    output instruction_t inst
+    // input clk_t                  clk,
+    cache_request_if.slave cpuRequest
 );
-    byte_t mem[INST_MEM_SIZE];
+    byte_t mem  [INST_MEM_SIZE];
+
+    addr_t addr;
+    word_t inst;
+
+    assign addr = cpuRequest.addr;
+    assign cpuRequest.dataFromCache = inst;
+    assign cpuRequest.ready = TRUE;
+    assign cpuRequest.failed = FALSE;
 
     initial begin
         $display("INST_MEM_SIZE=%d", INST_MEM_SIZE);
-        $readmemh("inst_mem.hex", mem);
-        // for (int i = 0; i < 100; i++) begin
-        //     if (i != 0 && i % 4 == 0) begin
-        //         $write("\n");
-        //     end
-        //     $write("%h ", mem[i]);
-        // end
+        $readmemh("memory.hex", mem);
     end
 
     always_comb begin
         assert (addr < INST_MEM_SIZE)
         else $display("Invalid memory access @%h while max size is %h", addr, INST_MEM_SIZE);
         inst = {mem[addr+3], mem[addr+2], mem[addr+1], mem[addr]};
-        // $display("instruction@%h: %h", addr, inst);
-        // `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
-        // DEBUG_mem <= mem;
-        // `endif
     end
 
 endmodule

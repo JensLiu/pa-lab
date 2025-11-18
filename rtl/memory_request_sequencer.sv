@@ -2,8 +2,8 @@
 module memory_request_sequencer
     import pkg_global_defs::*;
 (
-    mem_request_if.slave  instCacheRequest,
-    mem_request_if.slave  dataCacheRequest,
+    mem_request_if.slave instCacheRequest,
+    mem_request_if.slave dataCacheRequest,
     mem_request_if.master memoryRequest
 );
     always_comb begin : RequestWiring

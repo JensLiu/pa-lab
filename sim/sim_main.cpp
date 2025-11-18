@@ -19,21 +19,25 @@ int main(int argc, char **argv) {
   sim->trace(tfp, 99);
   tfp->open("simulation.fst");
 
-  for (int cycle = 0; cycle < 1000; cycle++) {
-    if (cycle > 0) {
+  try {
+    for (int cycle = 0; cycle < 1000; cycle++) {
+      if (cycle > 0) {
+        sim->eval();
+        tfp->dump(cycle * 10 - 2);
+      }
+
+      sim->clk = 1;
       sim->eval();
-      tfp->dump(cycle * 10 - 2);
+      tfp->dump(cycle * 10);
+      logger.on_tick();
+      logger.dump();
+
+      sim->clk = 0;
+      sim->eval();
+      tfp->dump(cycle * 10 + 5);
     }
-
-    sim->clk = 1;
-    sim->eval();
-    tfp->dump(cycle * 10);
-    logger.on_tick();
-    logger.dump();
-
-    sim->clk = 0;
-    sim->eval();
-    tfp->dump(cycle * 10 + 5);
+  } catch (const std::exception &e) {
+    std::cerr << "Simulation error: " << e.what() << std::endl;
   }
 
   tfp->close();

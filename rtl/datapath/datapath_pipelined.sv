@@ -86,16 +86,28 @@ module datapath_pipelined
 
     mem_request_if instCacheMemRequest();
     mem_request_if dataCacheMemRequest();
-    cache instructionCache(
-        .clk(clk),
-        .cpuRequest(instCacheCpuRequest.slave),
-        .memRequest(instCacheMemRequest.master)
+    memory_inst instructionMemory(
+        .cpuRequest(instCacheCpuRequest.slave)
     );
-    cache_fast dataCache (
+    // cache_fast instructionCache(
+    //     .clk(clk),
+    //     .cpuRequest(instCacheCpuRequest.slave),
+    //     .memRequest(instCacheMemRequest.master)
+    // );
+    // cache_fast dataCache (
+    //     .clk(clk),
+    //     .cpuRequest(dataCacheCpuRequest.slave),
+    //     .memRequest(dataCacheMemRequest.master)
+    // );
+    memory_data dataMemory(
         .clk(clk),
-        .cpuRequest(dataCacheCpuRequest.slave),
-        .memRequest(dataCacheMemRequest.master)
+        .cpuRequest(dataCacheCpuRequest.slave)
     );
+    // always_comb begin : MockDataAlwaysHit
+    //     dataCacheCpuRequest.slave.ready = 1'b1;
+    //     dataCacheCpuRequest.slave.failed = 1'b0;
+    //     dataCacheCpuRequest.slave.dataFromCache = '0;
+    // end
 
     mem_request_if memRequest();
     memory_request_sequencer memRequestSequencer(

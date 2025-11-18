@@ -4,33 +4,32 @@
 module memory_data
     import pkg_global_defs::*;
 (
-    input bool_t clk,
-    input addr_t readAddr,
-    input addr_t writeAddr,
-    input word_t writeData,
-    input mem_stlen_t writeDataLen,
-    input bool_t writeEnable,
-    output word_t readData
+    input logic clk,
+    cache_request_if.slave cpuRequest
 );
+
     byte_t mem[DATA_MEM_SIZE];
 
     always_ff @(posedge clk) begin
-        if (writeEnable) begin
-            assert (writeAddr < DATA_MEM_SIZE)
+        if (cpuRequest.request && !cpuRequest.isRead) begin
+            assert (cpuRequest.addr < DATA_MEM_SIZE)
             else
                 $display(
-                    "Invalid memory access @%h while max size is %h", writeAddr, DATA_MEM_SIZE
+                    "Invalid memory access @%h while max size is %h", cpuRequest.addr, DATA_MEM_SIZE
                 );
-            case (writeDataLen)
-                MEM_STLEN_BYTE: mem[writeAddr] <= writeData[7:0];
-                MEM_STLEN_HALF: {mem[writeAddr+1], mem[writeAddr]} <= writeData[15:0];
+            case (cpuRequest.dataLen)
+                MEM_STLEN_BYTE: mem[cpuRequest.addr] <= cpuRequest.dataToCache[7:0];
+                MEM_STLEN_HALF:
+                {mem[cpuRequest.addr+1], mem[cpuRequest.addr]} <= cpuRequest.dataToCache[15:0];
                 MEM_STLEN_WORD:
-                {mem[writeAddr+3], mem[writeAddr+2], mem[writeAddr+1], mem[writeAddr]} <= writeData;
+                {mem[cpuRequest.addr+3], mem[cpuRequest.addr+2], mem[cpuRequest.addr+1], mem[cpuRequest.addr]} <= cpuRequest.dataToCache;
                 default: assert (FALSE);  // TODO: exception
             endcase
         end
     end
 
-    assign readData = {mem[readAddr+3], mem[readAddr+2], mem[readAddr+1], mem[readAddr]};
+    assign cpuRequest.ready = TRUE;
+    assign cpuRequest.dataFromCache = !cpuRequest.isRead ? 0
+                        : {mem[cpuRequest.addr+3], mem[cpuRequest.addr+2], mem[cpuRequest.addr+1], mem[cpuRequest.addr]};
 
 endmodule

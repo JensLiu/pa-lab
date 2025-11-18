@@ -3,6 +3,8 @@
 import pkg_global_defs::*;
 import pkg_riscv_instructions::*;
 
+// `define CACHE_DEBUG_PRINT(x) $display({$sformatf x})
+`define CACHE_DEBUG_PRINT(x)
 
 module cache_fast (
     input logic clk,
@@ -43,9 +45,7 @@ module cache_fast (
     } cache_state_t;
 
     cache_state_t currentState;
-    /* verilator lint_off UNOPTFLAT */
     cache_state_t nextState;
-    /* verilator lint_on UNOPTFLAT */
 
     cache_t cacheMem;
     cache_lru_policy_t policyMetadata[8];  // 8 sets
@@ -110,21 +110,25 @@ module cache_fast (
                 end
             end
         end
-        $display("@%d: targetAddr: %h, targetWayIdx: %b, isHit: %b, isSetFull: %b", DEBUG_tick,
-                 targetAddr, targetWayIdx, isHit, isSetFull);
-        $display("@%d: victimAddr: %h, victimLine: %h, isVictimDirty: %b", DEBUG_tick, victimAddr,
-                 victimLine, isVictimDirty);
+        `CACHE_DEBUG_PRINT(
+            ("@%d: targetAddr: %h, targetWayIdx: %b, isHit: %b, isSetFull: %b", DEBUG_tick,
+                 targetAddr, targetWayIdx, isHit, isSetFull));
+        `CACHE_DEBUG_PRINT(
+            ("@%d: victimAddr: %h, victimLine: %h, isVictimDirty: %b", DEBUG_tick, victimAddr,
+                 victimLine, isVictimDirty));
     end
 
 
     always_comb begin : DebugPrint
         for (int i = 0; i < 8; i++) begin
-            $display("@%d: Set %0d: Way 0 - valid: %b, dirty: %b, tag: %h, data: %h", DEBUG_tick,
+            `CACHE_DEBUG_PRINT(
+                ("@%d: Set %0d: Way 0 - valid: %b, dirty: %b, tag: %h, data: %h", DEBUG_tick,
                      i, cacheMem[i][0].valid, cacheMem[i][0].dirty, cacheMem[i][0].tag,
-                     cacheMem[i][0].data);
-            $display("@%d: Set %0d: Way 1 - valid: %b, dirty: %b, tag: %h, data: %h", DEBUG_tick,
+                     cacheMem[i][0].data));
+            `CACHE_DEBUG_PRINT(
+                ("@%d: Set %0d: Way 1 - valid: %b, dirty: %b, tag: %h, data: %h", DEBUG_tick,
                      i, cacheMem[i][1].valid, cacheMem[i][1].dirty, cacheMem[i][1].tag,
-                     cacheMem[i][1].data);
+                     cacheMem[i][1].data));
         end
     end
 
@@ -156,6 +160,7 @@ module cache_fast (
     end
 
     always_comb begin : NextStateLogic
+        `CACHE_DEBUG_PRINT(("@%d: =============== NextStateLogic run ===============", DEBUG_tick));
         nextState = currentState;
         case (currentState)
             IDLE: begin
@@ -172,20 +177,36 @@ module cache_fast (
                 if (memRequest.ready) begin
                     nextState = REFILL_WAIT;
                 end else begin
+                    assert (nextState == EVICT_WAIT);
                     assert (memRequest.request);
                     assert (!memRequest.isRead);
                     assert (memRequest.addr == victimAddr);
                     assert (memRequest.dataToMem == victimLine);
+
                 end
             end
             REFILL_WAIT: begin
                 if (memRequest.ready) begin
                     if (cpuRequest.isRead) begin
+                        `CACHE_DEBUG_PRINT(("@%d: decided: REFILL_WAIT -> IDLE", DEBUG_tick));
                         nextState = IDLE;
                     end else begin
+                        `CACHE_DEBUG_PRINT(("@%d: decided: REFILL_WAIT -> WRITEBACK", DEBUG_tick));
                         nextState = WRITEBACK;
                     end
                 end else begin
+                    assert (nextState == REFILL_WAIT);
+                    `CACHE_DEBUG_PRINT(("@%d: decided: REFILL_WAIT -> REFILL_WAIT", DEBUG_tick));
+                    `CACHE_DEBUG_PRINT(("@%d: checking assert", DEBUG_tick));
+                    `CACHE_DEBUG_PRINT(
+                        ("@%d: checking assert: memRequest.request = %b", DEBUG_tick,
+                             memRequest.request));
+                    `CACHE_DEBUG_PRINT(
+                        ("@%d: checking assert: memRequest.isRead = %b", DEBUG_tick,
+                             memRequest.isRead));
+                    `CACHE_DEBUG_PRINT(
+                        ("@%d: checking assert: memRequest.addr = %h", DEBUG_tick,
+                             memRequest.addr));
                     assert (memRequest.request);
                     assert (memRequest.isRead);
                     assert (memRequest.addr == targetAddr);
@@ -198,59 +219,100 @@ module cache_fast (
                 assert (FALSE);
             end
         endcase
-        $display("@%d: currentState = %d, nextState = %d", DEBUG_tick, currentState, nextState);
+        `CACHE_DEBUG_PRINT(
+            ("@%d: currentState = %d, nextState = %d", DEBUG_tick, currentState, nextState));
         // if (currentState != IDLE) begin
         //     assert (cpuRequest.request);
         //     assert (!cpuRequest.invalidateAll);
         // end
     end
 
-    // NOTE: improvement: using combinational logic
-    always_comb begin : MemoryRequestLogic
-        memRequest.request = FALSE;
-        memRequest.isRead = FALSE;
-        memRequest.addr = '0;
-        memRequest.dataToMem = '0;
+    // NOTE: do not use combinational logic
+    // at the rising edge of the clock, a memory request is ready (reponseded):
+    // 1. MemoryRequestLogic: (REFILL_WAIT -> REFILL_WAIT): keep memRequest
+    // 2. NextStateLogic: if (memRequest.ready): decide REFILL_WAIT -> IDLE
+    // 3. MemoryRequestLogic: (REFILL_WAIT -> IDLE): drop memRequest (hence ~memRequest.ready)
+    // 4. NextStateLogic: (!memRequest.ready): decide REFILL_WAIT -> REFILL_WAIT
+    always_ff @(posedge clk) begin : MemoryRequestLogic
+        `CACHE_DEBUG_PRINT(
+            ("@%d: =============== MemoryRequestLogic run ===============", DEBUG_tick));
+        memRequest.request <= FALSE;
+        memRequest.isRead <= FALSE;
+        memRequest.addr <= '0;
+        memRequest.dataToMem <= '0;
         if (nextState == EVICT_WAIT) begin
             assert (currentState == IDLE || currentState == EVICT_WAIT);
-            memRequest.request = TRUE;
-            memRequest.isRead = FALSE;
-            memRequest.addr = victimAddr;
-            memRequest.dataToMem = victimLine;
+            if (currentState == IDLE) begin
+                `CACHE_DEBUG_PRINT(("@%d: EVICT_WAIT -> IDLE edge", DEBUG_tick));
+            end else begin
+                `CACHE_DEBUG_PRINT(("@%d: EVICT_WAIT -> EVICT_WAIT edge", DEBUG_tick));
+            end
+            memRequest.request <= TRUE;
+            memRequest.isRead <= FALSE;
+            memRequest.addr <= victimAddr;
+            memRequest.dataToMem <= victimLine;
+            `CACHE_DEBUG_PRINT(
+                ("@%d: memRequest.request = %d, memRequest.isRead = %d, memRequest.addr = %d, memRequest.dataToMem = %d",
+                DEBUG_tick, memRequest.request, memRequest.isRead, memRequest.addr,
+                memRequest.dataToMem));
         end else if (nextState == REFILL_WAIT) begin
             assert (currentState == EVICT_WAIT || currentState == REFILL_WAIT ||
                     currentState == IDLE);
-            memRequest.request = TRUE;
-            memRequest.isRead = TRUE;
-            memRequest.addr = targetAddr;
+
+            if (currentState == EVICT_WAIT) begin
+                `CACHE_DEBUG_PRINT(("@%d: EVICT_WAIT -> REFILL_WAIT edge", DEBUG_tick));
+            end else if (currentState == REFILL_WAIT) begin
+                `CACHE_DEBUG_PRINT(("@%d: REFILL_WAIT -> REFILL_WAIT edge", DEBUG_tick));
+            end else begin
+                `CACHE_DEBUG_PRINT(("@%d: IDLE -> REFILL_WAIT edge", DEBUG_tick));
+            end
+
+            memRequest.request <= TRUE;
+            memRequest.isRead <= TRUE;
+            memRequest.addr <= targetAddr;
+            `CACHE_DEBUG_PRINT(
+                ("@%d: memRequest.request = %d, memRequest.isRead = %d, memRequest.addr = %d, memRequest.dataToMem = %d",
+                DEBUG_tick, memRequest.request, memRequest.isRead, memRequest.addr,
+                memRequest.dataToMem));
+        end else begin
+            `CACHE_DEBUG_PRINT(("@%d dropping memory request", DEBUG_tick));
+            `CACHE_DEBUG_PRINT(
+                ("@%d: dropping memory request: currrentState=%d, nextState=%d", DEBUG_tick,
+                     currentState, nextState));
         end
     end
 
-    always_comb begin
-        $display(
+    always_comb begin : DEBUG_PrintRequests
+        `CACHE_DEBUG_PRINT(
+            (
             "@%d: CpuRequest - req: %b, ready: %b, isRead: %b, addr: %h, dataToCache: %h, dataFromCache: %h",
             DEBUG_tick, cpuRequest.request, cpuRequest.ready, cpuRequest.isRead, cpuRequest.addr,
-            cpuRequest.dataToCache, cpuRequest.dataFromCache);
-        $display(
+            cpuRequest.dataToCache, cpuRequest.dataFromCache));
+        `CACHE_DEBUG_PRINT(
+            (
             "@%d: MemRequest - req: %b, ready: %b, isRead: %b, addr: %h, dataToMem: %h, dataFromMem: %h",
             DEBUG_tick, memRequest.request, memRequest.ready, memRequest.isRead, memRequest.addr,
-            memRequest.dataToMem, memRequest.dataFromMem);
+            memRequest.dataToMem, memRequest.dataFromMem));
     end
 
 
     always_ff @(posedge clk) begin : CacheMemoryUpdate
-        $display("@%d [CACHE MEMORY UPDATE]: request=%d, currentState=%d, nextState=%d, isHit=%d",
-                 DEBUG_tick, cpuRequest.request, currentState, nextState, isHit);
+        `CACHE_DEBUG_PRINT(
+            ("@%d [CACHE MEMORY UPDATE]: request=%d, currentState=%d, nextState=%d, isHit=%d",
+                 DEBUG_tick, cpuRequest.request, currentState, nextState, isHit));
 
         if (cpuRequest.request) begin
-            $display(
+            `CACHE_DEBUG_PRINT(
+                (
                 "@%d [CACHE MEMORY UPDATE]: shouldWriteback=%d", DEBUG_tick,
-                (currentState == IDLE || currentState == WRITEBACK) && nextState == IDLE && !cpuRequest.isRead);
-            $display(
+                (currentState == IDLE || currentState == WRITEBACK) && nextState == IDLE && !cpuRequest.isRead));
+            `CACHE_DEBUG_PRINT(
+                (
                 "@%d [CACHE MEMORY UPDATE]: (currentState == IDLE || currentState == WRITEBACK)=",
-                DEBUG_tick, (currentState == IDLE || currentState == WRITEBACK));
-            $display("@%d [CACHE MEMORY UPDATE]: !cpuRequest.isRead=%d, nextState == IDLE=%d",
-                     DEBUG_tick, !cpuRequest.isRead, nextState == IDLE);
+                DEBUG_tick, (currentState == IDLE || currentState == WRITEBACK)));
+            `CACHE_DEBUG_PRINT(
+                ("@%d [CACHE MEMORY UPDATE]: !cpuRequest.isRead=%d, nextState == IDLE=%d",
+                     DEBUG_tick, !cpuRequest.isRead, nextState == IDLE));
             if (currentState == REFILL_WAIT && nextState != REFILL_WAIT) begin
                 assert (!isHit);
                 assert (nextState == IDLE || nextState == WRITEBACK);
@@ -258,12 +320,13 @@ module cache_fast (
                 cacheMem[targetAddr.setIdx][targetWayIdx].tag   <= targetAddr.tag;
                 cacheMem[targetAddr.setIdx][targetWayIdx].valid <= 1'b1;
                 cacheMem[targetAddr.setIdx][targetWayIdx].dirty <= 1'b0;
-            end else if ((currentState == IDLE || currentState == WRITEBACK)
-                         && nextState == IDLE && !cpuRequest.isRead) begin
+            end else if ((currentState == IDLE || currentState == WRITEBACK) &&
+                         nextState == IDLE && !cpuRequest.isRead) begin
                 // NOTE: the written memory is only visible in the next cycle
                 //       this is fine since we did a bypass in the `RequestResponse` block
-                $display("@%d: Writing data to cache: 0x%h at offset %0d", DEBUG_tick,
-                         cpuRequest.dataToCache, targetAddr.offset);
+                `CACHE_DEBUG_PRINT(
+                    ("@%d: Writing data to cache: 0x%h at offset %0d", DEBUG_tick,
+                                   cpuRequest.dataToCache, targetAddr.offset));
                 cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32] <= cpuRequest.dataToCache;
                 cacheMem[targetAddr.setIdx][targetWayIdx].dirty <= 1'b1;
             end
@@ -273,32 +336,6 @@ module cache_fast (
     // use this tmp variable to make Verilator happy
     logic [127:0] tmpDataFromMem;
     assign tmpDataFromMem = memRequest.dataFromMem;
-    // always_comb begin : RequestResponse
-    //     // flopped outputs?
-    //     cpuRequest.failed = FALSE;  // never fails
-    //     cpuRequest.ready = FALSE;
-    //     cpuRequest.dataFromCache = '0;
-    //     if (cpuRequest.request && nextState == IDLE) begin
-    //         cpuRequest.ready = TRUE;
-    //         if (cpuRequest.isRead) begin
-    //             if (isHit) begin
-    //                 // assert (currentState == IDLE);
-    //                 cpuRequest.dataFromCache = cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32];
-    //             end else begin
-    //                 assert (currentState == REFILL_WAIT);
-    //                 // NOTE: bypass
-    //                 //       here, we cannot use cacheMem because it has NOT been updated yet
-    //                 //       it will be visible in the next cycle, i.e. `currentState == DONE`
-    //                 //       However, if we assigned the response at `DONE`, we would have 
-    //                 //       wasted a cycle for the response to be visible to the CPU
-    //                 $display("@%d: Bypass data from mem: 0x%h", DEBUG_tick,
-    //                          tmpDataFromMem[targetAddr.offset*8+:32]);
-    //                 cpuRequest.dataFromCache = tmpDataFromMem[targetAddr.offset*8+:32];
-    //             end
-    //         end
-    //     end
-    // end
-
     always_comb begin : RequestResponse
         cpuRequest.failed = FALSE;  // never fails
         cpuRequest.ready = FALSE;
@@ -316,8 +353,9 @@ module cache_fast (
                     //       it will be visible in the next cycle, i.e. `currentState == DONE`
                     //       However, if we assigned the response at `DONE`, we would have 
                     //       wasted a cycle for the response to be visible to the CPU
-                    $display("@%d: Bypass data from mem: 0x%h", DEBUG_tick,
-                             tmpDataFromMem[targetAddr.offset*8+:32]);
+                    `CACHE_DEBUG_PRINT(
+                        ("@%d: Bypass data from mem: 0x%h", DEBUG_tick,
+                                       tmpDataFromMem[targetAddr.offset*8+:32]));
                     cpuRequest.dataFromCache = tmpDataFromMem[targetAddr.offset*8+:32];
                 end
             end
@@ -327,7 +365,7 @@ module cache_fast (
     // always_comb begin : Exception
     //     assert (cpuRequest.addr < DATA_MEM_SIZE)
     //     else
-    //         $display(
+    //         `CACHE_DEBUG_PRINT(
     //             "Invalid memory access @%h while max size is %h",
     //             cpuRequest.addr + 15,
     //             DATA_MEM_SIZE

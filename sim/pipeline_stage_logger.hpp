@@ -23,8 +23,9 @@
                         DATA_ACCESS_4, DATA_ACCESS_3, DATA_ACCESS_2,           \
                         DATA_ACCESS_1)(__VA_ARGS__)
 #define PIPELINE_ACCESS(...) DATA_ACCESS(datapath_pipelined, __VA_ARGS__)
-
 #define DATA_PRIVATE(x) __PVT__##x
+#define PIPELINE_PRIVATE_ACCESS(...)                                           \
+  DATA_ACCESS(__PVT__datapath_pipelined, __VA_ARGS__)
 
 enum PipelineStageID {
   STAGE_IF = 0,
@@ -303,8 +304,18 @@ public:
         sim->rootp->PIPELINE_ACCESS(instructionCache, cacheMem);
     const auto &policy_metadata =
         sim->rootp->PIPELINE_ACCESS(instructionCache, policyMetadata);
+    const auto &is_hit = sim->rootp->PIPELINE_ACCESS(instructionCache, isHit);
+    const auto &is_set_full =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, isSetFull);
+    const auto &is_victim_dirty =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, isVictimDirty);
+    const auto &cpu_request =
+        sim->rootp->PIPELINE_PRIVATE_ACCESS(instCacheCpuRequest);
+    const auto &mem_request =
+        sim->rootp->PIPELINE_PRIVATE_ACCESS(instCacheMemRequest);
 
     os << "Instruction Cache State:" << std::endl;
+    os << "  Is Hit: " << (is_hit ? "Yes" : "No") << std::endl;
     os << "  Current State: " << cache_state_string.at(current_state)
        << std::endl;
     os << "  Next State: " << cache_state_string.at(next_state) << std::endl;
@@ -312,6 +323,29 @@ public:
        << std::endl;
     os << "  Victim Address: 0x" << std::hex << victim_addr << std::dec
        << std::endl;
+    os << "  Is Set Full: " << (is_set_full ? "Yes" : "No") << std::endl;
+    os << "  Is Victim Dirty: " << (is_victim_dirty ? "Yes" : "No")
+       << std::endl;
+
+    // os << "  CPU Request Interface: "
+    //   //  << "Request=" <<
+    //   static_cast<int>(cpu_request->DATA_ACCESS(request))
+    //    << ", Ready=" << static_cast<int>(cpu_request->DATA_ACCESS(ready))
+    //   //  << ", Addr=0x" << std::hex << cpu_request->DATA_ACCESS(addr)
+    //    << ", DataFromCache=0x" << cpu_request->DATA_ACCESS(dataFromCache)
+    //    << std::dec << ", DataToCache=0x"
+    //    << cpu_request->DATA_ACCESS(dataToCache) << std::dec
+    //    << ", isRead=" << static_cast<int>(cpu_request->DATA_ACCESS(isRead))
+    //    << std::endl;
+    // os << "  Memory Request Interface: "
+    //    << "Request=" << static_cast<int>(mem_request->DATA_ACCESS(request))
+    //    << ", Ready=" << static_cast<int>(mem_request->DATA_ACCESS(ready))
+    //    << ", Addr=0x" << std::hex << mem_request->DATA_ACCESS(addr)
+    //    << ", DataFromMem=0x" << mem_request->DATA_ACCESS(dataFromMem)
+    //    << std::dec << ", DataToMem=0x" << mem_request->DATA_ACCESS(dataToMem)
+    //    << std::dec
+    //    << ", isRead=" << static_cast<int>(mem_request->DATA_ACCESS(isRead))
+    //    << std::endl;
     os << "  Cache Memory Contents:" << std::endl;
     for (size_t set_idx = 0; set_idx < cache_mem.size(); ++set_idx) {
       for (size_t way_idx = 0; way_idx < cache_mem[set_idx].size(); ++way_idx) {
@@ -385,10 +419,12 @@ public:
   void memory_state_dump() {
     const auto &memory = sim->rootp->PIPELINE_ACCESS(memory, mem);
     os << "Memory State:" << std::endl;
-    const auto current_state = sim->rootp->PIPELINE_ACCESS(memory, currentState);
+    const auto current_state =
+        sim->rootp->PIPELINE_ACCESS(memory, currentState);
     const auto next_state = sim->rootp->PIPELINE_ACCESS(memory, nextState);
-    const auto delay_counter = sim->rootp->PIPELINE_ACCESS(memory, delayCountdown);
-    
+    const auto delay_counter =
+        sim->rootp->PIPELINE_ACCESS(memory, delayCountdown);
+
     os << "  Current State: " << memory_state_string.at(current_state)
        << " (delay_counter=" << std::to_string(delay_counter) << ")"
        << std::endl;
@@ -437,7 +473,7 @@ public:
   void dump() {
     stage_state_dump();
     inst_cache_state_dump();
-    data_cache_state_dump();
+    // data_cache_state_dump();
     memory_state_dump();
   }
 };

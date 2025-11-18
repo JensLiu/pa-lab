@@ -9,9 +9,9 @@ interface cache_request_if;
     addr_t addr;
     word_t dataToCache;
     word_t dataFromCache;
-    
+    mem_stlen_t dataLen;
 
-    modport master (
+    modport master(
         output request,
         input ready,
         input failed,
@@ -19,10 +19,11 @@ interface cache_request_if;
         output invalidateAll,
         output addr,
         output dataToCache,
-        input dataFromCache
+        input dataFromCache,
+        output dataLen
     );
 
-    modport slave (
+    modport slave(
         input request,
         output ready,
         output failed,
@@ -30,7 +31,8 @@ interface cache_request_if;
         input invalidateAll,
         input addr,
         input dataToCache,
-        output dataFromCache
+        output dataFromCache,
+        input dataLen
     );
 
-endinterface;
+endinterface
