@@ -86,9 +86,9 @@ module unified_memory
             request.ready <= TRUE;
             if (request.isRead) begin
                 for (int  i = 0; i < 16; i++) begin
-                    $display("@%d: [Memory]: read data @%h -> %h", DEBUG_tick,
-                            request.addr + i, 
-                             mem[request.addr + i]);
+                    // $display("@%d: [Memory]: read data @%h -> %h", DEBUG_tick,
+                    //         request.addr + i, 
+                    //          mem[request.addr + i]);
                     request.dataFromMem[i*8+:8] <= mem[request.addr + i];
                 end
             end
@@ -99,9 +99,9 @@ module unified_memory
         if (currentState == MOCK_DELAY && nextState == DONE && !request.isRead) begin
             // visible at `DONE`. It's fine since we serve one read/write request at a time
             for (int i = 0; i < 16; i++) begin
-                $display("@%d: [Memory]: write data @%h <- %h", DEBUG_tick,
-                        request.addr + i, 
-                         request.dataToMem[i*8+:8]);
+                // $display("@%d: [Memory]: write data @%h <- %h", DEBUG_tick,
+                //         request.addr + i, 
+                //          request.dataToMem[i*8+:8]);
                 mem[request.addr + i] <= request.dataToMem[i*8+:8];
             end
         end

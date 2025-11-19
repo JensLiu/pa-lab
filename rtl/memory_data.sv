@@ -12,11 +12,7 @@ module memory_data
 
     always_ff @(posedge clk) begin
         if (cpuRequest.request && !cpuRequest.isRead) begin
-            assert (cpuRequest.addr < DATA_MEM_SIZE)
-            else
-                $display(
-                    "Invalid memory access @%h while max size is %h", cpuRequest.addr, DATA_MEM_SIZE
-                );
+            assert (cpuRequest.addr < DATA_MEM_SIZE);
             case (cpuRequest.dataLen)
                 MEM_STLEN_BYTE: mem[cpuRequest.addr] <= cpuRequest.dataToCache[7:0];
                 MEM_STLEN_HALF:
@@ -28,8 +24,26 @@ module memory_data
         end
     end
 
-    assign cpuRequest.ready = TRUE;
-    assign cpuRequest.dataFromCache = !cpuRequest.isRead ? 0
-                        : {mem[cpuRequest.addr+3], mem[cpuRequest.addr+2], mem[cpuRequest.addr+1], mem[cpuRequest.addr]};
+    always_comb begin : Response
+        cpuRequest.ready = TRUE;
+        if (cpuRequest.isRead) begin
+            case (cpuRequest.dataLen)
+                MEM_STLEN_BYTE: cpuRequest.dataFromCache = {24'b0, mem[cpuRequest.addr]};
+                MEM_STLEN_HALF:
+                cpuRequest.dataFromCache = {16'b0, mem[cpuRequest.addr+1], mem[cpuRequest.addr]};
+                MEM_STLEN_WORD:
+                cpuRequest.dataFromCache = {
+                    mem[cpuRequest.addr+3],
+                    mem[cpuRequest.addr+2],
+                    mem[cpuRequest.addr+1],
+                    mem[cpuRequest.addr]
+                };
+                default: begin
+                    cpuRequest.dataFromCache = 32'b0;
+                    assert (FALSE);  // TODO: exception
+                end
+            endcase
+        end
+    end
 
 endmodule

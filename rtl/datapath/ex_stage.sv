@@ -102,6 +102,4 @@ module ex_stage
         // end
     end
 
-
 endmodule
-;

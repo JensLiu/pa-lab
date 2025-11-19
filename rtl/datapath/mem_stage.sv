@@ -23,23 +23,18 @@ module mem_stage
     bool_t MEM_writeEnabled = MEM_instInfo.isStore;
     word_t MEM_writeData = exMemRegs.stData;
 
-    mem_stlen_t MEM_writeDataLen;
+    mem_stlen_t MEM_readWriteDataLen;
     always_comb begin
-        if (MEM_instInfo.isStore || MEM_instInfo.isLoad) begin
-            assert (MEM_instInfo.stldDataLen == DL_WORD)
-            else $display("data length = %d", MEM_instInfo.stldDataLen);
-        end
-        if (MEM_instInfo.isStore) begin
-            case (MEM_instInfo.stldDataLen)
-                DL_BYTE: MEM_writeDataLen = MEM_STLEN_BYTE;
-                DL_HALF: MEM_writeDataLen = MEM_STLEN_HALF;
-                DL_WORD: MEM_writeDataLen = MEM_STLEN_WORD;
-                default: MEM_writeDataLen = MEM_STLEN_INVALID;
-            endcase
-            // $display("%h: @%h <- %h", exMemRegs.pc, MEM_addr, MEM_writeData);
-        end else begin
-            MEM_writeDataLen = MEM_STLEN_INVALID;
-        end
+        // if (MEM_instInfo.isStore || MEM_instInfo.isLoad) begin
+        //     assert (MEM_instInfo.stldDataLen == DL_WORD)
+        //     else $display("data length = %d", MEM_instInfo.stldDataLen);
+        // end
+        case (MEM_instInfo.stldDataLen)
+            DL_BYTE: MEM_readWriteDataLen = MEM_STLEN_BYTE;
+            DL_HALF: MEM_readWriteDataLen = MEM_STLEN_HALF;
+            DL_WORD: MEM_readWriteDataLen = MEM_STLEN_WORD;
+            default: MEM_readWriteDataLen = MEM_STLEN_INVALID;
+        endcase
     end
 
     always_comb begin
@@ -48,7 +43,7 @@ module mem_stage
         cacheRequest.isRead = MEM_readEnabled;
         cacheRequest.addr = MEM_addr;
         cacheRequest.dataToCache = MEM_writeData;
-        cacheRequest.dataLen = MEM_writeDataLen;
+        cacheRequest.dataLen = MEM_readWriteDataLen;
         MEM_readData = cacheRequest.dataFromCache;
         // request the data memory for divergence test
         DEBUG_dataMemRequest.request = cacheRequest.request;
@@ -58,15 +53,22 @@ module mem_stage
         DEBUG_dataMemRequest.dataLen = cacheRequest.dataLen;
     end
 
+    always_comb begin : MemoryInstructionConsistencyCheck
+        if (MEM_instInfo.isLoad || MEM_instInfo.isStore) begin
+            assert (MEM_instInfo.stldDataLen != DL_INVALID);
+            assert (MEM_readWriteDataLen != MEM_STLEN_INVALID);
+        end
+        if (cacheRequest.request && cacheRequest.isRead) begin
+            assert (DEBUG_dataMemRequest.dataLen != MEM_STLEN_INVALID);
+            assert (cacheRequest.dataLen != MEM_STLEN_INVALID);
+        end
+    end
+
     word_t MEM_result;
     always_comb begin
         if (MEM_instInfo.isLoad && cacheRequest.ready) begin
-            case (MEM_instInfo.stldDataLen)
-                DL_BYTE: MEM_result = {{24{1'b0}}, MEM_readData[7:0]};
-                DL_HALF: MEM_result = {{16{1'b0}}, MEM_readData[15:0]};
-                DL_WORD: MEM_result = MEM_readData[31:0];
-                default: assert (FALSE);
-            endcase
+            MEM_result = MEM_readData;
+            // endcase
             // if (cacheRequest.dataFromCache != DEBGU_dataMemRequest.dataFromCache) begin
             //     $display("@%d: Divergent: MEM @%h: cache %h != dataMem %h", DEBUG_tick, MEM_addr,
             //              cacheRequest.dataFromCache, DEBGU_dataMemRequest.dataFromCache);

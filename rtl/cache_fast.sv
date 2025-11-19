@@ -315,7 +315,6 @@ module cache_fast (
             memRequest.dataToMem, memRequest.dataFromMem));
     end
 
-
     always_ff @(posedge clk) begin : CacheMemoryUpdate
         `CACHE_DEBUG_PRINT(
             ("@%d [CACHE MEMORY UPDATE]: request=%d, currentState=%d, nextState=%d, isHit=%d",
@@ -347,8 +346,23 @@ module cache_fast (
                 `CACHE_DEBUG_PRINT(
                     ("@%d: Writing data to cache: 0x%h at offset %0d", DEBUG_tick,
                                    cpuRequest.dataToCache, targetAddr.offset));
-                cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32] <= cpuRequest.dataToCache;
                 cacheMem[targetAddr.setIdx][targetWayIdx].dirty <= 1'b1;
+                case (cpuRequest.dataLen)
+                    MEM_STLEN_BYTE:
+                    cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:8] <=
+                        cpuRequest.dataToCache[7:0];
+                    MEM_STLEN_HALF:
+                    cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:16] <=
+                        cpuRequest.dataToCache[15:0];
+                    MEM_STLEN_WORD:
+                    cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32] <= cpuRequest.dataToCache;
+                    default: begin
+                        `CACHE_DEBUG_PRINT(
+                            ("@%d: Invalid data length for store: %0d", DEBUG_tick,
+                                             cpuRequest.dataLen));
+                        assert (FALSE);  // TODO: exception
+                    end
+                endcase
             end
         end
     end
@@ -356,14 +370,15 @@ module cache_fast (
     // use this tmp variable to make Verilator happy
     logic [127:0] tmpDataFromMem;
     assign tmpDataFromMem = memRequest.dataFromMem;
+    logic [31:0] dataFromCacheResponseFullWord;
     always_comb begin : RequestResponse
-        $display("@%d=============== RequestResponse run ===============", DEBUG_tick);
+        `CACHE_DEBUG_PRINT(("@%d=============== RequestResponse run ===============", DEBUG_tick));
         cpuRequest.failed = FALSE;  // never fails
         cpuRequest.ready = FALSE;
         cpuRequest.dataFromCache = '0;
-        $display(
-            "@%d: cpuRequest.request= %d, cpuRequest.isRead= %d, currentState= %d, nextState= %d, isHit= %d",
-            DEBUG_tick, cpuRequest.request, cpuRequest.isRead, currentState, nextState, isHit);
+        `CACHE_DEBUG_PRINT(
+            ("@%d: cpuRequest.request= %d, cpuRequest.isRead= %d, currentState= %d, nextState= %d, isHit= %d, cpuRequest.dataLen= %d",
+            DEBUG_tick, cpuRequest.request, cpuRequest.isRead, currentState, nextState, isHit, cpuRequest.dataLen));
         if (cpuRequest.request && nextState == IDLE) begin
             cpuRequest.ready = TRUE;
             if (cpuRequest.isRead) begin
@@ -373,7 +388,7 @@ module cache_fast (
                         ("@%d: Read hit: data from cache: 0x%h at offset %0d (cacheline=%h)", DEBUG_tick,
                                        cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32],
                                        targetAddr.offset, cacheMem[targetAddr.setIdx][targetWayIdx].data));
-                    cpuRequest.dataFromCache = cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32];
+                    dataFromCacheResponseFullWord = cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32];
                 end else begin
                     assert (currentState == REFILL_WAIT);
                     // NOTE: bypass
@@ -384,8 +399,22 @@ module cache_fast (
                     `CACHE_DEBUG_PRINT(
                         ("@%d: Bypass data from mem: 0x%h @offset=%0d (cacheline=%h)", DEBUG_tick,
                                        tmpDataFromMem[targetAddr.offset*8+:32], targetAddr.offset, tmpDataFromMem));
-                    cpuRequest.dataFromCache = tmpDataFromMem[targetAddr.offset*8+:32];
+                    dataFromCacheResponseFullWord = tmpDataFromMem[targetAddr.offset*8+:32];
                 end
+                case (cpuRequest.dataLen)
+                    MEM_STLEN_BYTE:
+                    cpuRequest.dataFromCache = {{24{1'b0}}, dataFromCacheResponseFullWord[7:0]};
+                    MEM_STLEN_HALF:
+                    cpuRequest.dataFromCache = {{16{1'b0}}, dataFromCacheResponseFullWord[15:0]};
+                    MEM_STLEN_WORD: cpuRequest.dataFromCache = dataFromCacheResponseFullWord;
+                    default: begin
+                        cpuRequest.dataFromCache = '0;
+                        `CACHE_DEBUG_PRINT(
+                            ("@%d: Invalid data length for load: %0d", DEBUG_tick,
+                                             cpuRequest.dataLen));
+                        assert (FALSE);  // TODO: exception
+                    end
+                endcase
             end
         end
     end
