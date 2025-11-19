@@ -15,7 +15,7 @@ CXX      ?= g++
 # Ensure the host C++ build can find headers in the `sim` helper directory
 CXXFLAGS ?= -std=c++17 -I.. -I../sim -O2
 
-FIRMWARE_LINKER ?= ../firmware/linker.ld
+FIRMWARE_LINKER ?= ../../firmware/linker.ld
 
 ## Collect test directories (directories directly under this folder)
 ## Exclude the `build` directory which is used for intermediate objects
@@ -30,7 +30,7 @@ VERILATOR_BUILD_FLAGS = --cc -exe --main --timing --build --exe -j 0
 VERILATOR_TRACE_FLAGS = --trace-fst --trace-params --trace-structs --trace-underscore
 VERILATOR_FLAGS = --sv --public -CFLAGS -fcoroutines "-Iobj_dir"  $(VERILATOR_UNIQUE_FLAGS) $(VERILATOR_TRACE_FLAGS) $(VERILATOR_BUILD_FLAGS) --timing
 SIM_CPP = sim_main.cpp
-BASE_DIR = ..
+BASE_DIR = ../..
 
 .PHONY: all tests test_driver clean
 
@@ -84,7 +84,7 @@ test_driver:
 	# compilation from inside obj_dir) can find headers like pipeline_stage_logger.hpp
 	verilator -sv $(VERILATOR_TRACE_FLAGS) --cc --exe --build -j 0 \
 	--top-module datapath_pipelined \
-	-CFLAGS "-I$(abspath obj_dir) -I$(abspath ../sim)" \
+	-CFLAGS "-I$(abspath obj_dir) -I$(abspath ../../sim)" \
 	-I$(abspath ${BASE_DIR}/includes) -I$(abspath ${BASE_DIR}/rtl) -I$(abspath ${BASE_DIR}/rtl/datapath) -I$(abspath obj_dir) \
 	${BASE_DIR}/includes/pkg_riscv_instructions.sv \
 	${BASE_DIR}/includes/pkg_global_defs.sv \
@@ -102,8 +102,10 @@ clean:
 	@echo "Cleaning build artifacts..."
 	-rm -rf */build
 	-rm -f */memory.hex
+	-rm -f memory.hex
 	-rm -f */*.fst
 	-rm -f */failed
 	-rm -rf obj_dir
 	-rm -f sim_main
+	-rm -f */*.log
 

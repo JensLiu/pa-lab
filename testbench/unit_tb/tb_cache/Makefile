@@ -1,4 +1,4 @@
-BASE_DIR = ../..
+BASE_DIR = ../../..
 include ../includes/tb_common.mk
 
 TOP_MODULE = tb_cache
