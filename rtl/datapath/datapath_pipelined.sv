@@ -45,6 +45,9 @@ module datapath_pipelined
         .ifIdRegs(ifIdRegsP),
         .ifHints(ifHints),
         .cacheRequest(instCacheCpuRequest.master)
+`ifdef INSTRUCTION_CACHE_DIVERGENCE_TEST,
+        .DEBUG_instMemRequest(DEBUG_instMemoryCpuRequest.master)
+`endif
     );
 
     id_ex_regs_t idExRegsP;
@@ -61,6 +64,7 @@ module datapath_pipelined
 
     ex_mem_regs_t exMemRegsP;
     ex_stage exStage (
+        .clk(clk),
         .idExRegs (idExRegsQ),
         .exControl(exControl),
         .exMemRegs(exMemRegsP),
@@ -74,7 +78,7 @@ module datapath_pipelined
         .memControl(memControl),
         .memWbRegs(memWbRegsP),
         .memHints(memHints),
-        .cacheRequest(dataCacheCpuRequest.master)
+        .cacheRequest(DEBUG_dataMemoryCpuRequest.master)  // TODO: change it back to using cache
 `ifdef DATA_CACHE_DIVERGENCE_TEST,
         .DEBUG_dataMemRequest(DEBUG_dataMemoryCpuRequest.master)  // Divergence test
 `endif
@@ -87,28 +91,33 @@ module datapath_pipelined
         .wbHints  (wbHints)
     );
 
-    // mem_request_if instCacheMemRequest ();
-    mem_request_if dataCacheMemRequest ();
-    memory_inst instructionMemory (.cpuRequest(instCacheCpuRequest.slave));
-    // cache_fast instructionCache (
-    //     .clk(clk),
-    //     .cpuRequest(instCacheCpuRequest.slave),
-    //     .memRequest(memRequest.master)
-    // );
+    mem_request_if instCacheMemRequest ();
 
-    cache_fast dataCache (
+`ifdef INSTRUCTION_CACHE_DIVERGENCE_TEST
+    cache_request_if DEBUG_instMemoryCpuRequest ();
+    memory_inst instructionMemory (.cpuRequest(DEBUG_instMemoryCpuRequest.slave));
+`endif
+
+    cache_fast instructionCache (
         .clk(clk),
-        .cpuRequest(dataCacheCpuRequest.slave),
+        .cpuRequest(instCacheCpuRequest.slave),
         .memRequest(memRequest.master)
     );
 
-`ifdef DATA_CACHE_DIVERGENCE_TEST
+    // mem_request_if dataCacheMemRequest ();
+    // cache_fast dataCache (
+    //     .clk(clk),
+    //     .cpuRequest(dataCacheCpuRequest.slave),
+    //     .memRequest(memRequest.master)
+    // );
+
+    // `ifdef DATA_CACHE_DIVERGENCE_TEST
     cache_request_if DEBUG_dataMemoryCpuRequest ();
     memory_data dataMemory (
         .clk(clk),
         .cpuRequest(DEBUG_dataMemoryCpuRequest.slave)
     );
-`endif
+    // `endif
 
     // always_comb begin : MockDataAlwaysHit
     //     dataCacheCpuRequest.slave.ready = 1'b1;
@@ -209,11 +218,14 @@ module datapath_pipelined
     // Stage Control Assignment
     always_comb begin : StageControl
         // IF Control
-        ifControl.halt = ifHints.shouldHalt || idHints.shouldHalt || memHints.shouldHalt;
+        // IF is stateful, needs halting
+        ifControl.halt = ifHints.shouldHalt || idHints.shouldHalt ||
+                         exHints.shouldHalt || memHints.shouldHalt;
         ifControl.branchTaken = exHints.EX_branchTaken;
         ifControl.pcBr = exHints.EX_pcBr;
 
         // ID Control
+        // ID is not stateful
         idControl.WB_isWriteback = wbHints.WB_isWriteback;
         idControl.WB_rd = wbHints.WB_rd;
         idControl.WB_hasException = wbHints.WB_hasException;
@@ -227,12 +239,15 @@ module datapath_pipelined
         idControl.MEM_memResult = memHints.MEM_memResult;
 
         // EX Control
-        exControl.placeholder = TRUE;
+        // EX is not stateful
+        exControl.IF_cannotJump = ifHints.cannotJump;
 
         // MEM Control
-        memControl.placeholder = TRUE;
+        // MEM is stateful
+        memControl.placeholder = ifHints.cannotJump;
 
         // WB Control
+        // WB is stateful
         wbControl.placeholder = TRUE;
 
     end
@@ -258,6 +273,14 @@ module datapath_pipelined
             IfIdRegs_writeEnable = FALSE;
         end
 
+        if (exHints.shouldHalt) begin
+            // cannot branch when IF is draining
+            assert (!exHints.EX_branchTaken);
+            EX_injectNop = TRUE;
+            IfIdRegs_writeEnable = FALSE;
+            IdExRegs_writeEnable = FALSE;
+        end
+
         if (memHints.shouldHalt) begin
             MEM_injectNop = TRUE;
             IfIdRegs_writeEnable = FALSE;
@@ -266,6 +289,7 @@ module datapath_pipelined
         end
 
         if (exHints.EX_branchTaken) begin
+            assert (!exHints.shouldHalt);
             // kill previous instructions
             IF_injectNop = TRUE;
             ID_injectNop = TRUE;

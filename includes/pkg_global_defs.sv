@@ -144,7 +144,10 @@ package pkg_global_defs;
 `endif
     } if_id_regs_t;
 
-    typedef struct {logic shouldHalt;} if_hints_t;
+    typedef struct {
+        bool_t shouldHalt;
+        bool_t cannotJump;  // to EX stage
+    } if_hints_t;
 
     typedef struct {
         bool_t   WB_isWriteback;
@@ -175,7 +178,7 @@ package pkg_global_defs;
         bool_t shouldHalt;  // halt for data hazards
     } id_hints_t;
 
-    typedef struct {bool_t placeholder;} ex_control_t;
+    typedef struct {bool_t IF_cannotJump;} ex_control_t;
     typedef struct {
         bool_t   EX_branchTaken;
         addr_t   EX_pcBr;
@@ -183,6 +186,8 @@ package pkg_global_defs;
         reg_nr_t EX_rd;
         bool_t   EX_isLoad;
         word_t   EX_aluResult;
+        // When IF is not ready, halt until IF drained its cache requests
+        bool_t   shouldHalt;
     } ex_hints_t;
 
     typedef struct {

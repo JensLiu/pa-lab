@@ -45,12 +45,14 @@ module mem_stage
         cacheRequest.dataToCache = MEM_writeData;
         cacheRequest.dataLen = MEM_readWriteDataLen;
         MEM_readData = cacheRequest.dataFromCache;
+`ifdef DATA_CACHE_DIVERGENCE_TEST
         // request the data memory for divergence test
         DEBUG_dataMemRequest.request = cacheRequest.request;
         DEBUG_dataMemRequest.isRead = cacheRequest.isRead;
         DEBUG_dataMemRequest.addr = cacheRequest.addr;
         DEBUG_dataMemRequest.dataToCache = cacheRequest.dataToCache;
         DEBUG_dataMemRequest.dataLen = cacheRequest.dataLen;
+`endif
     end
 
     always_comb begin : MemoryInstructionConsistencyCheck
@@ -59,7 +61,9 @@ module mem_stage
             assert (MEM_readWriteDataLen != MEM_STLEN_INVALID);
         end
         if (cacheRequest.request && cacheRequest.isRead) begin
+`ifdef DATA_CACHE_DIVERGENCE_TEST
             assert (DEBUG_dataMemRequest.dataLen != MEM_STLEN_INVALID);
+`endif
             assert (cacheRequest.dataLen != MEM_STLEN_INVALID);
         end
     end

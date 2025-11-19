@@ -6,15 +6,20 @@ module ex_stage
     import pkg_global_defs::*;
     import pkg_riscv_instructions::*;
 (
-    // input clk_t clk,
+    input clk_t clk,
     input id_ex_regs_t idExRegs,
     input ex_control_t exControl,
     output ex_mem_regs_t exMemRegs,
     output ex_hints_t exHints
 );
     addr_t EX_pc = idExRegs.pc;
-    inst_info_t EX_instInfo = idExRegs.instInfo;
-    word_t EX_rs1Data = idExRegs.rs1Data, EX_rs2Data = idExRegs.rs2Data;
+    inst_info_t EX_instInfo;
+    assign EX_instInfo = idExRegs.instInfo;
+    word_t EX_rs1Data, EX_rs2Data;
+    assign EX_rs1Data = idExRegs.rs1Data;
+    assign EX_rs2Data = idExRegs.rs2Data;
+
+    bool_t IF_cannotJump = exControl.IF_cannotJump;
 
     word_t EX_aluA;
     word_t EX_aluB;
@@ -53,13 +58,10 @@ module ex_stage
 
     // CMP
     cmp_result_t EX_cmpResult;
-    imm_arith_t EX_cmpA = EX_rs1Data;
-    imm_arith_t EX_cmpB = EX_rs2Data;
-    bool_t EX_cmpIsSigned = EX_instInfo.cmpIsSigned;
     comparator cmp (
-        .A(EX_cmpA),
-        .B(EX_cmpB),
-        .isSigned(EX_cmpIsSigned),
+        .A(EX_rs1Data),
+        .B(EX_rs2Data),
+        .isSigned(EX_instInfo.cmpIsSigned),
         .res(EX_cmpResult)
     );
 
@@ -76,8 +78,6 @@ module ex_stage
         endcase
     end
 
-    addr_t EX_pcBr = EX_aluResult;
-
     // NOTE: the "expected ALU result" is emitted and passed down since
     //       `jal` has the semantics of rd <- PC + 4
     word_t EX_expectedAluResult;
@@ -90,16 +90,27 @@ module ex_stage
         exMemRegs.aluResult = EX_expectedAluResult;
         exMemRegs.stData = EX_instInfo.isStore ? EX_rs2Data : IMM_32_WHATEVER;
         // emit signal
-        exHints.EX_branchTaken = EX_branchTaken;
-        exHints.EX_pcBr = EX_pcBr;
+        exHints.EX_branchTaken = EX_branchTaken & !IF_cannotJump;
+        exHints.EX_pcBr = EX_aluResult;
         exHints.EX_isWriteback = EX_instInfo.isWriteback;
         exHints.EX_rd = EX_instInfo.rd;
         exHints.EX_isLoad = EX_instInfo.isLoad;
         exHints.EX_aluResult = EX_expectedAluResult;
+        exHints.shouldHalt = EX_branchTaken & IF_cannotJump;
+        // if (exHints.shouldHalt) begin
+        //     $display("@%d: EX halting for IF", DEBUG_tick);
+        // end else if (EX_branchTaken) begin
+        //     $display("@%d: ALU ready to jump", DEBUG_tick);
+        // end
 
         // if (EX_branchTaken) begin
         //     $display("Branch to %h", EX_pcBr);
         // end
+    end
+
+    logic [31:0] DEBUG_tick;
+    always_ff @(posedge clk) begin
+        DEBUG_tick <= DEBUG_tick + 1;
     end
 
 endmodule
