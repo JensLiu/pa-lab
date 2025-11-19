@@ -299,7 +299,7 @@ public:
     const auto &target_way_idx =
         sim->rootp->PIPELINE_ACCESS(instructionCache, targetWayIdx);
     const auto &victim_addr =
-        sim->rootp->PIPELINE_ACCESS(instructionCache, victimAddr);
+        sim->rootp->PIPELINE_ACCESS(instructionCache, victimAddrAligned);
     const auto &cache_mem =
         sim->rootp->PIPELINE_ACCESS(instructionCache, cacheMem);
     const auto &policy_metadata =
