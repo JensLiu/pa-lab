@@ -29,15 +29,18 @@ module unified_memory
 
     memory_state_t currentState, nextState;
     logic [3:0] delayCountdown;
+    logic [31:0] DEBUG_tick;
 
     always_comb begin : DataResponse
+        if (request.request) begin
         assert (request.addr < DATA_MEM_SIZE)
         else $display("Invalid memory access @%h while max size is %h", request.addr + 15, DATA_MEM_SIZE);
-
+        end
     end
 
     always_ff @(posedge clk) begin : StateUpdate
         currentState <= nextState;
+        DEBUG_tick <= DEBUG_tick + 1;
     end
 
     always_comb begin : NextStateLogic
@@ -49,6 +52,7 @@ module unified_memory
                 end
             end
             MOCK_DELAY: begin
+                assert (request.request);
                 if (delayCountdown == 0) begin
                     nextState = DONE;
                 end
@@ -78,9 +82,13 @@ module unified_memory
         request.ready <= FALSE;
         request.dataFromMem <= '0;
         if (nextState == DONE) begin
+            // visible at `DONE`
             request.ready <= TRUE;
             if (request.isRead) begin
                 for (int  i = 0; i < 16; i++) begin
+                    $display("@%d: [Memory]: read data @%h -> %h", DEBUG_tick,
+                            request.addr + i, 
+                             mem[request.addr + i]);
                     request.dataFromMem[i*8+:8] <= mem[request.addr + i];
                 end
             end
@@ -91,6 +99,9 @@ module unified_memory
         if (currentState == MOCK_DELAY && nextState == DONE && !request.isRead) begin
             // visible at `DONE`. It's fine since we serve one read/write request at a time
             for (int i = 0; i < 16; i++) begin
+                $display("@%d: [Memory]: write data @%h <- %h", DEBUG_tick,
+                        request.addr + i, 
+                         request.dataToMem[i*8+:8]);
                 mem[request.addr + i] <= request.dataToMem[i*8+:8];
             end
         end

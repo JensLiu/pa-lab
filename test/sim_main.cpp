@@ -11,6 +11,7 @@
 #include <regex>
 #include <vector>
 
+// #define USE_LOGGER
 #ifdef USE_LOGGER
 #include "pipeline_stage_logger.hpp"
 #endif
@@ -114,7 +115,9 @@ static bool run_testcase(const fs::path &testdir) {
   SimClass *sim = new SimClass(contextp, testdir.filename().c_str());
   std::ofstream dumpfile(testdir /
                          (testdir.filename().string() + std::string(".log")));
-  // PipelineStageLogger<SimClass> logger(sim, dumpfile);
+#ifdef USE_LOGGER
+  PipelineStageLogger<SimClass> logger(sim, dumpfile);
+#endif
 
   VerilatedFstC *tfp = new VerilatedFstC;
   sim->trace(tfp, 99);
@@ -134,8 +137,10 @@ static bool run_testcase(const fs::path &testdir) {
     sim->clk = 1;
     sim->eval();
     tfp->dump(cycle * 10);
-    // logger.on_tick();
-    // logger.dump();
+#ifdef USE_LOGGER
+    logger.on_tick();
+    logger.dump();
+#endif
 
     sim->clk = 0;
     sim->eval();

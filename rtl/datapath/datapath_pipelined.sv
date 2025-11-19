@@ -32,8 +32,8 @@ module datapath_pipelined
     mem_hints_t memHints;
     wb_hints_t wbHints;
 
-    cache_request_if instCacheCpuRequest();
-    cache_request_if dataCacheCpuRequest();
+    cache_request_if instCacheCpuRequest ();
+    cache_request_if dataCacheCpuRequest ();
 
     if_id_regs_t ifIdRegsP;
     if_stage ifStage (
@@ -75,6 +75,9 @@ module datapath_pipelined
         .memWbRegs(memWbRegsP),
         .memHints(memHints),
         .cacheRequest(dataCacheCpuRequest.master)
+`ifdef DATA_CACHE_DIVERGENCE_TEST,
+        .DEBUG_dataMemRequest(DEBUG_dataMemoryCpuRequest.master)  // Divergence test
+`endif
     );
 
     wb_hints_t wbHintsP;
@@ -84,44 +87,49 @@ module datapath_pipelined
         .wbHints  (wbHints)
     );
 
-    mem_request_if instCacheMemRequest();
-    mem_request_if dataCacheMemRequest();
-    memory_inst instructionMemory(
-        .cpuRequest(instCacheCpuRequest.slave)
-    );
-    // cache_fast instructionCache(
+    // mem_request_if instCacheMemRequest ();
+    mem_request_if dataCacheMemRequest ();
+    memory_inst instructionMemory (.cpuRequest(instCacheCpuRequest.slave));
+    // cache_fast instructionCache (
     //     .clk(clk),
     //     .cpuRequest(instCacheCpuRequest.slave),
-    //     .memRequest(instCacheMemRequest.master)
+    //     .memRequest(memRequest.master)
     // );
-    // cache_fast dataCache (
-    //     .clk(clk),
-    //     .cpuRequest(dataCacheCpuRequest.slave),
-    //     .memRequest(dataCacheMemRequest.master)
-    // );
-    memory_data dataMemory(
+
+    cache_fast dataCache (
         .clk(clk),
-        .cpuRequest(dataCacheCpuRequest.slave)
+        .cpuRequest(dataCacheCpuRequest.slave),
+        .memRequest(memRequest.master)
     );
+
+`ifdef DATA_CACHE_DIVERGENCE_TEST
+    cache_request_if DEBUG_dataMemoryCpuRequest ();
+    memory_data dataMemory (
+        .clk(clk),
+        .cpuRequest(DEBUG_dataMemoryCpuRequest.slave)
+    );
+`endif
+
     // always_comb begin : MockDataAlwaysHit
     //     dataCacheCpuRequest.slave.ready = 1'b1;
     //     dataCacheCpuRequest.slave.failed = 1'b0;
     //     dataCacheCpuRequest.slave.dataFromCache = '0;
     // end
 
-    mem_request_if memRequest();
-    memory_request_sequencer memRequestSequencer(
-        .instCacheRequest(instCacheMemRequest.slave),
-        .dataCacheRequest(dataCacheMemRequest.slave),
-        .memoryRequest(memRequest.master)
-    );
+    mem_request_if memRequest ();
+    // memory_request_sequencer memRequestSequencer (
+    //     .instCacheRequest(instCacheMemRequest.slave),
+    //     .dataCacheRequest(dataCacheMemRequest.slave),
+    //     .memoryRequest(memRequest.master)
+    // );
+
 
     byte_t DEBUG_mem[DATA_MEM_SIZE];
-    unified_memory memory(
+    unified_memory memory (
         .clk(clk),
         .request(memRequest.slave)
-`ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS
-        ,.DEBUG_mem(DEBUG_mem)
+`ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS,
+        .DEBUG_mem(DEBUG_mem)
 `endif
     );
 
@@ -147,7 +155,8 @@ module datapath_pipelined
                 idExRegsQ.pc <= 32'h0;
 
 `ifdef DEBUG_INST_INFO_EXTENSION
-                idExRegsQ.instInfo <= inst_info_make_nop_with_inst_id(idExRegsP.instInfo.DEBUG_instID);
+                idExRegsQ.instInfo <=
+                    inst_info_make_nop_with_inst_id(idExRegsP.instInfo.DEBUG_instID);
 `else
                 idExRegsQ.instInfo <= inst_info_make_nop();
 `endif
@@ -166,7 +175,8 @@ module datapath_pipelined
                 // exMemRegsQ.pc <= exMemRegsP.pc;
                 exMemRegsQ.pc <= 32'h0;
 `ifdef DEBUG_INST_INFO_EXTENSION
-                exMemRegsQ.instInfo <= inst_info_make_nop_with_inst_id(exMemRegsP.instInfo.DEBUG_instID);
+                exMemRegsQ.instInfo <=
+                    inst_info_make_nop_with_inst_id(exMemRegsP.instInfo.DEBUG_instID);
 `else
                 exMemRegsQ.instInfo <= inst_info_make_nop();
 `endif
@@ -183,7 +193,8 @@ module datapath_pipelined
                 // memWbRegsQ.pc <= memWbRegsP.pc;
                 memWbRegsQ.pc <= 32'h0;
 `ifdef DEBUG_INST_INFO_EXTENSION
-                memWbRegsQ.instInfo <= inst_info_make_nop_with_inst_id(memWbRegsP.instInfo.DEBUG_instID);
+                memWbRegsQ.instInfo <=
+                    inst_info_make_nop_with_inst_id(memWbRegsP.instInfo.DEBUG_instID);
 `else
                 memWbRegsQ.instInfo <= inst_info_make_nop();
 `endif

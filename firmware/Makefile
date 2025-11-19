@@ -26,7 +26,7 @@ asm: build
 	@$(OBJDUMP) -D firmware.elf > firmware.asm
 
 datapath: verilog-hex asm
-	@cp firmware.mem ../tb/tb_datapath/inst_mem.hex
+	@cp firmware.mem ../tb/tb_datapath/memory.hex
 	@cd ../tb/tb_datapath && make
 
 clean:

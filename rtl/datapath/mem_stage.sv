@@ -10,6 +10,9 @@ module mem_stage
     output mem_wb_regs_t memWbRegs,
     output mem_hints_t memHints,
     cache_request_if.master cacheRequest
+`ifdef DATA_CACHE_DIVERGENCE_TEST
+    , cache_request_if.master DEBUG_dataMemRequest
+`endif
 );
 
     word_t MEM_aluResult = exMemRegs.aluResult;
@@ -22,6 +25,10 @@ module mem_stage
 
     mem_stlen_t MEM_writeDataLen;
     always_comb begin
+        if (MEM_instInfo.isStore || MEM_instInfo.isLoad) begin
+            assert (MEM_instInfo.stldDataLen == DL_WORD)
+            else $display("data length = %d", MEM_instInfo.stldDataLen);
+        end
         if (MEM_instInfo.isStore) begin
             case (MEM_instInfo.stldDataLen)
                 DL_BYTE: MEM_writeDataLen = MEM_STLEN_BYTE;
@@ -36,12 +43,19 @@ module mem_stage
     end
 
     always_comb begin
+        assert (!(MEM_readEnabled && MEM_writeEnabled));
         cacheRequest.request = MEM_readEnabled || MEM_writeEnabled;
         cacheRequest.isRead = MEM_readEnabled;
         cacheRequest.addr = MEM_addr;
         cacheRequest.dataToCache = MEM_writeData;
         cacheRequest.dataLen = MEM_writeDataLen;
         MEM_readData = cacheRequest.dataFromCache;
+        // request the data memory for divergence test
+        DEBUG_dataMemRequest.request = cacheRequest.request;
+        DEBUG_dataMemRequest.isRead = cacheRequest.isRead;
+        DEBUG_dataMemRequest.addr = cacheRequest.addr;
+        DEBUG_dataMemRequest.dataToCache = cacheRequest.dataToCache;
+        DEBUG_dataMemRequest.dataLen = cacheRequest.dataLen;
     end
 
     word_t MEM_result;
@@ -53,6 +67,12 @@ module mem_stage
                 DL_WORD: MEM_result = MEM_readData[31:0];
                 default: assert (FALSE);
             endcase
+            // if (cacheRequest.dataFromCache != DEBGU_dataMemRequest.dataFromCache) begin
+            //     $display("@%d: Divergent: MEM @%h: cache %h != dataMem %h", DEBUG_tick, MEM_addr,
+            //              cacheRequest.dataFromCache, DEBGU_dataMemRequest.dataFromCache);
+            // end
+            // assert (DEBGU_dataMemRequest.ready);
+            // assert (cacheRequest.dataFromCache == DEBGU_dataMemRequest.dataFromCache);
             // $display("%h: @%h -> %h", exMemRegs.pc, MEM_addr, MEM_result);
         end else begin
             MEM_result = MEM_aluResult;
@@ -72,5 +92,22 @@ module mem_stage
         memHints.MEM_memResult = MEM_result;
     end
 
+    logic [31:0] DEBUG_tick;
+    always_ff @(posedge clk) begin
+        DEBUG_tick <= DEBUG_tick + 1;
+    end
+
+`ifdef DATA_CACHE_DIVERGENCE_TEST
+    always_ff @(posedge clk) begin : DEBUG_DivergenceTest
+        if (MEM_instInfo.isLoad && cacheRequest.ready) begin
+            if (cacheRequest.dataFromCache != DEBUG_dataMemRequest.dataFromCache) begin
+                $display("@%d: Divergent: MEM @%h: cache %h != dataMem %h", DEBUG_tick, MEM_addr,
+                         cacheRequest.dataFromCache, DEBUG_dataMemRequest.dataFromCache);
+            end
+            assert (DEBUG_dataMemRequest.ready);
+            assert (cacheRequest.dataFromCache == DEBUG_dataMemRequest.dataFromCache);
+        end
+    end
+`endif
+
 endmodule
-;

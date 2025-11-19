@@ -8,7 +8,6 @@ RTL_SOURCES = ${RTL_DIR}/alu.sv \
               ${RTL_DIR}/comparator.sv \
               ${RTL_DIR}/decoder.sv \
               ${RTL_DIR}/register_file.sv \
-              ${RTL_DIR}/datapath.sv \
               ${RTL_DIR}/datapath/datapath_pipelined.sv \
               ${RTL_DIR}/datapath/if_stage.sv \
               ${RTL_DIR}/datapath/id_stage.sv \
@@ -20,4 +19,6 @@ RTL_SOURCES = ${RTL_DIR}/alu.sv \
               ${RTL_DIR}/cache.sv   \
               ${RTL_DIR}/cache_fast.sv \
               ${RTL_DIR}/cache_request_if.sv \
-              ${RTL_DIR}/mem_request_if.sv
+              ${RTL_DIR}/mem_request_if.sv \
+              ${RTL_DIR}/memory_inst.sv \
+              ${RTL_DIR}/memory_data.sv

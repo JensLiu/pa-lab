@@ -36,9 +36,9 @@ module if_stage
 
     instruction_t IF_inst;
     logic cacheRequestDone;
-    always_comb begin
+    always_comb begin : CacheRequestLogic
         IF_inst = cacheRequest.dataFromCache;
-        cacheRequest.addr = IF_pcQ;
+        cacheRequest.addr = IF_pcQ; // stable, it is flopped
         cacheRequest.isRead = TRUE;
         cacheRequest.request = TRUE;
         cacheRequestDone = cacheRequest.ready;
