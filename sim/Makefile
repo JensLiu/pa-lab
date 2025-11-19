@@ -29,3 +29,6 @@ sim: build firmware_obj
 
 clean:
 	rm -rf obj_dir
+	rm -f *.hex
+	rm -f *.fst
+	rm -f *.log
