@@ -61,6 +61,7 @@ int main() {
   //   sum += i;
   // }
   int log_array[100]; // Initialize log_array with zeros
-  int result = memorised_fibonacci(20, log_array, 100);
+  int result = memorised_fibonacci(30, log_array, 100);
+  // int result = iterative_fibonacci(20);
   return result;
 }

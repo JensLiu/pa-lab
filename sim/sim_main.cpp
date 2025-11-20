@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
   tfp->open("simulation.fst");
 
   try {
-    for (int cycle = 0; cycle < 1000; cycle++) {
+    for (int cycle = 0; cycle < 5000; cycle++) {
       if (cycle > 0) {
         sim->eval();
         tfp->dump(cycle * 10 - 2);
@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
       sim->eval();
       tfp->dump(cycle * 10);
       logger.on_tick();
-      logger.dump();
+      // logger.dump();
 
       sim->clk = 0;
       sim->eval();
@@ -41,4 +41,8 @@ int main(int argc, char **argv) {
   }
 
   tfp->close();
+
+  for (auto &[metric, count] : logger.get_metrics()) {
+    std::cout << metric << ": " << count << std::endl;
+  }
 }

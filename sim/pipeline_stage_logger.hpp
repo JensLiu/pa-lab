@@ -117,14 +117,81 @@ public:
   }
 };
 
+enum {
+  CACHE_STATE_IDLE = 0,
+  CACHE_STATE_EVICT_WAIT = 1,
+  CACHE_STATE_REFILL_WAIT = 2,
+  CACHE_STATE_DONE = 3
+};
+
 template <typename SimClass> class PipelineStageLogger {
 private:
   const SimClass *sim;
   std::ostream &os;
   uint64_t tick;
   std::unordered_set<int32_t> instructions_flushed;
+  std::unordered_map<std::string, int32_t> metric_counters;
 
 public:
+  void collect_cache_metrics() {
+    {
+      const auto &inst_cache_current_state =
+          sim->rootp->PIPELINE_ACCESS(instructionCache, currentState);
+      const auto &inst_cache_next_satate =
+          sim->rootp->PIPELINE_ACCESS(instructionCache, nextState);
+      if (inst_cache_current_state == CACHE_STATE_IDLE &&
+          inst_cache_next_satate != CACHE_STATE_IDLE) {
+        metric_counters["inst_cache_miss"]++;
+      }
+    }
+    {
+      const auto &data_cache_current_state =
+          sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
+      const auto &data_cache_next_satate =
+          sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
+      if (data_cache_current_state == CACHE_STATE_IDLE &&
+          data_cache_next_satate != CACHE_STATE_IDLE) {
+        metric_counters["data_cache_miss"]++;
+      }
+    }
+  }
+
+  void collect_pipeline_metrics() {
+    {
+      const auto &if_should_halt =
+          sim->rootp->PIPELINE_ACCESS(ifHints).DATA_PRIVATE(shouldHalt);
+      if (if_should_halt) {
+        metric_counters["if_stage_halts"]++;
+      }
+    }
+    {
+      const auto &id_should_halt =
+          sim->rootp->PIPELINE_ACCESS(idHints).DATA_PRIVATE(shouldHalt);
+      if (id_should_halt) {
+        metric_counters["id_stage_halts"]++;
+      }
+    }
+    {
+      const auto &ex_should_halt =
+          sim->rootp->PIPELINE_ACCESS(exHints).DATA_PRIVATE(shouldHalt);
+      if (ex_should_halt) {
+        metric_counters["ex_stage_halts"]++;
+      }
+    }
+    {
+      const auto &mem_should_halt =
+          sim->rootp->PIPELINE_ACCESS(memHints).DATA_PRIVATE(shouldHalt);
+      if (mem_should_halt) {
+        metric_counters["mem_stage_halts"]++;
+      }
+    }
+  }
+
+  void collect_metrics() {
+    collect_cache_metrics();
+    collect_pipeline_metrics();
+  }
+
   void test() {
     const auto &if_id_regs_p = sim->rootp->PIPELINE_ACCESS(ifIdRegsP);
     const auto &id_ex_regs_p = sim->rootp->PIPELINE_ACCESS(idExRegsP);
@@ -469,7 +536,15 @@ public:
   PipelineStageLogger(const SimClass *sim, std::ostream &os)
       : sim(sim), os(os), tick(0) {}
 
-  void on_tick() { tick++; }
+  void on_tick() {
+    tick++;
+    collect_metrics();
+  }
+
+  auto get_metrics() -> const std::unordered_map<std::string, int32_t> & {
+    return metric_counters;
+  }
+
   void dump() {
     stage_state_dump();
     inst_cache_state_dump();

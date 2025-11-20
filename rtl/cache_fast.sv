@@ -419,15 +419,9 @@ module cache_fast (
         end
     end
 
-    // always_comb begin : Exception
-    //     assert (cpuRequest.addr < DATA_MEM_SIZE)
-    //     else
-    //         `CACHE_DEBUG_PRINT(
-    //             "Invalid memory access @%h while max size is %h",
-    //             cpuRequest.addr + 15,
-    //             DATA_MEM_SIZE
-    //         );
-    // end
+    always_comb begin : Exception
+        assert (!cpuRequest.request || cpuRequest.addr < DATA_MEM_SIZE);
+    end
 
 
 endmodule
