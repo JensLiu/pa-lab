@@ -12,7 +12,7 @@ module cache_fast (
     mem_request_if.master memRequest
 );
 
-    // // data line: 128-bit (16 bytes)
+    // data line: 128-bit (16 bytes)
     // # of sets: 8 -> 3-bit addressing
     // # of ways: 2
     // offset within the cacheline: 4-bit

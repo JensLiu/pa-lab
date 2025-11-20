@@ -40,10 +40,11 @@ module datapath_pipelined
 `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
         .DEBUG_mem(DEBUG_inst_mem),
 `endif
-        .clk(clk),  // drives PC and memory
+        .clk(clk),  // drives PC
         .ifControl(ifControl),
         .ifIdRegs(ifIdRegsP),
         .ifHints(ifHints),
+        // .cacheRequest(instCacheCpuRequest.master)
         .cacheRequest(instCacheCpuRequest.master)
 `ifdef INSTRUCTION_CACHE_DIVERGENCE_TEST,
         .DEBUG_instMemRequest(DEBUG_instMemoryCpuRequest.master)
@@ -65,10 +66,10 @@ module datapath_pipelined
     ex_mem_regs_t exMemRegsP;
     ex_stage exStage (
         .clk(clk),
-        .idExRegs (idExRegsQ),
+        .idExRegs(idExRegsQ),
         .exControl(exControl),
         .exMemRegs(exMemRegsP),
-        .exHints  (exHints)
+        .exHints(exHints)
     );
 
     mem_wb_regs_t memWbRegsP;
@@ -78,9 +79,10 @@ module datapath_pipelined
         .memControl(memControl),
         .memWbRegs(memWbRegsP),
         .memHints(memHints),
-        .cacheRequest(DEBUG_dataMemoryCpuRequest.master)  // TODO: change it back to using cache
+        // .cacheRequest(DEBUG_dataMemoryCpuRequest.master)
+        .cacheRequest(dataCacheCpuRequest.master)
 `ifdef DATA_CACHE_DIVERGENCE_TEST,
-        .DEBUG_dataMemRequest(DEBUG_dataMemoryCpuRequest.master)  // Divergence test
+        .DEBUG_dataMemRequest(DEBUG_dataMemoryCpuRequest.master)
 `endif
     );
 
@@ -92,55 +94,51 @@ module datapath_pipelined
     );
 
     mem_request_if instCacheMemRequest ();
+    mem_request_if dataCacheMemRequest ();
+    mem_request_if sequencerMemRequest ();
+
+    cache_fast instructionCache (
+        .clk(clk),
+        .cpuRequest(instCacheCpuRequest.slave),
+        .memRequest(instCacheMemRequest.master)
+    );
+
+    cache_fast dataCache (
+        .clk(clk),
+        .cpuRequest(dataCacheCpuRequest.slave),
+        .memRequest(dataCacheMemRequest.master)
+    );
+
+    memory_request_sequencer memRequestSequencer (
+        .clk(clk),
+        .instCacheRequest(instCacheMemRequest.slave),
+        .dataCacheRequest(dataCacheMemRequest.slave),
+        .memoryRequest(sequencerMemRequest.master)
+    );
+
+`ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS
+    byte_t DEBUG_mem[DATA_MEM_SIZE];
+`endif
+    unified_memory memory (
+        .clk(clk),
+        .request(sequencerMemRequest.slave)
+`ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS,
+        .DEBUG_mem(DEBUG_mem)
+`endif
+    );
 
 `ifdef INSTRUCTION_CACHE_DIVERGENCE_TEST
     cache_request_if DEBUG_instMemoryCpuRequest ();
     memory_inst instructionMemory (.cpuRequest(DEBUG_instMemoryCpuRequest.slave));
 `endif
 
-    cache_fast instructionCache (
-        .clk(clk),
-        .cpuRequest(instCacheCpuRequest.slave),
-        .memRequest(memRequest.master)
-    );
-
-    // mem_request_if dataCacheMemRequest ();
-    // cache_fast dataCache (
-    //     .clk(clk),
-    //     .cpuRequest(dataCacheCpuRequest.slave),
-    //     .memRequest(memRequest.master)
-    // );
-
-    // `ifdef DATA_CACHE_DIVERGENCE_TEST
+`ifdef DATA_CACHE_DIVERGENCE_TEST
     cache_request_if DEBUG_dataMemoryCpuRequest ();
     memory_data dataMemory (
         .clk(clk),
         .cpuRequest(DEBUG_dataMemoryCpuRequest.slave)
     );
-    // `endif
-
-    // always_comb begin : MockDataAlwaysHit
-    //     dataCacheCpuRequest.slave.ready = 1'b1;
-    //     dataCacheCpuRequest.slave.failed = 1'b0;
-    //     dataCacheCpuRequest.slave.dataFromCache = '0;
-    // end
-
-    mem_request_if memRequest ();
-    // memory_request_sequencer memRequestSequencer (
-    //     .instCacheRequest(instCacheMemRequest.slave),
-    //     .dataCacheRequest(dataCacheMemRequest.slave),
-    //     .memoryRequest(memRequest.master)
-    // );
-
-
-    byte_t DEBUG_mem[DATA_MEM_SIZE];
-    unified_memory memory (
-        .clk(clk),
-        .request(memRequest.slave)
-`ifdef UNIFIED_MEMORY_EXPOSE_INTERNALS,
-        .DEBUG_mem(DEBUG_mem)
 `endif
-    );
 
     // Pipeline State Registers Propogation
     bool_t IfIdRegs_writeEnable, IdExRegs_writeEnable, ExMemRegs_writeEnable, MemWbRegs_writeEnable;
@@ -215,8 +213,7 @@ module datapath_pipelined
         end
     end
 
-    // Stage Control Assignment
-    always_comb begin : StageControl
+    always_comb begin : StageRegisterControl
         // IF Control
         // IF is stateful, needs halting
         ifControl.halt = ifHints.shouldHalt || idHints.shouldHalt ||
@@ -253,7 +250,6 @@ module datapath_pipelined
     end
 
 
-    // Pipeline Control Assignment
     always_comb begin : PipelineControl
         IfIdRegs_writeEnable = TRUE;
         IdExRegs_writeEnable = TRUE;
