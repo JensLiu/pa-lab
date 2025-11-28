@@ -84,7 +84,7 @@ test_driver:
 	# compilation from inside obj_dir) can find headers like pipeline_stage_logger.hpp
 	verilator -sv $(VERILATOR_TRACE_FLAGS) --cc --exe --build -j 0 \
 	--top-module datapath_pipelined \
-	-CFLAGS "-I$(abspath obj_dir) -I$(abspath ../../sim)" \
+	-CFLAGS "-std=c++17 -I$(abspath obj_dir) -I$(abspath ../../sim)" \
 	-I$(abspath ${BASE_DIR}/includes) -I$(abspath ${BASE_DIR}/rtl) -I$(abspath ${BASE_DIR}/rtl/datapath) -I$(abspath obj_dir) \
 	${BASE_DIR}/includes/pkg_riscv_instructions.sv \
 	${BASE_DIR}/includes/pkg_global_defs.sv \
