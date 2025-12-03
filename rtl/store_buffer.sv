@@ -1,5 +1,4 @@
-`define SB_DEBUG_PRINT(x) $display({$sformatf x})
-// `define SB_DEBUG_PRINT(x)
+`include "rtl_common.svh"
 
 module store_buffer
     import pkg_global_defs::*;
@@ -53,12 +52,13 @@ module store_buffer
     logic [1:0] hitIdx;
 
     always_comb begin : StoreBufferHitLogic
-        `SB_DEBUG_PRINT(("@%d: ==== StoreBufferHitLogic run ====", DEBUG_tick));
-        `SB_DEBUG_PRINT(("@%d: readAddr=0x%h", DEBUG_tick, readAddr));
-        `SB_DEBUG_PRINT(("@%d: oldest=%0d, nextYoungest=%0d", DEBUG_tick, oldest, nextYoungest));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: ==== StoreBufferHitLogic run ====", DEBUG_tick));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: readAddr=0x%h", DEBUG_tick, readAddr));
+        `SB_DEBUG_PRINT(
+            ("[SB]: @%0d: oldest=%0d, nextYoungest=%0d", DEBUG_tick, oldest, nextYoungest));
         for (int i = 0; i < 4; i++) begin
             `SB_DEBUG_PRINT(
-                ("@%d: Buffer[%0d]: valid=%0b, addr=0x%h, data=0x%h, len=%0d", DEBUG_tick, i,
+                ("[SB]: @%0d: Buffer[%0d]: valid=%0b, addr=0x%h, data=0x%h, len=%0d", DEBUG_tick, i,
                 buffer[i].valid, buffer[i].addr, buffer[i].data, buffer[i].dataLen));
         end
         isHit  = FALSE;
@@ -81,54 +81,55 @@ module store_buffer
             hitIdx = 2'(nextYoungest - 4);
         end
         `SB_DEBUG_PRINT(
-            ("@%d: Read addr=0x%h data=0x%h hit=%b", DEBUG_tick, readAddr,
+            ("[SB]: @%0d: Read addr=0x%h data=0x%h hit=%b", DEBUG_tick, readAddr,
             isHit ? buffer[hitIdx].data : '0, isHit));
         `SB_DEBUG_PRINT(
-            ("@%d: readAddr=0x%h readHit=%0b, readData=0x%h", DEBUG_tick, readAddr, isHit, isHit ? buffer[hitIdx].data : '0));
+            ("[SB]: @%0d: readAddr=0x%h readHit=%0b, readData=0x%h", DEBUG_tick, readAddr, isHit, isHit ? buffer[hitIdx].data : '0));
     end
 
     assign readHit  = isHit;
     assign readData = isHit ? buffer[hitIdx].data : '0;
 
     always_comb begin : NextStateLogic
-        `SB_DEBUG_PRINT(("@%d: ==== NextStateLogic run ====", DEBUG_tick));
-        `SB_DEBUG_PRINT(("@%d: oldest=%0d, nextYoungest=%0d", DEBUG_tick, oldest, nextYoungest));
-        `SB_DEBUG_PRINT(("@%d: isEmpty=%0b, isFull=%0b", DEBUG_tick, isEmpty, isFull));
-        `SB_DEBUG_PRINT(("@%d: currentState=%0d", DEBUG_tick, currentState));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: ==== NextStateLogic run ====", DEBUG_tick));
+        `SB_DEBUG_PRINT(
+            ("[SB]: @%0d: oldest=%0d, nextYoungest=%0d", DEBUG_tick, oldest, nextYoungest));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: isEmpty=%0b, isFull=%0b", DEBUG_tick, isEmpty, isFull));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: currentState=%0d", DEBUG_tick, currentState));
         nextState = currentState;
         case (currentState)
             IDLE: begin
-                // assert (!cacheRequest.request);
+                // `ASSERT(!cacheRequest.request);
                 if (!interrupt && !isEmpty) begin
                     // BUG FIX: use (!empty || writeRequest) would need a bypass logic in cache request
-                    `SB_DEBUG_PRINT(("@%d: decided: IDLE -> DRAINING", DEBUG_tick));
+                    `SB_DEBUG_PRINT(("[SB]: @%0d: decided: IDLE -> DRAINING", DEBUG_tick));
                     nextState = DRAINING;
                 end
             end
             DRAINING: begin
-                assert (cacheRequest.request);
+                `ASSERT(cacheRequest.request);
                 if (isEmpty) begin
-                    `SB_DEBUG_PRINT(("@%d: decided: DRAINING -> IDLE", DEBUG_tick));
+                    `SB_DEBUG_PRINT(("[SB]: @%0d: decided: DRAINING -> IDLE", DEBUG_tick));
                     nextState = IDLE;
                 end else if (interrupt) begin
                     if (!cacheRequest.ready) begin
                         `SB_DEBUG_PRINT(
-                            ("@%d: decided: DRAINING -> DRAINING_INTERRUPTING", DEBUG_tick));
+                            ("[SB]: @%0d: decided: DRAINING -> DRAINING_INTERRUPTING", DEBUG_tick));
                         nextState = DRAINING_INTERRUPTING;
                     end else begin
                         `SB_DEBUG_PRINT(
-                            ("@%d: decided: DRAINING -> DRAINING_INTERRUPTED", DEBUG_tick));
+                            ("[SB]: @%0d: decided: DRAINING -> DRAINING_INTERRUPTED", DEBUG_tick));
                         nextState = DRAINING_INTERRUPTED;
                     end
                 end else if (cacheRequest.ready) begin
-                    assert (cacheRequest.addr == buffer[oldest].addr);
-                    assert (cacheRequest.dataToCache == buffer[oldest].data);
-                    assert (cacheRequest.dataLen == buffer[oldest].dataLen);
+                    `ASSERT(cacheRequest.addr == buffer[oldest].addr);
+                    `ASSERT(cacheRequest.dataToCache == buffer[oldest].data);
+                    `ASSERT(cacheRequest.dataLen == buffer[oldest].dataLen);
                     if (buffer[2'(oldest+1)].valid) begin
-                        `SB_DEBUG_PRINT(("@%d: decided: DRAINING -> DRAINING", DEBUG_tick));
+                        `SB_DEBUG_PRINT(("[SB]: @%0d: decided: DRAINING -> DRAINING", DEBUG_tick));
                         nextState = DRAINING;
                     end else begin
-                        `SB_DEBUG_PRINT(("@%d: decided: DRAINING -> IDLE", DEBUG_tick));
+                        `SB_DEBUG_PRINT(("[SB]: @%0d: decided: DRAINING -> IDLE", DEBUG_tick));
                         nextState = IDLE;
                     end
                 end
@@ -136,7 +137,7 @@ module store_buffer
             DRAINING_INTERRUPTING: begin
                 if (cacheRequest.ready) begin
                     `SB_DEBUG_PRINT(
-                        ("@%d: decided: DRAINING_INTERRUPTING -> DRAINING_INTERRUPTED", DEBUG_tick));
+                        ("[SB]: @%0d: decided: DRAINING_INTERRUPTING -> DRAINING_INTERRUPTED", DEBUG_tick));
                     nextState = DRAINING_INTERRUPTED;
                 end
             end
@@ -145,87 +146,87 @@ module store_buffer
                     if (!isEmpty) begin
                         // BUG FIX: to use (!empty || writeRequest) would need a bypass logic in cache request
                         `SB_DEBUG_PRINT(
-                            ("@%d: decided: DRAINING_INTERRUPTED -> DRAINING", DEBUG_tick));
+                            ("[SB]: @%0d: decided: DRAINING_INTERRUPTED -> DRAINING", DEBUG_tick));
                         nextState = DRAINING;
                     end else begin
-                        `SB_DEBUG_PRINT(("@%d: decided: DRAINING_INTERRUPTED -> IDLE", DEBUG_tick));
+                        `SB_DEBUG_PRINT(
+                            ("[SB]: @%0d: decided: DRAINING_INTERRUPTED -> IDLE", DEBUG_tick));
                         nextState = IDLE;
                     end
                 end
             end
             default: begin
-                assert (FALSE);
+                `ASSERT(FALSE);
             end
         endcase
     end
 
     always_ff @(posedge clk) begin : StateUpdateLogic
-        `SB_DEBUG_PRINT(("@%d: ==== StateUpdateLogic run ====", DEBUG_tick));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: ==== StateUpdateLogic run ====", DEBUG_tick));
         `SB_DEBUG_PRINT(
-            ("@%d: currentState=%0d, nextState=%0d", DEBUG_tick, currentState, nextState));
+            ("[SB]: @%0d: currentState=%0d, nextState=%0d", DEBUG_tick, currentState, nextState));
         currentState <= nextState;
     end
 
     always_comb begin : InterruptSuccessLogic
         interrupted = FALSE;
-        if (interrupt) begin
-            if (currentState == DRAINING_INTERRUPTED) begin
-                interrupted = TRUE;
-            end else if (currentState == IDLE && nextState == IDLE) begin
-                assert (isEmpty);
-                interrupted = TRUE;
-            end
+        // if (interrupt) begin
+        if (currentState == DRAINING_INTERRUPTED) begin
+            interrupted = TRUE;
+        end else if (currentState == IDLE && nextState == IDLE) begin
+            `ASSERT(isEmpty);
+            interrupted = TRUE;
         end
+        // end
     end
 
     // TODO: clean up the logic
     always_ff @(posedge clk) begin : DrainingRequestAndDequeueLogic
-        `SB_DEBUG_PRINT(("@%d: ==== DrainingRequestAndDequeueLogic run ====", DEBUG_tick));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: ==== DrainingRequestAndDequeueLogic run ====", DEBUG_tick));
         `SB_DEBUG_PRINT(
-            ("@%d: currentState=%0d, nextState=%0d", DEBUG_tick, currentState, nextState));
+            ("[SB]: @%0d: currentState=%0d, nextState=%0d", DEBUG_tick, currentState, nextState));
         `SB_DEBUG_PRINT(
-            ("@%d: cacheRequest before logic: READY=%0b request=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
+            ("[SB]: @%0d: cacheRequest before logic: READY=%0b request=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
             cacheRequest.ready, cacheRequest.request, cacheRequest.addr, cacheRequest.dataToCache,
             cacheRequest.dataLen));
         if (currentState == DRAINING && (nextState == DRAINING || nextState == IDLE)) begin
             // FIXME: confused request
             // Make sure the response is for our current request
-            assert (cacheRequest.request);
+            `ASSERT(cacheRequest.request);
             `SB_DEBUG_PRINT(
-                ("@%d: Draining ongoing addr=0x%h data=0x%h len=%0d", DEBUG_tick, buffer[oldest].addr,
+                ("[SB]: @%0d: Draining ongoing addr=0x%h data=0x%h len=%0d", DEBUG_tick, buffer[oldest].addr,
                 buffer[oldest].data, buffer[oldest].dataLen));
             `SB_DEBUG_PRINT(
-                ("@%d: cacheRequest: ready=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
+                ("[SB]: @%0d: cacheRequest: ready=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
                 cacheRequest.ready, cacheRequest.addr, cacheRequest.dataToCache,
                 cacheRequest.dataLen));
-            assert (cacheRequest.addr == buffer[oldest].addr);
-            assert (cacheRequest.dataToCache == buffer[oldest].data);
-            assert (cacheRequest.dataLen == buffer[oldest].dataLen);
-            assert (buffer[oldest].valid);
+            `ASSERT(cacheRequest.addr == buffer[oldest].addr);
+            `ASSERT(cacheRequest.dataToCache == buffer[oldest].data);
+            `ASSERT(cacheRequest.dataLen == buffer[oldest].dataLen);
+            `ASSERT(buffer[oldest].valid);
             if (cacheRequest.ready) begin
-                `SB_DEBUG_PRINT(("@%d: Draining completed for oldest entry", DEBUG_tick));
+                `SB_DEBUG_PRINT(("[SB]: @%0d: Draining completed for oldest entry", DEBUG_tick));
                 `SB_DEBUG_PRINT(
-                    ("@%d: current oldest=%0d, next oldest=%0d, next oldest valid=%0b",
+                    ("[SB]: @%0d: current oldest=%0d, next oldest=%0d, next oldest valid=%0b",
                     DEBUG_tick, oldest, 2'(oldest + 1), buffer[2'(oldest+1)].valid));
                 // our current `oldest` store operation is written to cache
                 oldest <= 2'(oldest + 1);  // advance the `oldest` pointer
                 isFull <= FALSE;  // we definitely have space now
                 buffer[oldest].valid <= FALSE;
                 if (buffer[2'(oldest+1)].valid) begin
-                    assert (nextState == DRAINING);
+                    `ASSERT(nextState == DRAINING);
                     `SB_DEBUG_PRINT(
-                        ("@%d: Draining next oldest addr=0x%h data=0x%h len=%0d",
+                        ("[SB]: @%0d: Draining next oldest addr=0x%h data=0x%h len=%0d",
                         DEBUG_tick, buffer[2'(oldest+1)].addr, buffer[2'(oldest+1)].data,
                         buffer[2'(oldest+1)].dataLen));
                     // TODO: assert within valid range
+                    `SB_DEBUG_PRINT(("[SB]: @%0d: Issuing next cache request", DEBUG_tick));
                     `SB_DEBUG_PRINT(
-                        ("@%d: Issuing next cache request", DEBUG_tick));
-                    `SB_DEBUG_PRINT(
-                        ("@%d: cacheRequest before issuing next: READY=%0b request=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
+                        ("[SB]: @%0d: cacheRequest before issuing next: READY=%0b request=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
                         cacheRequest.ready, cacheRequest.request, cacheRequest.addr, cacheRequest.dataToCache,
                         cacheRequest.dataLen));
                     `SB_DEBUG_PRINT(
-                        ("@%d: next request addr=0x%h data=0x%h len=%0d", DEBUG_tick,
+                        ("[SB]: @%0d: next request addr=0x%h data=0x%h len=%0d", DEBUG_tick,
                         buffer[2'(oldest+1)].addr, buffer[2'(oldest+1)].data,
                         buffer[2'(oldest+1)].dataLen));
                     // kick start next request
@@ -234,16 +235,16 @@ module store_buffer
                     cacheRequest.dataToCache <= buffer[2'(oldest+1)].data;
                     cacheRequest.dataLen <= buffer[2'(oldest+1)].dataLen;
                 end else begin
-                    assert (2'(oldest + 1) == nextYoungest);
-                    assert (nextState == IDLE);
+                    `ASSERT(2'(oldest + 1) == nextYoungest);
+                    `ASSERT(nextState == IDLE);
                 end
             end
         end else if (currentState != DRAINING && nextState == DRAINING) begin
             `SB_DEBUG_PRINT(
-                ("@%d: Draining first oldest addr=0x%h data=0x%h len=%0d",
+                ("[SB]: @%0d: Draining first oldest addr=0x%h data=0x%h len=%0d",
                 DEBUG_tick, buffer[oldest].addr, buffer[oldest].data, buffer[oldest].dataLen));
             // enterting draining
-            assert (currentState == IDLE || currentState == DRAINING_INTERRUPTED);
+            `ASSERT(currentState == IDLE || currentState == DRAINING_INTERRUPTED);
             // kick start request
             cacheRequest.request <= TRUE;
             cacheRequest.addr <= buffer[oldest].addr;
@@ -253,13 +254,15 @@ module store_buffer
             // interrupted while draining, the request is still going
             // we keep the request
         end else if (currentState == DRAINING && nextState == DRAINING_INTERRUPTED) begin
-            `SB_DEBUG_PRINT(("@%d: Draining interrupted, dropping future requests", DEBUG_tick));
+            `SB_DEBUG_PRINT(
+                ("[SB]: @%0d: Draining interrupted, dropping future requests", DEBUG_tick));
             // interrupted while draining, the request HAPPENED to finish
             // we drop future requests to prevent writing to the cache
             cacheRequest.request <= FALSE;
         end else if (currentState == DRAINING_INTERRUPTING && nextState == DRAINING_INTERRUPTED) begin
-            assert (cacheRequest.ready);
-            `SB_DEBUG_PRINT(("@%d: Draining interrupted after request completed", DEBUG_tick));
+            `ASSERT(cacheRequest.ready);
+            `SB_DEBUG_PRINT(
+                ("[SB]: @%0d: Draining interrupted after request completed", DEBUG_tick));
             oldest <= 2'(oldest + 1);  // advance the `oldest` pointer
             isFull <= FALSE;  // we definitely have space now
             buffer[oldest].valid <= FALSE;
@@ -270,21 +273,21 @@ module store_buffer
         end
         // print request state
         `SB_DEBUG_PRINT(
-            ("@%d: cacheRequest after logic: READY=%0b request=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
+            ("[SB]: @%0d: cacheRequest after logic: READY=%0b request=%0b addr=0x%h data=0x%h len=%0d", DEBUG_tick,
             cacheRequest.ready, cacheRequest.request, cacheRequest.addr, cacheRequest.dataToCache,
             cacheRequest.dataLen));
     end
 
     always_ff @(posedge clk) begin : EnqueueLogic
-        `SB_DEBUG_PRINT(("@%d: ==== EnqueueLogic run ====", DEBUG_tick));
-        `SB_DEBUG_PRINT(("@%d: isEmpty=%0b, isFull=%0b", DEBUG_tick, isEmpty, isFull));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: ==== EnqueueLogic run ====", DEBUG_tick));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: isEmpty=%0b, isFull=%0b", DEBUG_tick, isEmpty, isFull));
         `SB_DEBUG_PRINT(
-            ("@%d: writeRequest=%0b, writeAddr=0x%h, writeData=0x%h, writeDataLen=%0d",
+            ("[SB]: @%0d: writeRequest=%0b, writeAddr=0x%h, writeData=0x%h, writeDataLen=%0d",
             DEBUG_tick, writeRequest, writeAddr, writeData, writeDataLen));
         if (writeRequest && !isFull) begin
             `SB_DEBUG_PRINT(
-                ("@%d: Enqueueing writeRequest addr=0x%h data=0x%h len=%0d", DEBUG_tick, writeAddr, writeData, writeDataLen));
-            assert (sbCanWrite);
+                ("[SB]: @%0d: Enqueueing writeRequest addr=0x%h data=0x%h len=%0d", DEBUG_tick, writeAddr, writeData, writeDataLen));
+            `ASSERT(sbCanWrite);
             nextYoungest <= 2'(nextYoungest + 1);
             buffer[nextYoungest].valid <= TRUE;
             buffer[nextYoungest].addr <= writeAddr;
@@ -297,13 +300,13 @@ module store_buffer
     end
 
     always_comb begin : DebugPrint
-        `SB_DEBUG_PRINT(("@%d: ==== DebugPrint run ====", DEBUG_tick));
+        `SB_DEBUG_PRINT(("[SB]: @%0d: ==== DebugPrint run ====", DEBUG_tick));
         `SB_DEBUG_PRINT(
-            ("@%d: Buffer State: oldest=%0d, nextYoungest=%0d, isFull=%0b", DEBUG_tick, oldest,
+            ("[SB]: @%0d: Buffer State: oldest=%0d, nextYoungest=%0d, isFull=%0b", DEBUG_tick, oldest,
             nextYoungest, isFull));
         for (int i = 0; i < 4; i++) begin
             `SB_DEBUG_PRINT(
-                ("@%d: Buffer[%0d]: valid=%0b, addr=0x%h, data=0x%h, len=%0d", DEBUG_tick, i,
+                ("[SB]: @%0d: Buffer[%0d]: valid=%0b, addr=0x%h, data=0x%h, len=%0d", DEBUG_tick, i,
                 buffer[i].valid, buffer[i].addr, buffer[i].data, buffer[i].dataLen));
         end
     end
