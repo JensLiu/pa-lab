@@ -12,6 +12,10 @@ module memory_data
 
     always_ff @(posedge clk) begin
         if (cpuRequest.request && !cpuRequest.isRead) begin
+            if (cpuRequest.addr >= DATA_MEM_SIZE) begin
+                $display("FAILED: Trying to write %0h to %0h but the max memory size if %0h",
+                         cpuRequest.dataFromCache, cpuRequest.addr, DATA_MEM_SIZE);
+            end
             assert (cpuRequest.addr < DATA_MEM_SIZE);
             case (cpuRequest.dataLen)
                 MEM_STLEN_BYTE: mem[cpuRequest.addr] <= cpuRequest.dataToCache[7:0];

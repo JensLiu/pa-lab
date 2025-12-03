@@ -9,6 +9,8 @@
 #include <iostream>
 #include <unordered_map>
 
+#define DATAPATH_USE_STORE_BUFFER
+
 #define DATA_ACCESS_1(x) x
 #define DATA_ACCESS_2(x, y) x##__DOT__##y
 #define DATA_ACCESS_3(x, y, z) x##__DOT__##y##__DOT__##z
@@ -130,7 +132,7 @@ private:
   std::ostream &os;
   uint64_t tick;
   std::unordered_set<int32_t> instructions_flushed;
-  std::unordered_map<std::string, int32_t> metric_counters;
+  std::unordered_map<std::string, double> metric_counters;
 
 public:
   void collect_cache_metrics() {
@@ -145,6 +147,25 @@ public:
       }
     }
     {
+#ifdef DATAPATH_USE_STORE_BUFFER
+      const auto &data_cache_current_state =
+          sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, currentState);
+      const auto &data_cache_next_satate =
+          sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, nextState);
+#else
+      const auto &data_cache_current_state =
+          sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
+      const auto &data_cache_next_satate =
+          sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
+#endif
+      if (data_cache_current_state == CACHE_STATE_IDLE &&
+          data_cache_next_satate != CACHE_STATE_IDLE) {
+        metric_counters["data_cache_miss"]++;
+      }
+    }
+    {
+#ifdef DATAPATH_USE_STORE_BUFFER
+#else
       const auto &data_cache_current_state =
           sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
       const auto &data_cache_next_satate =
@@ -153,6 +174,7 @@ public:
           data_cache_next_satate != CACHE_STATE_IDLE) {
         metric_counters["data_cache_miss"]++;
       }
+#endif
     }
   }
 
@@ -439,6 +461,20 @@ public:
   }
 
   void data_cache_state_dump() {
+#ifdef DATAPATH_USE_STORE_BUFFER
+    const auto &current_state =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, currentState);
+    const auto &next_state =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, nextState);
+    const auto &target_way_idx =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, targetWayIdx);
+    const auto &victim_addr =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, victimAddr);
+    const auto &cache_mem =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, cacheMem);
+    const auto &policy_metadata =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, policyMetadata);
+#else
     const auto &current_state =
         sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
     const auto &next_state = sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
@@ -449,7 +485,7 @@ public:
     const auto &cache_mem = sim->rootp->PIPELINE_ACCESS(dataCache, cacheMem);
     const auto &policy_metadata =
         sim->rootp->PIPELINE_ACCESS(dataCache, policyMetadata);
-
+#endif
     os << "Data Cache State:" << std::endl;
     os << "  Current State: " << cache_state_string.at(current_state)
        << std::endl;
@@ -541,7 +577,21 @@ public:
     collect_metrics();
   }
 
-  auto get_metrics() -> const std::unordered_map<std::string, int32_t> & {
+  void stop() {
+    metric_counters["insts"] =
+        sim->rootp->PIPELINE_ACCESS(DEBUG_executedInstCount);
+    metric_counters["cycles"] = sim->rootp->PIPELINE_ACCESS(DEBUG_cycles);
+    metric_counters["mem_read_reqs"] = sim->rootp->PIPELINE_ACCESS(memory, DEBUG_readRequests);
+    metric_counters["mem_write_reqs"] = sim->rootp->PIPELINE_ACCESS(memory, DEBUG_writeRequests);
+    {
+      const double &n_insts = metric_counters["insts"];
+      const double &n_cycles = metric_counters["cycles"];
+      const double &ipc = n_insts / n_cycles;
+      metric_counters["IPC"] = ipc;
+    }
+  }
+
+  auto get_metrics() -> const std::unordered_map<std::string, double> & {
     return metric_counters;
   }
 

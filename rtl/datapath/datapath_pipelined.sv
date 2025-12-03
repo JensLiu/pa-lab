@@ -12,6 +12,14 @@ module datapath_pipelined
     input  clk_t clk
 );
 
+    // Debug Metrics
+    word_t DEBUG_executedInstCount;
+    word_t DEBUG_cycles;
+    always_ff @(posedge clk) begin
+        DEBUG_cycles <= DEBUG_cycles + 1;
+    end
+
+
     // pipeline registers
     if_id_regs_t ifIdRegsQ;
     id_ex_regs_t idExRegsQ;
@@ -113,16 +121,16 @@ module datapath_pipelined
     );
     // To keep the simulation profiling interface, we still add an idle
     // cache for now
-    cache_request_if _dataCacheCpuRequest ();
-    mem_request_if _dataCacheMemRequest ();
-    cache_hit_query_if _dataCacheHitQuery ();
+    // cache_request_if _dataCacheCpuRequest ();
+    // mem_request_if _dataCacheMemRequest ();
+    // cache_hit_query_if _dataCacheHitQuery ();
 
-    cache_fast dataCache (
-        .clk(clk),
-        .cpuRequest(_dataCacheCpuRequest.slave),
-        .memRequest(_dataCacheMemRequest.master),
-        .cpuHitQuery(_dataCacheHitQuery)
-    );
+    // cache_fast dataCache (
+    //     .clk(clk),
+    //     .cpuRequest(_dataCacheCpuRequest.slave),
+    //     .memRequest(_dataCacheMemRequest.master),
+    //     .cpuHitQuery(_dataCacheHitQuery)
+    // );
 `else
     cache_hit_query_if _dataCacheHitQuery ();
     cache_fast dataCache (
@@ -196,6 +204,7 @@ module datapath_pipelined
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
                 idExRegsQ.rs2Data <= IMM_32_WHATEVER;
             end else begin
+                DEBUG_executedInstCount <= DEBUG_executedInstCount + 1;
                 idExRegsQ <= idExRegsP;
             end
         end

@@ -13,9 +13,9 @@ package pkg_global_defs;
     parameter FALSE = 1'b0;
     parameter IMM_32_WHATEVER = 32'h12345678;
     parameter REG_NR_INVALID_FALLBACK = 5'b00000;  // fallback to reading the zero register
-    parameter INST_MEM_SIZE = 4096 * 1024;
-    parameter DATA_MEM_SIZE = 4096 * 1024;
-    parameter MEM_SIZE = 4096 * 1024;
+    parameter MEM_SIZE = 16 * 1024 * 1024;  // 16MB - practical limit for simulation
+    parameter INST_MEM_SIZE = MEM_SIZE;
+    parameter DATA_MEM_SIZE = MEM_SIZE;
     parameter START_ADDRESS = 'h1000;
 
     // data types

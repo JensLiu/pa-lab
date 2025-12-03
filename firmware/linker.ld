@@ -3,7 +3,7 @@ ENTRY(_start) /* Specify the entry point from start.S */
 /* Our device only have RAM */
 MEMORY
 {
-    RAM   (wx) : ORIGIN = 0x00001000, LENGTH = 64K
+    RAM   (wx) : ORIGIN = 0x00001000, LENGTH = 16M - 4K
 }
 
 /* Define the top of the stack at the end of RAM */

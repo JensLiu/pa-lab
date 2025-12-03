@@ -9,7 +9,7 @@ module unified_memory
     ,output byte_t DEBUG_mem[MEM_SIZE]
 `endif
 );
-    localparam MEMORY_ACCESS_DELAY = 3;
+    localparam MEMORY_ACCESS_DELAY = 5;
     byte_t mem[DATA_MEM_SIZE];
 
     initial begin
@@ -30,7 +30,8 @@ module unified_memory
     memory_state_t currentState, nextState;
     logic [3:0] delayCountdown;
     logic [31:0] DEBUG_tick;
-
+    logic [31:0] DEBUG_readRequests;
+    logic [31:0] DEBUG_writeRequests;
     always_comb begin : DataResponse
         if (request.request) begin
         assert (request.addr < DATA_MEM_SIZE)
@@ -41,6 +42,14 @@ module unified_memory
     always_ff @(posedge clk) begin : StateUpdate
         currentState <= nextState;
         DEBUG_tick <= DEBUG_tick + 1;
+        if (currentState == DONE) begin
+            assert (nextState == IDLE);
+            if (request.isRead) begin
+                DEBUG_readRequests <= DEBUG_readRequests + 1;
+            end else begin
+                DEBUG_writeRequests <= DEBUG_writeRequests + 1;
+            end
+        end
     end
 
     always_comb begin : NextStateLogic

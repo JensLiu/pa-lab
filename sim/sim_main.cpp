@@ -4,6 +4,7 @@
 #include "verilated.h"
 #include "verilated_fst_c.h"
 #include <iostream>
+#include <map>
 
 typedef Vdatapath_pipelined SimClass;
 
@@ -19,8 +20,9 @@ int main(int argc, char **argv) {
   sim->trace(tfp, 99);
   tfp->open("simulation.fst");
 
+  int cycle = 0;
   try {
-    for (int cycle = 0; cycle < 5000; cycle++) {
+    while (true) {
       if (cycle > 0) {
         sim->eval();
         tfp->dump(cycle * 10 - 2);
@@ -35,6 +37,15 @@ int main(int argc, char **argv) {
       sim->clk = 0;
       sim->eval();
       tfp->dump(cycle * 10 + 5);
+
+      // Check if $finish was called
+      if (Verilated::gotFinish()) {
+        logger.stop();
+        std::cout << "Simulation finished at cycle " << cycle << std::endl;
+        break;
+      }
+
+      cycle += 1;
     }
   } catch (const std::exception &e) {
     std::cerr << "Simulation error: " << e.what() << std::endl;
@@ -42,7 +53,12 @@ int main(int argc, char **argv) {
 
   tfp->close();
 
-  for (auto &[metric, count] : logger.get_metrics()) {
-    std::cout << metric << ": " << count << std::endl;
+  {
+    // output ordered metrics
+    const auto &unordered = logger.get_metrics();
+    std::map<std::string, double> ordered(unordered.begin(), unordered.end());
+    for (auto &[metric, count] : ordered) {
+      std::cout << metric << ": " << count << std::endl;
+    }
   }
 }

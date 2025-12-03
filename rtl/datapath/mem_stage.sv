@@ -39,6 +39,11 @@ module mem_stage
 
     always_comb begin
         assert (!(MEM_readEnabled && MEM_writeEnabled));
+        if (MEM_addr == 'hcafebabe && MEM_writeEnabled && MEM_writeData == 'hbeafbabe) begin
+            $display("THE CONTENT IS %0h", MEM_writeData);
+            $display("Received stop signal, stopping...");
+            $finish;
+        end
         cacheRequest.request = MEM_readEnabled || MEM_writeEnabled;
         cacheRequest.isRead = MEM_readEnabled;
         cacheRequest.addr = MEM_addr;
