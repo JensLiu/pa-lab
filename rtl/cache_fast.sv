@@ -154,7 +154,7 @@ module cache_fast (
             MEM_STLEN_BYTE: cpuHitQuery.dataFromCache = {{24{1'b0}}, _queryWord[7:0]};
             MEM_STLEN_HALF: cpuHitQuery.dataFromCache = {{16{1'b0}}, _queryWord[15:0]};
             MEM_STLEN_WORD: cpuHitQuery.dataFromCache = _queryWord;
-            default: `ASSERT(FALSE);  // TODO: exception
+            default: cpuHitQuery.dataFromCache = '0;
         endcase
     end
 
