@@ -96,10 +96,8 @@ module datapath_pipelined
     mem_request_if instCacheMemRequest ();
     mem_request_if dataCacheMemRequest ();
     mem_request_if sequencerMemRequest ();
-    // unused
-    cache_hit_query_if _instCacheHitQuery();
-    cache_hit_query_if _dataCacheHitQuery();
 
+    cache_hit_query_if _instCacheHitQuery ();  // unused
     cache_fast instructionCache (
         .clk(clk),
         .cpuRequest(instCacheCpuRequest.slave),
@@ -107,12 +105,33 @@ module datapath_pipelined
         .cpuHitQuery(_instCacheHitQuery.slave)
     );
 
+`ifdef DATAPATH_USE_STORE_BUFFER
+    store_buffer_frontend storeBuffer (
+        .clk(clk),
+        .cpuRequest(dataCacheCpuRequest.slave),
+        .memRequest(dataCacheMemRequest.master)
+    );
+    // To keep the simulation profiling interface, we still add an idle
+    // cache for now
+    cache_request_if _dataCacheCpuRequest ();
+    mem_request_if _dataCacheMemRequest ();
+    cache_hit_query_if _dataCacheHitQuery ();
+
+    cache_fast dataCache (
+        .clk(clk),
+        .cpuRequest(_dataCacheCpuRequest.slave),
+        .memRequest(_dataCacheMemRequest.master),
+        .cpuHitQuery(_dataCacheHitQuery)
+    );
+`else
+    cache_hit_query_if _dataCacheHitQuery ();
     cache_fast dataCache (
         .clk(clk),
         .cpuRequest(dataCacheCpuRequest.slave),
         .memRequest(dataCacheMemRequest.master),
         .cpuHitQuery(_dataCacheHitQuery)
     );
+`endif
 
     memory_request_sequencer memRequestSequencer (
         .clk(clk),
