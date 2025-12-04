@@ -5,9 +5,9 @@ module store_buffer_frontend
 (
     input logic clk,
     cache_request_if.slave cpuRequest,
-    mem_request_if.master memRequest
+    cache_request_if.master deligatedCpuRequest,
+    cache_hit_query_if.master cacheHitQuery
 );
-
     // store buffer combinational read
     addr_t sbReadAddr;
     word_t sbReadData;
@@ -35,10 +35,7 @@ module store_buffer_frontend
     bool_t sbInterruptQ, sbInterruptedP;
     bool_t sbInterruptedQ;
 
-    cache_request_if cacheRequest ();
-    cache_request_if deligatedCpuRequest ();
     cache_writeonly_request_if sbCacheWriteOnlyRequest ();
-    cache_hit_query_if cacheHitQuery ();
 
     store_buffer storeBuffer (
         .clk(clk),
@@ -53,13 +50,6 @@ module store_buffer_frontend
         .interrupt(sbInterruptQ),
         .interrupted(sbInterruptedP),
         .cacheRequest(sbCacheWriteOnlyRequest.master)
-    );
-
-    cache_fast dataCache (
-        .clk(clk),
-        .cpuRequest(deligatedCpuRequest.slave),
-        .memRequest(memRequest),
-        .cpuHitQuery(cacheHitQuery.slave)
     );
 
     typedef enum logic [1:0] {
@@ -79,14 +69,11 @@ module store_buffer_frontend
         sbIsHit = sbReadHit;
     end
     always_comb begin : CacheHitLogic
-        cacheHitQuery.master.addr    = cpuRequest.addr;
-        cacheHitQuery.master.dataLen = cpuRequest.dataLen;
-        cacheIsHit                   = cacheHitQuery.master.isHit;
-        cacheHitData                 = cacheHitQuery.master.dataFromCache;
+        cacheHitQuery.addr    = cpuRequest.addr;
+        cacheHitQuery.dataLen = cpuRequest.dataLen;
+        cacheIsHit            = cacheHitQuery.isHit;
+        cacheHitData          = cacheHitQuery.dataFromCache;
     end
-
-
-
 
     always_ff @(posedge clk) begin : InterruptLogic
         sbInterruptedQ <= sbInterruptedP;
@@ -134,13 +121,13 @@ module store_buffer_frontend
         cpuRequest.dataFromCache = '0;
 
         // default cache request: SB draining
-        sbCacheWriteOnlyRequest.ready = deligatedCpuRequest.master.ready;
-        deligatedCpuRequest.master.request = sbCacheWriteOnlyRequest.master.request;
-        deligatedCpuRequest.master.isRead = FALSE;
-        deligatedCpuRequest.master.invalidateAll = FALSE;
-        deligatedCpuRequest.master.addr = sbCacheWriteOnlyRequest.addr;
-        deligatedCpuRequest.master.dataToCache = sbCacheWriteOnlyRequest.dataToCache;
-        deligatedCpuRequest.master.dataLen = sbCacheWriteOnlyRequest.dataLen;
+        sbCacheWriteOnlyRequest.ready = deligatedCpuRequest.ready;
+        deligatedCpuRequest.request = sbCacheWriteOnlyRequest.master.request;
+        deligatedCpuRequest.isRead = FALSE;
+        deligatedCpuRequest.invalidateAll = FALSE;
+        deligatedCpuRequest.addr = sbCacheWriteOnlyRequest.addr;
+        deligatedCpuRequest.dataToCache = sbCacheWriteOnlyRequest.dataToCache;
+        deligatedCpuRequest.dataLen = sbCacheWriteOnlyRequest.dataLen;
 
         // default SB write request: none
         sbWriteRequest = FALSE;
@@ -166,6 +153,7 @@ module store_buffer_frontend
                     if (sbIsHit) begin
                         // Store buffer hit, return immediately
                         cpuRequest.dataFromCache = sbHitData;
+                        cpuRequest.ready = TRUE;
                     end else begin
                         // Store buffer miss, fallback to cache
                         // (2) Query for cache hit, this is all combinational (can be done in a single clock)
@@ -205,33 +193,60 @@ module store_buffer_frontend
                 //     the cache request line is busy
                 if (sbInterruptedQ) begin
                     // deligate to the cache
-                    cpuRequest.ready = deligatedCpuRequest.master.ready;
-                    cpuRequest.failed = deligatedCpuRequest.master.failed;
-                    cpuRequest.dataFromCache = deligatedCpuRequest.master.dataFromCache;
-                    deligatedCpuRequest.master.request = TRUE;
-                    deligatedCpuRequest.master.isRead = TRUE;
-                    deligatedCpuRequest.master.invalidateAll = cpuRequest.invalidateAll;
-                    deligatedCpuRequest.master.addr = cpuRequest.addr;
-                    deligatedCpuRequest.master.dataToCache = '0;
-                    deligatedCpuRequest.master.dataLen = cpuRequest.dataLen;
+                    cpuRequest.ready = deligatedCpuRequest.ready;
+                    cpuRequest.failed = deligatedCpuRequest.failed;
+                    cpuRequest.dataFromCache = deligatedCpuRequest.dataFromCache;
+                    deligatedCpuRequest.request = TRUE;
+                    deligatedCpuRequest.isRead = TRUE;
+                    deligatedCpuRequest.invalidateAll = cpuRequest.invalidateAll;
+                    deligatedCpuRequest.addr = cpuRequest.addr;
+                    deligatedCpuRequest.dataToCache = '0;
+                    deligatedCpuRequest.dataLen = cpuRequest.dataLen;
                 end
             end
         end
 
-        if (deligatedCpuRequest.master.request == sbCacheWriteOnlyRequest.master.request &&
-            deligatedCpuRequest.master.isRead == FALSE &&
-            deligatedCpuRequest.master.invalidateAll == FALSE &&
-            deligatedCpuRequest.master.addr == sbCacheWriteOnlyRequest.addr &&
-            deligatedCpuRequest.master.dataToCache == sbCacheWriteOnlyRequest.dataToCache &&
-            deligatedCpuRequest.master.dataLen == sbCacheWriteOnlyRequest.dataLen) begin
+        if (deligatedCpuRequest.request == sbCacheWriteOnlyRequest.master.request &&
+            deligatedCpuRequest.isRead == FALSE &&
+            deligatedCpuRequest.invalidateAll == FALSE &&
+            deligatedCpuRequest.addr == sbCacheWriteOnlyRequest.addr &&
+            deligatedCpuRequest.dataToCache == sbCacheWriteOnlyRequest.dataToCache &&
+            deligatedCpuRequest.dataLen == sbCacheWriteOnlyRequest.dataLen) begin
             `SB_FRONTEND_DEBUG_PRINT(("[SB FRONT]: @%0d: Fallback to draining", DEBUG_tick));
         end
     end
 
-
-    logic [31:0] DEBUG_tick;
+    // debug metrices
+    word_t DEBUG_reqWaits;
+    word_t DEBUG_cyclesReqWaits;
+    word_t DEBUG_cyclesInterruptWaits;
+    word_t DEBUG_cyclesCacheWaits;
+    word_t DEBUG_sbHit;
+    word_t DEBUG_cacheHit;
+    word_t DEBUG_tick;
     always_ff @(posedge clk) begin
         DEBUG_tick <= DEBUG_tick + 1;
+        if (currentState == IDLE) begin
+            if (cpuRequest.request && cpuRequest.isRead) begin
+                if (sbIsHit) begin
+                    DEBUG_sbHit <= DEBUG_sbHit + 1;
+                end else if (cacheIsHit) begin
+                    DEBUG_cacheHit <= DEBUG_cacheHit + 1;
+                end
+            end
+        end
+        if (currentState != IDLE) begin
+            DEBUG_cyclesReqWaits <= DEBUG_cyclesReqWaits + 1;
+        end
+        if (currentState == INTERRUPTING) begin
+            DEBUG_cyclesInterruptWaits <= DEBUG_cyclesInterruptWaits + 1;
+        end
+        if (currentState == INTERRUPTED) begin
+            DEBUG_cyclesCacheWaits <= DEBUG_cyclesCacheWaits + 1;
+        end
+        if (currentState == INTERRUPTED && nextState == IDLE) begin
+            DEBUG_reqWaits <= DEBUG_reqWaits + 1;
+        end
     end
 
 endmodule

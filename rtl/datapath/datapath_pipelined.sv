@@ -114,30 +114,27 @@ module datapath_pipelined
     );
 
 `ifdef DATAPATH_USE_STORE_BUFFER
+    cache_request_if dataCacheCacheRequest ();
+    cache_hit_query_if dataCacheHitQuery ();
     store_buffer_frontend storeBuffer (
         .clk(clk),
         .cpuRequest(dataCacheCpuRequest.slave),
-        .memRequest(dataCacheMemRequest.master)
+        .deligatedCpuRequest(dataCacheCacheRequest.master),
+        .cacheHitQuery(dataCacheHitQuery.master)
     );
-    // To keep the simulation profiling interface, we still add an idle
-    // cache for now
-    // cache_request_if _dataCacheCpuRequest ();
-    // mem_request_if _dataCacheMemRequest ();
-    // cache_hit_query_if _dataCacheHitQuery ();
-
-    // cache_fast dataCache (
-    //     .clk(clk),
-    //     .cpuRequest(_dataCacheCpuRequest.slave),
-    //     .memRequest(_dataCacheMemRequest.master),
-    //     .cpuHitQuery(_dataCacheHitQuery)
-    // );
+    cache_fast dataCache (
+        .clk(clk),
+        .cpuRequest(dataCacheCacheRequest.slave),
+        .memRequest(dataCacheMemRequest.master),
+        .cpuHitQuery(dataCacheHitQuery.slave)
+    );
 `else
     cache_hit_query_if _dataCacheHitQuery ();
     cache_fast dataCache (
         .clk(clk),
         .cpuRequest(dataCacheCpuRequest.slave),
         .memRequest(dataCacheMemRequest.master),
-        .cpuHitQuery(_dataCacheHitQuery)
+        .cpuHitQuery(_dataCacheHitQuery.slave)
     );
 `endif
 
@@ -204,7 +201,9 @@ module datapath_pipelined
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
                 idExRegsQ.rs2Data <= IMM_32_WHATEVER;
             end else begin
-                DEBUG_executedInstCount <= DEBUG_executedInstCount + 1;
+                if (!idExRegsP.instInfo.DEBUG_isForcedNop) begin
+                    DEBUG_executedInstCount <= DEBUG_executedInstCount + 1;
+                end
                 idExRegsQ <= idExRegsP;
             end
         end
