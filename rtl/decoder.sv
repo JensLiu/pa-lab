@@ -29,6 +29,7 @@ module decoder
 `ifdef DEBUG_INST_INFO_EXTENSION
         info.DEBUG_instBinary = inst;
         info.DEBUG_instID = 32'hDEADBEEF;  // the ID assignement logic can overwrite this later
+        info.DEBUG_isForcedNop = FALSE;
 `endif
 
 

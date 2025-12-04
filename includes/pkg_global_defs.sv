@@ -111,6 +111,7 @@ package pkg_global_defs;
 `ifdef DEBUG_INST_INFO_EXTENSION
         instruction_t DEBUG_instBinary;
         word_t        DEBUG_instID;
+        bool_t        DEBUG_isForcedNop;
 `endif
     } inst_info_t;
 
@@ -245,6 +246,11 @@ package pkg_global_defs;
         info.stldDataLen = DL_INVALID;
         info.stldSignedness = SS_INVALID;
         info.branchType = BR_INVALID;
+`ifdef DEBUG_INST_INFO_EXTENSION
+        info.DEBUG_instBinary = inst_make_nop();
+        // info.DEBUG_instID = '0;
+        info.DEBUG_isForcedNop = TRUE;
+`endif
         return info;
     endfunction
 
@@ -252,7 +258,9 @@ package pkg_global_defs;
     function automatic inst_info_t inst_info_make_nop_with_inst_id(input word_t debug_id);
         inst_info_t info = inst_info_make_nop();
 `ifdef DEBUG_INST_INFO_EXTENSION
+        info.DEBUG_instBinary = inst_make_nop();
         info.DEBUG_instID = debug_id;
+        info.DEBUG_isForcedNop = TRUE;
 `endif
         return info;
     endfunction

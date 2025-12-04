@@ -9,7 +9,7 @@
 #include <iostream>
 #include <unordered_map>
 
-#define DATAPATH_USE_STORE_BUFFER
+// #define DATAPATH_USE_STORE_BUFFER
 
 #define DATA_ACCESS_1(x) x
 #define DATA_ACCESS_2(x, y) x##__DOT__##y
@@ -136,33 +136,34 @@ private:
 
 public:
   void collect_cache_metrics() {
-    {
-      const auto &inst_cache_current_state =
-          sim->rootp->PIPELINE_ACCESS(instructionCache, currentState);
-      const auto &inst_cache_next_satate =
-          sim->rootp->PIPELINE_ACCESS(instructionCache, nextState);
-      if (inst_cache_current_state == CACHE_STATE_IDLE &&
-          inst_cache_next_satate != CACHE_STATE_IDLE) {
-        metric_counters["inst_cache_miss"]++;
-      }
-    }
-    {
-#ifdef DATAPATH_USE_STORE_BUFFER
-      const auto &data_cache_current_state =
-          sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, currentState);
-      const auto &data_cache_next_satate =
-          sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, nextState);
-#else
-      const auto &data_cache_current_state =
-          sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
-      const auto &data_cache_next_satate =
-          sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
-#endif
-      if (data_cache_current_state == CACHE_STATE_IDLE &&
-          data_cache_next_satate != CACHE_STATE_IDLE) {
-        metric_counters["data_cache_miss"]++;
-      }
-    }
+    //     {
+    //       const auto &inst_cache_current_state =
+    //           sim->rootp->PIPELINE_ACCESS(instructionCache, currentState);
+    //       const auto &inst_cache_next_satate =
+    //           sim->rootp->PIPELINE_ACCESS(instructionCache, nextState);
+    //       if (inst_cache_current_state == CACHE_STATE_IDLE &&
+    //           inst_cache_next_satate != CACHE_STATE_IDLE) {
+    //         metric_counters["InstCache::miss"]++;
+    //       }
+    //     }
+    //     {
+    // #ifdef DATAPATH_USE_STORE_BUFFER
+    //       const auto &data_cache_current_state =
+    //           sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache,
+    //           currentState);
+    //       const auto &data_cache_next_satate =
+    //           sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, nextState);
+    // #else
+    //       const auto &data_cache_current_state =
+    //           sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
+    //       const auto &data_cache_next_satate =
+    //           sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
+    // #endif
+    //       if (data_cache_current_state == CACHE_STATE_IDLE &&
+    //           data_cache_next_satate != CACHE_STATE_IDLE) {
+    //         metric_counters["DataCache::miss"]++;
+    //       }
+    //     }
     {
 #ifdef DATAPATH_USE_STORE_BUFFER
 #else
@@ -461,20 +462,23 @@ public:
   }
 
   void data_cache_state_dump() {
-#ifdef DATAPATH_USE_STORE_BUFFER
-    const auto &current_state =
-        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, currentState);
-    const auto &next_state =
-        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, nextState);
-    const auto &target_way_idx =
-        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, targetWayIdx);
-    const auto &victim_addr =
-        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, victimAddr);
-    const auto &cache_mem =
-        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, cacheMem);
-    const auto &policy_metadata =
-        sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, policyMetadata);
-#else
+    // #ifdef DATAPATH_USE_STORE_BUFFER
+    //     const auto &current_state =
+    //         sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache,
+    //         currentState);
+    //     const auto &next_state =
+    //         sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, nextState);
+    //     const auto &target_way_idx =
+    //         sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache,
+    //         targetWayIdx);
+    //     const auto &victim_addr =
+    //         sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, victimAddr);
+    //     const auto &cache_mem =
+    //         sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache, cacheMem);
+    //     const auto &policy_metadata =
+    //         sim->rootp->PIPELINE_ACCESS(storeBuffer, dataCache,
+    //         policyMetadata);
+    // #else
     const auto &current_state =
         sim->rootp->PIPELINE_ACCESS(dataCache, currentState);
     const auto &next_state = sim->rootp->PIPELINE_ACCESS(dataCache, nextState);
@@ -485,7 +489,7 @@ public:
     const auto &cache_mem = sim->rootp->PIPELINE_ACCESS(dataCache, cacheMem);
     const auto &policy_metadata =
         sim->rootp->PIPELINE_ACCESS(dataCache, policyMetadata);
-#endif
+    // #endif
     os << "Data Cache State:" << std::endl;
     os << "  Current State: " << cache_state_string.at(current_state)
        << std::endl;
@@ -581,8 +585,39 @@ public:
     metric_counters["insts"] =
         sim->rootp->PIPELINE_ACCESS(DEBUG_executedInstCount);
     metric_counters["cycles"] = sim->rootp->PIPELINE_ACCESS(DEBUG_cycles);
-    metric_counters["mem_read_reqs"] = sim->rootp->PIPELINE_ACCESS(memory, DEBUG_readRequests);
-    metric_counters["mem_write_reqs"] = sim->rootp->PIPELINE_ACCESS(memory, DEBUG_writeRequests);
+    metric_counters["Memory::readRequests"] =
+        sim->rootp->PIPELINE_ACCESS(memory, DEBUG_readRequests);
+    metric_counters["Memory::writeRequests"] =
+        sim->rootp->PIPELINE_ACCESS(memory, DEBUG_writeRequests);
+#ifdef DATAPATH_USE_STORE_BUFFER
+    metric_counters["StoreBufferFrontEnd::reqWaits"] =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, DEBUG_reqWaits);
+    metric_counters["StoreBufferFrontEnd::cyclesReqWaits"] =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, DEBUG_cyclesReqWaits);
+    metric_counters["StoreBufferFrontEnd::sbHitRead"] =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, DEBUG_sbHit);
+    metric_counters["StoreBufferFrontEnd::cacheHitRead"] =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, DEBUG_cacheHit);
+    metric_counters["StoreBufferFrontEnd::cyclesInterruptWaits"] =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, DEBUG_cyclesInterruptWaits);
+    metric_counters["StoreBufferFrontEnd::cyclesCacheWaits"] =
+        sim->rootp->PIPELINE_ACCESS(storeBuffer, DEBUG_cyclesCacheWaits);
+#endif
+    metric_counters["InstCache::hitRead"] =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, DEBUG_cacheHitRead);
+    metric_counters["InstCache::missRead"] =
+        sim->rootp->PIPELINE_ACCESS(instructionCache, DEBUG_cacheMissRead);
+
+    metric_counters["DataCache::hitRead"] =
+        sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cacheHitRead);
+    metric_counters["DataCache::hitWrite"] =
+        sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cacheHitWrite);
+    metric_counters["DataCache::missRead"] =
+        sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cacheMissRead);
+    metric_counters["DataCache::missWrite"] =
+        sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cacheMissWrite);
+    metric_counters["DataCache::cacheMissCycles"] =
+        sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cyclesCacheMiss);
     {
       const double &n_insts = metric_counters["insts"];
       const double &n_cycles = metric_counters["cycles"];

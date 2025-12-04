@@ -15,7 +15,7 @@ int sum(int n) {
 #define STOP *(unsigned int *)(0xcafebabe) = 0xbeafbabe
 
 int main() {
-  fib_test();
-  // matrix_multiply_test();
+  // fib_test();
+  matrix_multiply_test();
   STOP;
 }
