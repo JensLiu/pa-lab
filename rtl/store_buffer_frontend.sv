@@ -152,7 +152,13 @@ module store_buffer_frontend
                     // (1) Query for store buffer hit, this is combinational
                     if (sbIsHit) begin
                         // Store buffer hit, return immediately
-                        cpuRequest.dataFromCache = sbHitData;
+                        case (cpuRequest.dataLen)
+                            MEM_STLEN_BYTE:    cpuRequest.dataFromCache = {24'h0, sbHitData[7:0]};
+                            MEM_STLEN_HALF:    cpuRequest.dataFromCache = {16'h0, sbHitData[15:0]};
+                            MEM_STLEN_WORD:    cpuRequest.dataFromCache = sbHitData[31:0];
+                            MEM_STLEN_INVALID: cpuRequest.dataFromCache = '0;
+                            default:            cpuRequest.dataFromCache = '0;
+                        endcase
                         cpuRequest.ready = TRUE;
                     end else begin
                         // Store buffer miss, fallback to cache
