@@ -622,7 +622,9 @@ public:
       const double &n_insts = metric_counters["insts"];
       const double &n_cycles = metric_counters["cycles"];
       const double &ipc = n_insts / n_cycles;
+      const double &cpi = n_cycles / n_insts;
       metric_counters["IPC"] = ipc;
+      metric_counters["CPI"] = cpi;
     }
   }
 
