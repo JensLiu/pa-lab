@@ -466,5 +466,32 @@ module cache_fast (
     //     `ASSERT(!cpuRequest.request || cpuRequest.addr < DATA_MEM_SIZE);
     // end
 
+    word_t DEBUG_cacheHitRead, DEBUG_cacheHitWrite, DEBUG_cacheMissRead, DEBUG_cacheMissWrite;
+    word_t DEBUG_cyclesCacheMiss;
+    always_ff @( posedge clk ) begin : Metircs
+        if (cpuRequest.request) begin
+            if (currentState == IDLE && nextState == IDLE) begin
+                // result in the same cycle
+                assert (isHit);
+                if (cpuRequest.isRead) begin
+                    DEBUG_cacheHitRead <= DEBUG_cacheHitRead + 1;
+                end else begin
+                    DEBUG_cacheHitWrite <= DEBUG_cacheHitWrite + 1;
+                end
+            end else if (currentState != IDLE && nextState == IDLE) begin
+                // returing from non-idle state to idle -> finished serving one request
+                if (cpuRequest.isRead) begin
+                    DEBUG_cacheMissRead <= DEBUG_cacheMissRead + 1;
+                end else begin
+                    DEBUG_cacheMissWrite <= DEBUG_cacheMissWrite + 1;
+                end
+            end
+            if (nextState != IDLE) begin
+                // non-idle cache fetch cycle
+                DEBUG_cyclesCacheMiss <= DEBUG_cyclesCacheMiss + 1;
+            end
+        end
+    end
+
 
 endmodule
