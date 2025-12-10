@@ -155,16 +155,6 @@ package pkg_global_defs;
         reg_nr_t WB_rd;
         word_t   WB_rdData;
         bool_t   WB_hasException;
-
-        // register R/W conflict resolver
-        reg_nr_t EX_rd;
-        bool_t EX_isWriteback;
-        bool_t EX_isLoad;  // If is load, the ALU result is the address not the register
-        word_t EX_aluResult;
-
-        reg_nr_t MEM_rd;
-        bool_t   MEM_isWriteback;
-        word_t   MEM_memResult;
     } id_control_t;
 
     typedef struct {
@@ -224,6 +214,23 @@ package pkg_global_defs;
         bool_t WB_hasException;
         exception_t WB_exceptions;
     } wb_hints_t;
+
+    typedef struct {
+        // EX -> ID bypass
+        reg_nr_t EX_rd;
+        bool_t   EX_isWriteback;
+        // If is load, the ALU result is the address, not the register
+        bool_t   EX_isLoad;
+        word_t   EX_aluResult;
+        // MEM -> ID bypass
+        reg_nr_t MEM_rd;
+        bool_t   MEM_isWriteback;
+        word_t   MEM_memResult;
+        // WB -> ID bypass
+        bool_t   WB_isWriteback;
+        reg_nr_t WB_rd;
+        word_t   WB_rdData;
+    } bypass_network_basic_info_t;
 
 `ifndef LESS_EXPRESSIVE_GRAMMAR
     function automatic instruction_t inst_make_nop();

@@ -59,6 +59,9 @@ module datapath_pipelined
 `endif
     );
 
+    bypass_network_basic_info_t bypassControl;
+    bypass_network_query_if bypassQuery ();
+
     id_ex_regs_t idExRegsP;
     id_stage idStage (
         .clk(clk),  // drives register files
@@ -68,7 +71,13 @@ module datapath_pipelined
         .ifIdRegs(ifIdRegsQ),
         .idControl(idControl),
         .idExRegs(idExRegsP),
-        .idHints(idHints)
+        .idHints(idHints),
+        .bypassQuery(bypassQuery.master)
+    );
+
+    bypass_network_basic bypassNetwork (
+        .controlInfo(bypassControl),
+        .query(bypassQuery.slave)
     );
 
     ex_mem_regs_t exMemRegsP;
@@ -201,9 +210,6 @@ module datapath_pipelined
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
                 idExRegsQ.rs2Data <= IMM_32_WHATEVER;
             end else begin
-                if (!idExRegsP.instInfo.DEBUG_isForcedNop) begin
-                    DEBUG_executedInstCount <= DEBUG_executedInstCount + 1;
-                end
                 idExRegsQ <= idExRegsP;
             end
         end
@@ -240,6 +246,9 @@ module datapath_pipelined
                 memWbRegsQ.exceptions <= exception_make_none();
                 memWbRegsQ.memResult  <= IMM_32_WHATEVER;
             end else begin
+                if (!memWbRegsQ.instInfo.DEBUG_isForcedNop) begin
+                    DEBUG_executedInstCount <= DEBUG_executedInstCount + 1;
+                end
                 memWbRegsQ <= memWbRegsP;
             end
         end
@@ -259,13 +268,18 @@ module datapath_pipelined
         idControl.WB_rd = wbHints.WB_rd;
         idControl.WB_hasException = wbHints.WB_hasException;
         idControl.WB_rdData = wbHints.WB_rdData;
-        idControl.EX_rd = exHints.EX_rd;
-        idControl.EX_isWriteback = exHints.EX_isWriteback;
-        idControl.EX_isLoad = exHints.EX_isLoad;
-        idControl.EX_aluResult = exHints.EX_aluResult;
-        idControl.MEM_rd = memHints.MEM_rd;
-        idControl.MEM_isWriteback = memHints.MEM_isWriteback;
-        idControl.MEM_memResult = memHints.MEM_memResult;
+
+        // bypass network
+        bypassControl.EX_rd = exHints.EX_rd;
+        bypassControl.EX_isWriteback = exHints.EX_isWriteback;
+        bypassControl.EX_isLoad = exHints.EX_isLoad;
+        bypassControl.EX_aluResult = exHints.EX_aluResult;
+        bypassControl.MEM_rd = memHints.MEM_rd;
+        bypassControl.MEM_isWriteback = memHints.MEM_isWriteback;
+        bypassControl.MEM_memResult = memHints.MEM_memResult;
+        bypassControl.WB_isWriteback = wbHints.WB_isWriteback;
+        bypassControl.WB_rd = wbHints.WB_rd;
+        bypassControl.WB_rdData = wbHints.WB_rdData;
 
         // EX Control
         // EX is not stateful
