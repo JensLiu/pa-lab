@@ -19,7 +19,6 @@ module datapath_pipelined
         DEBUG_cycles <= DEBUG_cycles + 1;
     end
 
-
     // pipeline registers
     if_id_regs_t ifIdRegsQ;
     id_ex_regs_t idExRegsQ;
@@ -254,16 +253,15 @@ module datapath_pipelined
         end
     end
 
-    always_comb begin : StageRegisterControl
+    always_comb begin : StageControl
         // IF Control
         // IF is stateful, needs halting
-        ifControl.halt = ifHints.shouldHalt || idHints.shouldHalt ||
-                         exHints.shouldHalt || memHints.shouldHalt;
+        ifControl.halt = idHints.shouldHalt || exHints.shouldHalt || memHints.shouldHalt;
         ifControl.branchTaken = exHints.EX_branchTaken;
         ifControl.pcBr = exHints.EX_pcBr;
 
         // ID Control
-        // ID is not stateful
+        // FIXME: add idControl.shouldHalt because it needs to get the ticket
         idControl.WB_isWriteback = wbHints.WB_isWriteback;
         idControl.WB_rd = wbHints.WB_rd;
         idControl.WB_hasException = wbHints.WB_hasException;

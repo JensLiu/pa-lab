@@ -48,7 +48,7 @@ module if_stage
 
     always_ff @(posedge clk) begin
         // TODO exception handling
-        if (ifControl.halt) begin
+        if (ifControl.halt || !cacheRequest.ready) begin
             IF_pcQ <= IF_pcQ;
         end else if (ifControl.branchTaken) begin
             IF_pcQ <= ifControl.pcBr;
