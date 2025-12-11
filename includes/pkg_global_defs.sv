@@ -151,6 +151,7 @@ package pkg_global_defs;
     } if_hints_t;
 
     typedef struct {
+        bool_t   shouldHalt;    // ID shuold not request ROB tickts on this signal
         bool_t   WB_isWriteback;
         reg_nr_t WB_rd;
         word_t   WB_rdData;

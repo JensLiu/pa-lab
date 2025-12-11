@@ -254,30 +254,17 @@ module datapath_pipelined
     end
 
     always_comb begin : StageControl
-        // IF Control
-        // IF is stateful, needs halting
+        // IF Control (IF is stateful, needs halting)
         ifControl.halt = idHints.shouldHalt || exHints.shouldHalt || memHints.shouldHalt;
         ifControl.branchTaken = exHints.EX_branchTaken;
         ifControl.pcBr = exHints.EX_pcBr;
 
-        // ID Control
-        // FIXME: add idControl.shouldHalt because it needs to get the ticket
+        // ID Control (ID is stateful because of ROB ticket, needs halting)
+        idControl.shouldHalt = exHints.shouldHalt || memHints.shouldHalt;
         idControl.WB_isWriteback = wbHints.WB_isWriteback;
         idControl.WB_rd = wbHints.WB_rd;
         idControl.WB_hasException = wbHints.WB_hasException;
         idControl.WB_rdData = wbHints.WB_rdData;
-
-        // bypass network
-        bypassControl.EX_rd = exHints.EX_rd;
-        bypassControl.EX_isWriteback = exHints.EX_isWriteback;
-        bypassControl.EX_isLoad = exHints.EX_isLoad;
-        bypassControl.EX_aluResult = exHints.EX_aluResult;
-        bypassControl.MEM_rd = memHints.MEM_rd;
-        bypassControl.MEM_isWriteback = memHints.MEM_isWriteback;
-        bypassControl.MEM_memResult = memHints.MEM_memResult;
-        bypassControl.WB_isWriteback = wbHints.WB_isWriteback;
-        bypassControl.WB_rd = wbHints.WB_rd;
-        bypassControl.WB_rdData = wbHints.WB_rdData;
 
         // EX Control
         // EX is not stateful
@@ -291,6 +278,17 @@ module datapath_pipelined
         // WB is stateful
         wbControl.placeholder = TRUE;
 
+        // Bypass Network Control
+        bypassControl.EX_rd = exHints.EX_rd;
+        bypassControl.EX_isWriteback = exHints.EX_isWriteback;
+        bypassControl.EX_isLoad = exHints.EX_isLoad;
+        bypassControl.EX_aluResult = exHints.EX_aluResult;
+        bypassControl.MEM_rd = memHints.MEM_rd;
+        bypassControl.MEM_isWriteback = memHints.MEM_isWriteback;
+        bypassControl.MEM_memResult = memHints.MEM_memResult;
+        bypassControl.WB_isWriteback = wbHints.WB_isWriteback;
+        bypassControl.WB_rd = wbHints.WB_rd;
+        bypassControl.WB_rdData = wbHints.WB_rdData;
     end
 
 
