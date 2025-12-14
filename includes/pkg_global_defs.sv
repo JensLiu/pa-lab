@@ -233,6 +233,55 @@ package pkg_global_defs;
         word_t   WB_rdData;
     } bypass_network_basic_info_t;
 
+
+    typedef logic [8:0] asid_t;
+    typedef struct {
+        addr_t va;
+        asid_t asid;
+    } virt_addr_unique_t;
+
+    typedef struct {
+        bool_t isEmpty;
+        bool_t isFull;
+        // registers
+        bool_t oldestIsWriteback;
+        reg_nr_t oldestRd;
+        bool_t oldestRdDataValid;
+        word_t oldestRdData;
+        // store
+        bool_t oldestIsStore;
+        bool_t oldestStVirtAddrValid;
+        virt_addr_unique_t oldestStVirtAddr;
+        word_t oldestStData;
+        mem_stlen_t oldestStLen;
+        bool_t oldestStComplete;
+    } rob_hints_t;
+
+    typedef struct {
+        // EX Stage (ALU)
+        word_t EX_ticket;
+        bool_t EX_isLoad;
+        bool_t EX_isStore;
+        word_t EX_aluResult;
+        bool_t EX_aluResultValid;
+        bool_t EX_isBranch;
+        bool_t EX_branchTaken;
+        // MEM Stage
+        word_t MEM_ticket;
+        virt_addr_unique_t MEM_virtAddr;
+        bool_t MEM_isLoad;  // for load instructions
+        word_t MEM_loadResult;
+        bool_t MEM_loadResultReady;
+        word_t MEM_storeData;
+        bool_t MEM_isStore;  // for store instructions
+        mem_stlen_t MEM_storeLen;
+        bool_t MEM_exception_invalidAccess;  // exceptions
+        // INT-MUL Stage (Multiplication Pipeline Finished)
+        word_t IMUL_ticket;
+        word_t IMUL_result;
+        bool_t IMUL_resultValid;
+    } rob_control_t;
+
 `ifndef LESS_EXPRESSIVE_GRAMMAR
     function automatic instruction_t inst_make_nop();
         instruction_t inst = make_nop();
