@@ -14,11 +14,17 @@ build:
 		verilator -sv $(VERILATOR_TRACE_FLAGS) --cc --exe --build -j 0 \
 		--top-module datapath_pipelined \
 		-CFLAGS "-Iobj_dir" \
-		-I${BASE_DIR}/includes -I${BASE_DIR}/rtl -I${BASE_DIR}/rtl/datapath -Iobj_dir \
+		-I${BASE_DIR}/includes -I${BASE_DIR}/rtl -I${BASE_DIR}/rtl/datapath \
+		-I${BASE_DIR}/cache -I${BASE_DIR}/memory -I${BASE_DIR}/reorder_buffer \
+		-I${BASE_DIR}/store_buffer -Iobj_dir \
 		${BASE_DIR}/includes/pkg_riscv_instructions.sv \
 		${BASE_DIR}/includes/pkg_global_defs.sv \
 		${BASE_DIR}/rtl/*.sv \
 		${BASE_DIR}/rtl/datapath/*.sv \
+		${BASE_DIR}/rtl/cache/*.sv \
+		${BASE_DIR}/rtl/memory/*.sv \
+		${BASE_DIR}/rtl/reorder_buffer/*.sv \
+		${BASE_DIR}/rtl/store_buffer/*.sv \
 		$(CPP_SOURCES)
 
 firmware_obj:

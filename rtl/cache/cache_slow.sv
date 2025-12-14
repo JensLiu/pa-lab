@@ -4,7 +4,7 @@ import pkg_global_defs::*;
 import pkg_riscv_instructions::*;
 
 
-module cache (
+module cache_slow (
     input logic clk,
     cache_request_if.slave cpuRequest,
     mem_request_if.master memRequest

@@ -114,7 +114,7 @@ module datapath_pipelined
     mem_request_if sequencerMemRequest ();
 
     cache_hit_query_if _instCacheHitQuery ();  // unused
-    cache_fast instructionCache (
+    cache instructionCache (
         .clk(clk),
         .cpuRequest(instCacheCpuRequest.slave),
         .memRequest(instCacheMemRequest.master),
@@ -130,7 +130,7 @@ module datapath_pipelined
         .deligatedCpuRequest(dataCacheCacheRequest.master),
         .cacheHitQuery(dataCacheHitQuery.master)
     );
-    cache_fast dataCache (
+    cache dataCache (
         .clk(clk),
         .cpuRequest(dataCacheCacheRequest.slave),
         .memRequest(dataCacheMemRequest.master),
