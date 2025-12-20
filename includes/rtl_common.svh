@@ -20,3 +20,6 @@
 
 // `define CACHE_DEBUG_PRINT(x) $display({$sformatf x})
 `define CACHE_DEBUG_PRINT(x)
+
+
+`define ROB_DEBUG_PRINT(x) $display({$sformatf x})

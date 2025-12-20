@@ -17,6 +17,7 @@ package pkg_global_defs;
     parameter INST_MEM_SIZE = MEM_SIZE;
     parameter DATA_MEM_SIZE = MEM_SIZE;
     parameter START_ADDRESS = 'h1000;
+    parameter ROB_TICKET_INVALID = 'hffffffff;
 
     // data types
     typedef logic clk_t;
@@ -190,13 +191,48 @@ package pkg_global_defs;
         exception_t exceptions;
     } ex_mem_regs_t;
 
-    typedef struct {bool_t placeholder;} mem_control_t;
+    typedef logic [8:0] asid_t;
+    typedef struct {
+        addr_t va;
+        asid_t asid;
+    } virt_addr_unique_t;
+
+    typedef struct {
+        // hints from ROB
+        bool_t ROB_isEmpty;
+        bool_t ROB_isFull;
+        // registers
+        bool_t ROB_oldestIsWriteback;
+        reg_nr_t ROB_oldestRd;
+        bool_t ROB_oldestRdDataValid;
+        word_t ROB_oldestRdData;
+        // store
+        bool_t ROB_oldestIsStore;
+        bool_t ROB_oldestStVirtAddrValid;
+        virt_addr_unique_t ROB_oldestStVirtAddr;
+        word_t ROB_oldestStData;
+        mem_stlen_t ROB_oldestStLen;
+        bool_t ROB_oldestStComplete;
+    } mem_control_t;
 
     typedef struct {
         bool_t   shouldHalt;
-        reg_nr_t MEM_rd;
-        bool_t   MEM_isWriteback;
-        word_t   MEM_memResult;
+        word_t MEM_ticket;
+        virt_addr_unique_t MEM_virtAddr;  // should be available immediately
+        // for load instructions
+        bool_t MEM_isLoad;
+        word_t MEM_loadResult;  // should be available after memory access
+        bool_t MEM_loadResultReady;
+        // for store instructions
+        bool_t MEM_isStore;
+        word_t MEM_storeData;   // should be available immediately
+        mem_stlen_t MEM_storeLen;
+        bool_t MEM_exception_invalidAccess;
+
+        // lagacy interface for bypass network
+        // reg_nr_t MEM_rd;
+        // bool_t   MEM_isWriteback;
+        // word_t   MEM_memResult;
     } mem_hints_t;
 
     typedef struct {
@@ -233,16 +269,10 @@ package pkg_global_defs;
         word_t   WB_rdData;
     } bypass_network_basic_info_t;
 
-
-    typedef logic [8:0] asid_t;
-    typedef struct {
-        addr_t va;
-        asid_t asid;
-    } virt_addr_unique_t;
-
     typedef struct {
         bool_t isEmpty;
         bool_t isFull;
+        bool_t oldestIsValid;
         // registers
         bool_t oldestIsWriteback;
         reg_nr_t oldestRd;
@@ -272,9 +302,10 @@ package pkg_global_defs;
         bool_t MEM_isLoad;  // for load instructions
         word_t MEM_loadResult;
         bool_t MEM_loadResultReady;
-        word_t MEM_storeData;
         bool_t MEM_isStore;  // for store instructions
+        word_t MEM_storeData;
         mem_stlen_t MEM_storeLen;
+        bool_t MEM_storeComplete; // Indicates store has been committed
         bool_t MEM_exception_invalidAccess;  // exceptions
         // INT-MUL Stage (Multiplication Pipeline Finished)
         word_t IMUL_ticket;

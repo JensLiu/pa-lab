@@ -152,6 +152,9 @@ module store_buffer_frontend
                     // (1) Query for store buffer hit, this is combinational
                     if (sbIsHit) begin
                         // Store buffer hit, return immediately
+                        // FIXME: do not bypass when partial store length is smaller than requested length
+                        //        just set `cpuRequest.ready = FALSE` to wait for the SB to drain
+                        //        - When it is written to cache, `sbIsHit = FALSE` and `cacheIsHit = TRUE`
                         case (cpuRequest.dataLen)
                             MEM_STLEN_BYTE:    cpuRequest.dataFromCache = {24'h0, sbHitData[7:0]};
                             MEM_STLEN_HALF:    cpuRequest.dataFromCache = {16'h0, sbHitData[15:0]};
