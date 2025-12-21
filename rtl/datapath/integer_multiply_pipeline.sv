@@ -2,21 +2,6 @@
 
 import pkg_global_defs::*;
 
-typedef struct {
-    word_t ticket;
-    imm_arith_t A;
-    imm_arith_t B;
-} id_imul_regs_t;
-
-typedef struct {
-    bool_t placeHolder;
-} imul_control_t;
-
-typedef struct {
-    word_t IMUL_resultTicket;
-    word_t IMUL_result;
-} imul_hints_t;
-
 module integer_multiply_pipeline (
     input logic clk,
     input id_imul_regs_t idImulRegs,

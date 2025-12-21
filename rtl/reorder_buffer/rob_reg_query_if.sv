@@ -10,7 +10,7 @@ interface rob_reg_query_if;  // for bypasses (ID)
     word_t   rs2Data;
     bool_t   rs2DataValid;
     modport master(
-        output ticket,
+        // output ticket,
         output rs1,
         output rs2,
         input rs1HasEntry,
@@ -21,7 +21,7 @@ interface rob_reg_query_if;  // for bypasses (ID)
         input rs2DataValid
     );
     modport slave(
-        input ticket,
+        // input ticket,
         input rs1,
         input rs2,
         output rs1HasEntry,

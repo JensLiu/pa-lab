@@ -5,7 +5,6 @@ import pkg_global_defs::*;
 
 module reorder_buffer (
     input logic clk,
-    input logic rst,
     input rob_control_t robControl,
     output rob_hints_t robHints,
     rob_ticket_request_if.slave ticketRequest,  // ID stage
@@ -14,6 +13,9 @@ module reorder_buffer (
 );
 
     localparam ROB_SIZE = 16;
+
+    bool_t ROB_reset;
+    assign ROB_reset = FALSE; // TODO: reset
 
     // NOTE:
     // In our implementation, Write ROB and Write Reg are two different phases
@@ -46,7 +48,7 @@ module reorder_buffer (
         word_t rdData;
         // branch: This is added to simplify our flush logic?
         bool_t isBranch;
-        bool_t branchTaken;
+        bool_t shouldBranch;
         // exception
         exception_t exceptions;
         word_t pc;
@@ -79,7 +81,7 @@ module reorder_buffer (
     end
 
     always_ff @(posedge clk) begin : EnqueueLogic
-        if (rst) begin
+        if (ROB_reset) begin
             nextYoungest <= 0;
             isFull <= FALSE;
             for (int i = 0; i < ROB_SIZE; i++) begin
@@ -112,6 +114,9 @@ module reorder_buffer (
                 buffer[nextYoungest].isWriteback <= ticketRequest.isWriteback;
                 buffer[nextYoungest].rd <= ticketRequest.rd;
                 buffer[nextYoungest].rdDataValid <= FALSE;
+                // for branches
+                buffer[nextYoungest].isBranch <= ticketRequest.isBranch;
+                buffer[nextYoungest].shouldBranch <= FALSE;
                 // exceptions
                 buffer[nextYoungest].exceptions <= '0;
                 buffer[nextYoungest].pc <= ticketRequest.pc;
@@ -136,61 +141,75 @@ module reorder_buffer (
     always_comb begin : Hints
         robHints.isEmpty = isEmpty;
         robHints.isFull = isFull;
-        robHints.oldestIsValid = buffer[oldest].entryValid;
-        robHints.oldestExceptions = buffer[oldest].exceptions;
-        robHints.oldestPC = buffer[oldest].pc;
+        robHints.commitEntryValid = buffer[oldest].entryValid;
+        robHints.commitExceptions = buffer[oldest].exceptions;
+        robHints.commitPC = buffer[oldest].pc;
         // for regiester writeback commit
-        robHints.oldestIsWriteback = buffer[oldest].isWriteback;
-        robHints.oldestRdDataValid = buffer[oldest].rdDataValid;
-        robHints.oldestRdData = buffer[oldest].rdData;
-        // store
-        robHints.oldestIsStore = buffer[oldest].isStore;
-        robHints.oldestStVirtAddr = buffer[oldest].stVirtAddr;
-        robHints.oldestStVirtAddrValid = buffer[oldest].stVirtAddrValid;
-        robHints.oldestStData = buffer[oldest].stData;
-        robHints.oldestStLen = buffer[oldest].stLen;
-        robHints.oldestStComplete = buffer[oldest].stComplete;
+        robHints.commitIsWriteback = buffer[oldest].isWriteback;
+        robHints.commitRdDataValid = buffer[oldest].rdDataValid;
+        robHints.commitRdData = buffer[oldest].rdData;
+        // for store commit
+        robHints.commitIsStore = buffer[oldest].isStore;
+        robHints.commitStVirtAddr = buffer[oldest].stVirtAddr;
+        robHints.commitStVirtAddrValid = buffer[oldest].stVirtAddrValid;
+        robHints.commitStData = buffer[oldest].stData;
+        robHints.commitStLen = buffer[oldest].stLen;
+        robHints.commitStComplete = buffer[oldest].stComplete;
+        // for branch commit
+        robHints.commitIsBranch = buffer[oldest].isBranch;
+        robHints.commitShouldBranch = buffer[oldest].shouldBranch;
     end
 
-    always_ff @(posedge clk) begin : DequeueLogic
+    bool_t _shouldDequeue;
+    always @(posedge clk) begin : DequeueLogic
         // `ROB_DEBUG_PRINT(
         //     ("[ROB]: @%0d: Dequeue Logic Check: isEmpty=%0b, isFull=%0b, oldest=%0d, oldestIsWriteback=%0b, oldestRdDataValid=%0b, oldestIsStore=%0b, oldestStComplete=%0b",
-        //  DEBUG_tick, isEmpty, isFull, oldest, robHints.oldestIsWriteback, robHints.oldestRdDataValid, robHints.oldestIsStore, robHints.oldestStComplete));
-        if (rst) begin
+        //  DEBUG_tick, isEmpty, isFull, oldest, robHints.commitIsWriteback, robHints.commitRdDataValid, robHints.commitIsStore, robHints.commitStComplete));
+        _shouldDequeue = FALSE;
+        if (ROB_reset) begin
             oldest <= 0;
-        end else if (robHints.oldestExceptions == 'b0 &&
-                    (robHints.oldestIsWriteback && robHints.oldestRdDataValid ||
-                    (robHints.oldestIsStore && robHints.oldestStComplete))) begin
-            // TODO: dequeue when store is complete (from the control signals)
-            if (robHints.oldestIsWriteback) begin
-                `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Writeback (rd=%0d, data=%h)",
+        end else if (!isEmpty) begin
+            if (robHints.commitIsWriteback) begin
+                // only dequeue when WB stage is acceping commits (to avoid losing instructions)
+                if (robControl.WB_acceptCommit && robHints.commitRdDataValid) begin
+                    _shouldDequeue = TRUE;
+                    `ROB_DEBUG_PRINT(
+                        ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Writeback (rd=%0d, data=%h)",
                                  DEBUG_tick, oldest,
                                  buffer[oldest].rd,
                                  buffer[oldest].rdData));
-            end else begin
-                `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Store (addr=%h, len=%0d, data=%h)",
+                end
+            end else if (robHints.commitIsStore) begin
+                // only dequeue when MEM stage is acceping commits (to avoid losing instructions)
+                // TODO: dequeue when store is complete (from the control signals)
+                if (robControl.MEM_acceptCommit && robHints.commitStComplete) begin
+                    _shouldDequeue = TRUE;
+                    `ROB_DEBUG_PRINT(
+                        ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Store (addr=%h, len=%0d, data=%h)",
                                  DEBUG_tick, oldest,
                                  buffer[oldest].stVirtAddr.va,
                                  buffer[oldest].stLen,
                                  buffer[oldest].stData));
+                end
             end
-            if (oldest + 1 == ROB_SIZE) begin
-                oldest <= 0;
-            end else begin
-                oldest <= oldest + 1;
+
+            if (_shouldDequeue) begin
+                if (oldest + 1 == ROB_SIZE) begin
+                    oldest <= 0;
+                end else begin
+                    oldest <= oldest + 1;
+                end
+                buffer[oldest].entryValid <= FALSE;
+                isFull <= FALSE;
             end
-            buffer[oldest].entryValid <= FALSE;
-            isFull <= FALSE;
         end
     end
 
     // this logic is expensive, perhaps seralise update requests (slower performance)?
-    bool_t EX_isRegBypassing, MEM_isStoreBypassing, MEM_isLoadBypassing, IMUL_isRegBypassing;
+    bool_t EX_isRegBypassing, EX_isStoreBypassing, MEM_isLoadBypassing, IMUL_isRegBypassing;
     always @(posedge clk) begin : UpdateLogic
-        EX_isRegBypassing = FALSE;
-        MEM_isStoreBypassing = FALSE;
+        EX_isRegBypassing   = FALSE;
+        EX_isStoreBypassing = FALSE;
         MEM_isLoadBypassing = FALSE;
         IMUL_isRegBypassing = FALSE;
 
@@ -234,53 +253,56 @@ module reorder_buffer (
             if (!robControl.EX_isLoad && !robControl.EX_isStore) begin
                 // not memory instructions -> ALU Result is rd data (not an address)
                 // otherwise, they are virtual addresses, however we only want physical addresses
-                assert (buffer[robControl.EX_ticket].isWriteback);
-                buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
-                buffer[robControl.EX_ticket].rdDataValid <= robControl.EX_aluResultValid;
-                buffer[robControl.EX_ticket].branchTaken <= robControl.EX_branchTaken;
-                buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
-                if (!robControl.EX_isBranch) begin
-                    EX_isRegBypassing = robControl.EX_aluResultValid;
+                if (robControl.EX_isBranch) begin
+                    buffer[robControl.EX_ticket].shouldBranch <= robControl.EX_shouldBranch;
+                end else begin
+                    assert (buffer[robControl.EX_ticket].isWriteback);
+                    buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
+                    buffer[robControl.EX_ticket].rdDataValid <= TRUE;
+                    buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
+                    EX_isRegBypassing = TRUE;
                 end
                 `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: EX Stage ALU Update for ROB Ticket %0d: rdData=%h, rdDataValid=%0b",
+                    ("[ROB]: @%0d: EX Stage ALU Update for ROB Ticket %0d: rdData=%h",
                      DEBUG_tick, robControl.EX_ticket,
-                     robControl.EX_aluResult,
-                     robControl.EX_aluResultValid));
+                     robControl.EX_aluResult));
+            end else if (robControl.EX_isStore) begin  // < STORE enters the MEM stage
+                // EX update: STORE address calculation
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: EX Stage STORE Update for ROB Ticket %0d: stVirtAddr=%h",
+                     DEBUG_tick, robControl.EX_ticket,
+                     robControl.EX_aluResult));
+                buffer[robControl.EX_ticket].stVirtAddr <= robControl.EX_aluResult;
+                buffer[robControl.EX_ticket].stVirtAddrValid <= TRUE;
+                buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
+                EX_isStoreBypassing = TRUE;
             end
         end
 
         // MEM update
         if (robControl.MEM_ticket != ROB_TICKET_INVALID) begin
             `ROB_DEBUG_PRINT(
-                ("[ROB]: @%0d: MEM Stage Update for ROB Ticket %0d, MEM_isStore=%0b, MEM_isLoad=%0b",
-                DEBUG_tick, robControl.MEM_ticket, robControl.MEM_isStore, robControl.MEM_isLoad));
+                ("[ROB]: @%0d: MEM Stage Update for ROB Ticket %0d, MEM_isLoad=%0b",
+                DEBUG_tick, robControl.MEM_ticket, robControl.MEM_isLoad));
             assert (buffer[robControl.MEM_ticket].entryValid);
-            if (robControl.MEM_isStore) begin  // < STORE enters the MEM stage
-                `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: MEM Stage STORE Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
-                // MEM update: STORE
-                buffer[robControl.MEM_ticket].stVirtAddr <= robControl.MEM_virtAddr;
-                buffer[robControl.MEM_ticket].stVirtAddrValid <= TRUE;
-                // assert (!buffer[robControl.MEM_ticket].stComplete);
-                // TODO: immediately dequeue when receiving MEM_storeComplete signal,
-                //       otherwise it would take an extra cycle to commit
-                buffer[robControl.MEM_ticket].stComplete <= robControl.MEM_storeComplete;
-                buffer[robControl.MEM_ticket].stData <= robControl.MEM_storeData;
-                buffer[robControl.MEM_ticket].stLen <= robControl.MEM_storeLen;
-                buffer[robControl.MEM_ticket].exceptions <= robControl.MEM_exceptions;
-                MEM_isStoreBypassing = TRUE;
-            end else if (robControl.MEM_isLoad) begin  // < LOAD enters the MEM stage
+            if (robControl.MEM_isLoad) begin  // < LOAD enters the MEM stage
+                assert (!robControl.MEM_isCommitStore);
                 `ROB_DEBUG_PRINT(
                     ("[ROB]: @%0d: MEM Stage LOAD Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
                 // MEM update: LOAD
                 assert (buffer[robControl.MEM_ticket].isWriteback);
-                buffer[robControl.MEM_ticket].rdDataValid <= robControl.MEM_loadResultReady;
-                buffer[robControl.MEM_ticket].rdData <= robControl.MEM_loadResult;
-                MEM_isLoadBypassing = robControl.MEM_loadResultReady;
+                buffer[robControl.MEM_ticket].rdDataValid <= robControl.MEM_loadDataReady;
+                buffer[robControl.MEM_ticket].rdData <= robControl.MEM_loadData;
+                MEM_isLoadBypassing = robControl.MEM_loadDataReady;
+            end else if (robControl.MEM_isCommitStore) begin
+                assert (!robControl.MEM_isLoad);
+                // MEM update: commit STORE
+                // TODO: debug print
+                buffer[robControl.MEM_ticket].stComplete <= robControl.MEM_commitStoreComplete;
+                buffer[robControl.MEM_ticket].exceptions <= robControl.MEM_exceptions;
             end else begin  // < register-register instructions or branches, ignore
-                `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
+                // `ROB_DEBUG_PRINT(
+                //     ("[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
                 assert (buffer[robControl.MEM_ticket].isWriteback ||
                     buffer[robControl.MEM_ticket].isBranch);
             end
@@ -291,8 +313,8 @@ module reorder_buffer (
             assert (buffer[robControl.IMUL_ticket].entryValid);
             assert (buffer[robControl.IMUL_ticket].isWriteback);
             buffer[robControl.IMUL_ticket].rdData <= robControl.IMUL_result;
-            buffer[robControl.IMUL_ticket].rdDataValid <= robControl.IMUL_resultValid;
-            IMUL_isRegBypassing = robControl.IMUL_resultValid;
+            buffer[robControl.IMUL_ticket].rdDataValid <= TRUE;
+            IMUL_isRegBypassing = TRUE;
         end
     end
 
@@ -320,11 +342,6 @@ module reorder_buffer (
             // start from the oldest to the youngest, iterate through the ROB
             // we do NOT use `break` so the latest entry always overrides previous ones
             automatic int index = (oldest + i + ROB_SIZE) % ROB_SIZE;
-            if (index == regQuery.ticket) begin
-                // total range: [oldest, ... ticket, ... youngest]
-                // we only query the range [oldest, ..., ticket]
-                break;
-            end
             // if (buffer[index].entryValid)
             //     `ROB_DEBUG_PRINT(
             //         ("[ROB]: @%0d: RegQuery Checking %0d, %0d ROB Entry %0d: rd=%0d, isWriteback=%0b, isEntryValid=%0b",
@@ -366,14 +383,13 @@ module reorder_buffer (
             // if (robControl.EX_ticket == _rs1EntryIndex) begin
             //     if (EX_isRegBypassing) begin
             //         regQuery.rs1Data = robControl.EX_aluResult;
-            //         regQuery.rs1DataValid = robControl.EX_aluResultValid;
-            //         assert (robControl.EX_aluResultValid);
+            //         regQuery.rs1DataValid = TRUE;
             //         assert (!buffer[_rs1EntryIndex].rdDataValid);
             //     end
             // end else if (robControl.MEM_ticket == _rs1EntryIndex) begin
             //     if (MEM_isLoadBypassing) begin
-            //         regQuery.rs1Data = robControl.MEM_loadResult;
-            //         regQuery.rs1DataValid = robControl.MEM_loadResultReady;
+            //         regQuery.rs1Data = robControl.MEM_loadData;
+            //         regQuery.rs1DataValid = robControl.MEM_loadDataReady;
             //         assert (!buffer[_rs1EntryIndex].rdDataValid);
             //     end
             // end else if (robControl.IMUL_ticket == _rs1EntryIndex) begin
@@ -399,14 +415,13 @@ module reorder_buffer (
             // if (robControl.EX_ticket == _rs2EntryIndex) begin
             //     if (EX_isRegBypassing) begin
             //         regQuery.rs2Data = robControl.EX_aluResult;
-            //         regQuery.rs2DataValid = robControl.EX_aluResultValid;
-            //         assert (robControl.EX_aluResultValid);
+            //         regQuery.rs2DataValid = TRUE;
             //         assert (!buffer[_rs2EntryIndex].rdDataValid);
             //     end
             // end else if (robControl.MEM_ticket == _rs2EntryIndex) begin
             //     if (MEM_isLoadBypassing) begin
-            //         regQuery.rs2Data = robControl.MEM_loadResult;
-            //         regQuery.rs2DataValid = robControl.MEM_loadResultReady;
+            //         regQuery.rs2Data = robControl.MEM_loadData;
+            //         regQuery.rs2DataValid = robControl.MEM_loadDataReady;
             //         assert (!buffer[_rs2EntryIndex].rdDataValid);
             //     end
             // end else if (robControl.IMUL_ticket == _rs2EntryIndex) begin
@@ -442,6 +457,11 @@ module reorder_buffer (
 `endif
         for (int i = 0; i < ROB_SIZE; i++) begin
             automatic int index = (oldest + i + ROB_SIZE) % ROB_SIZE;
+            if (index == storeQuery.ticket) begin
+                // total range: [oldest, ... ticket, ... youngest]
+                // we only query the range [oldest, ..., ticket]
+                break;
+            end
             if (buffer[index].entryValid && buffer[index].isStore) begin
 `ifdef ROB_STORE_QUERY_DEBUG_PRINT_EN
                 `ROB_DEBUG_PRINT(
@@ -482,19 +502,6 @@ module reorder_buffer (
         // t1: STORE -> ROB
         // t2: LOAD <- ROB
         // we have one clock cycle to write the STORE into ROB before LOAD queries it
-
-        // check for bypasses
-        // if (_stEntryFound) begin
-        //     storeQuery.hasEntry = TRUE;
-        //     storeQuery.data = buffer[_stEntryIdx].stData;
-        //     storeQuery.dataLen = buffer[_stEntryIdx].stLen;
-        //     if (robControl.MEM_ticket == _stEntryIdx) begin
-        //         if (MEM_isStoreBypassing) begin
-        //             storeQuery.data = robControl.MEM_storeData;
-        //             storeQuery.dataLen = robControl.MEM_storeLen;
-        //         end
-        //     end
-        // end
     end
 
     // if we have
@@ -513,7 +520,7 @@ module reorder_buffer (
                 assert (buffer[i].DEBUG_ticketId == i);
                 `ROB_DEBUG_PRINT(
                     (
-                    "[ROB]: @%0d ROB Entry %0d: PC=%h, isStore=%0b, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stComplete=%0b, isWriteback=%0b, rd=%0d, rdDataValid=%0b, rdData=%h, isBranch=%0b, branchTaken=%0b, exceptions=%0h, inst=%h",
+                    "[ROB]: @%0d ROB Entry %0d: PC=%h, isStore=%0b, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stComplete=%0b, isWriteback=%0b, rd=%0d, rdDataValid=%0b, rdData=%h, isBranch=%0b, shouldBranch=%0b, exceptions=%0h, inst=%h",
                     DEBUG_tick,
                     i,
                     buffer[i].pc,
@@ -527,7 +534,7 @@ module reorder_buffer (
                     buffer[i].rdDataValid,
                     buffer[i].rdData,
                     buffer[i].isBranch,
-                    buffer[i].branchTaken,
+                    buffer[i].shouldBranch,
                     buffer[i].exceptions,
                     buffer[i].DEBUG_instInfo.DEBUG_instBinary
                 ));

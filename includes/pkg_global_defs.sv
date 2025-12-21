@@ -100,6 +100,8 @@ package pkg_global_defs;
         alu_op_t      aluOp;
         bool_t        aluUseImmAsRs2;
         bool_t        aluUsePCAsRs1;
+        // integer multiplication
+        bool_t        isImul;
         // registers
         bool_t        isWriteback;
         // memory access
@@ -148,7 +150,7 @@ package pkg_global_defs;
 
     typedef struct {
         bool_t shouldHalt;
-        bool_t cannotJump;  // to EX stage
+        bool_t cannotJump;
     } if_hints_t;
 
     typedef struct {
@@ -172,16 +174,30 @@ package pkg_global_defs;
         bool_t shouldHalt;  // halt for data hazards
     } id_hints_t;
 
-    typedef struct {bool_t IF_cannotJump;} ex_control_t;
+    typedef struct {bool_t placeholder;} ex_control_t;
     typedef struct {
-        bool_t   EX_branchTaken;
-        addr_t   EX_pcBr;
-        bool_t   EX_isWriteback;
-        reg_nr_t EX_rd;
-        bool_t   EX_isLoad;
-        word_t   EX_aluResult;
-        // When IF is not ready, halt until IF drained its cache requests
         bool_t   shouldHalt;
+        word_t   EX_ticket;
+        exception_t EX_excaptions;
+        // instruction types
+        bool_t   EX_isWriteback;
+        bool_t   EX_isLoad;
+        bool_t   EX_isStore;
+        bool_t   EX_isBranch;
+        // branch instructions
+        bool_t   EX_shouldBranch;
+        addr_t   EX_pcBr;
+        // store instruction
+        word_t   EX_stData;
+
+        // writeback instructions
+        reg_nr_t EX_rd;
+        // Rd or Virtual Address
+        word_t   EX_aluResult;
+        // Since we are using ROB, we don't need to halt, we just update the ROB entry
+        // Old control logic (it should be handled by the WB stage instead)
+        // When IF is not ready, halt until IF drained its cache requests
+        // bool_t   shouldHalt;
     } ex_hints_t;
 
     typedef struct {
@@ -201,33 +217,25 @@ package pkg_global_defs;
 
     typedef struct {
         // hints from ROB
-        bool_t ROB_isEmpty;
-        bool_t ROB_isFull;
-        // ROB store commit
-        bool_t ROB_oldestIsStore;
-        bool_t ROB_oldestStVirtAddrValid;
-        virt_addr_unique_t ROB_oldestStVirtAddr;
-        word_t ROB_oldestStData;
-        mem_stlen_t ROB_oldestStLen;
-        bool_t ROB_oldestStComplete;
+        bool_t ROB_commitEntryValid;
+        bool_t ROB_commitIsStore;
+        bool_t ROB_commitStVirtAddrValid;
+        virt_addr_unique_t ROB_commitStVirtAddr;
+        word_t ROB_commitStData;
+        mem_stlen_t ROB_commitStLen;
     } mem_control_t;
 
     typedef struct {
+        word_t ticket;
         bool_t shouldHalt;
-        word_t MEM_ticket;
-        virt_addr_unique_t MEM_virtAddr;  // should be available immediately
+        bool_t MEM_exceptions;
         // for load instructions
         bool_t MEM_pipeIsLoad;
         word_t MEM_pipeLoadData;  // should be available after memory access
         bool_t MEM_pipeLoadDataReady;
-        bool_t MEM_pipeLoadException;   // MEM exception for load
-        // for store instructions (should be put into the ROB)
-        bool_t MEM_pipeIsStore;
-        word_t MEM_pipeStoreData;   // should be available immediately
-        mem_stlen_t MEM_pipeStoreLen;
         // for oldest store instructions (commit write)
-        bool_t MEM_robCommitStoreComplete;
-        bool_t MEM_robCommitStoreException; // MEM exception for store
+        bool_t MEM_isCommitStore;
+        bool_t MEM_commitStoreComplete;
     } mem_hints_t;
 
     typedef struct {
@@ -239,24 +247,32 @@ package pkg_global_defs;
     } mem_wb_regs_t;
 
     typedef struct {
-       
+        bool_t shouldHalt;
+        bool_t WB_jump;
+        addr_t WB_jumpPC;
+        bool_t WB_isWriteback;
+        reg_nr_t WB_rd;
         word_t WB_rdData;
+        bool_t WB_hasException;
     } wb_hints_t;
 
     typedef struct {
-        // EX -> ID bypass
-        reg_nr_t EX_rd;
-        bool_t   EX_isWriteback;
-        // If is load, the ALU result is the address, not the register
-        bool_t   EX_isLoad; // hints from ROB
-        exception_t ROB_oldestException;
+        // hints from ROB
+        bool_t ROB_commitEntryValid;
+        exception_t ROB_commitException;
         // register writeback commit
-        bool_t ROB_oldestIsWriteback;
-        reg_nr_t ROB_oldestRd;
-        bool_t ROB_oldestRdDataValid;
-        word_t ROB_oldestRdData;
+        bool_t ROB_commitIsWriteback;
+        reg_nr_t ROB_commitRd;
+        bool_t ROB_commitRdDataValid;
+        word_t ROB_commitRdData;
         // non-writeback commit (memory access)
         // check for memory access exceptions
+        // branch
+        bool_t ROB_commitIsBranch;
+        bool_t ROB_commitShouldBranch;
+        addr_t ROB_commitBranchPCVirtAddr;
+        // hints from IF stage
+        bool_t IF_cannotJump;
     } wb_control_t;
 
     typedef struct {
@@ -276,32 +292,38 @@ package pkg_global_defs;
     typedef struct {
         bool_t isEmpty;
         bool_t isFull;
-        bool_t oldestIsValid;
-        word_t oldestPC;
-        exception_t oldestExceptions;
-        // registers
-        bool_t oldestIsWriteback;
-        reg_nr_t oldestRd;
-        bool_t oldestRdDataValid;
-        word_t oldestRdData;
+        bool_t commitEntryValid;
+        word_t commitPC;
+        exception_t commitExceptions;
+        bool_t commitIsWriteback;
+        bool_t commitIsStore;
+        bool_t commitIsBranch;
+        // writeback
+        reg_nr_t commitRd;
+        bool_t commitRdDataValid;
+        word_t commitRdData;
         // store
-        bool_t oldestIsStore;
-        bool_t oldestStVirtAddrValid;
-        virt_addr_unique_t oldestStVirtAddr;
-        word_t oldestStData;
-        mem_stlen_t oldestStLen;
-        bool_t oldestStComplete;
+        bool_t commitStVirtAddrValid;
+        virt_addr_unique_t commitStVirtAddr;
+        word_t commitStData;
+        mem_stlen_t commitStLen;
+        bool_t commitStComplete;
+        // branch
+        bool_t commitShouldBranch;
+        addr_t commitBranchPCVirtAddr;
     } rob_hints_t;
 
     typedef struct {
         // EX Stage (ALU)
         word_t EX_ticket;
+        bool_t EX_isWriteback;
         bool_t EX_isLoad;
         bool_t EX_isStore;
-        word_t EX_aluResult;
-        bool_t EX_aluResultValid;
         bool_t EX_isBranch;
-        bool_t EX_branchTaken;
+        word_t EX_aluResult;
+        // branch instructions
+        bool_t EX_shouldBranch;
+        // ALU exceptions
         exception_t EX_exceptions;
 
         // MEM Stage (Assume serving one request per cycle)
@@ -310,20 +332,39 @@ package pkg_global_defs;
         virt_addr_unique_t MEM_virtAddr;
         // when serving load instructions
         bool_t MEM_isLoad;
-        word_t MEM_loadResult;
-        bool_t MEM_loadResultReady;
-        // when serving store instructions
-        bool_t MEM_isStore;
-        word_t MEM_storeData;
-        mem_stlen_t MEM_storeLen;
+        word_t MEM_loadData;
+        bool_t MEM_loadDataReady;
         // when committing store instructions
-        bool_t MEM_storeComplete;
+        bool_t MEM_isCommitStore;
+        bool_t MEM_commitStoreComplete;
 
         // INT-MUL Stage
         word_t IMUL_ticket;
         word_t IMUL_result;
-        bool_t IMUL_resultValid;
+
+        // WB stage
+        // should not dequeue when the WB stage stops accepting/reaping commits
+        bool_t WB_acceptCommit;
+        // MEM stage
+        // should not dequeue when MEM stage is stops accepting/reaping commits
+        bool_t MEM_acceptCommit;
     } rob_control_t;
+
+    typedef struct {
+        word_t ticket;
+        imm_arith_t A;
+        imm_arith_t B;
+    } id_imul_regs_t;
+
+    typedef struct {
+        bool_t placeHolder;
+    } imul_control_t;
+
+    typedef struct {
+        word_t ticket;
+        word_t IMUL_resultTicket;
+        word_t IMUL_result;
+    } imul_hints_t;
 
 `ifndef LESS_EXPRESSIVE_GRAMMAR
     function automatic instruction_t inst_make_nop();

@@ -22,3 +22,5 @@
 `define CACHE_DEBUG_PRINT(x)
 
 `define ROB_DEBUG_PRINT(x) $display({$sformatf x})
+
+`define MEM_STAGE_DEBUG_PRINT(x) $display({$sformatf x})

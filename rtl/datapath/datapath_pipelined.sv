@@ -23,26 +23,41 @@ module datapath_pipelined
     if_id_regs_t ifIdRegsQ;
     id_ex_regs_t idExRegsQ;
     ex_mem_regs_t exMemRegsQ;
-    mem_wb_regs_t memWbRegsQ;
+    id_imul_regs_t idImulRegsQ;
+
+    // pipeline register wires
+    if_id_regs_t ifIdRegsP;
+    id_ex_regs_t idExRegsP;
+    ex_mem_regs_t exMemRegsP;
+    id_imul_regs_t idImulRegsP;
+
 
     // control signals
     if_control_t ifControl;
     id_control_t idControl;
     ex_control_t exControl;
     mem_control_t memControl;
+    imul_control_t imulControl;
     wb_control_t wbControl;
+    rob_control_t robControl;
 
     // stage signals/hints
     if_hints_t ifHints;
     id_hints_t idHints;
     ex_hints_t exHints;
     mem_hints_t memHints;
+    imul_hints_t imulHints;
     wb_hints_t wbHints;
+    rob_hints_t robHints;
 
     cache_request_if instCacheCpuRequest ();
     cache_request_if dataCacheCpuRequest ();
 
-    if_id_regs_t ifIdRegsP;
+    rob_ticket_request_if robTicketRequest ();
+    rob_reg_query_if robRegQuery ();
+    rob_store_query_if robStoreQuery ();
+
+    // ========================= Pipeline Stages =========================
     if_stage ifStage (
 `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
         .DEBUG_mem(DEBUG_inst_mem),
@@ -58,10 +73,6 @@ module datapath_pipelined
 `endif
     );
 
-    bypass_network_basic_info_t bypassControl;
-    bypass_network_query_if bypassQuery ();
-
-    id_ex_regs_t idExRegsP;
     id_stage idStage (
         .clk(clk),  // drives register files
 `ifdef REGISTER_FILE_EXPOSE_INTERNALS
@@ -70,16 +81,19 @@ module datapath_pipelined
         .ifIdRegs(ifIdRegsQ),
         .idControl(idControl),
         .idExRegs(idExRegsP),
+        .idImulRegs(idImulRegsP),
         .idHints(idHints),
-        .bypassQuery(bypassQuery.master)
+        .regQuery(robRegQuery.master),
+        .ticketRequest(robTicketRequest.master)
     );
 
-    bypass_network_basic bypassNetwork (
-        .controlInfo(bypassControl),
-        .query(bypassQuery.slave)
+    integer_multiply_pipeline imul (
+        .clk(clk),
+        .idImulRegs(idImulRegsP),
+        .imulControl(imulControl),
+        .imulHints(imulHints)
     );
 
-    ex_mem_regs_t exMemRegsP;
     ex_stage exStage (
         .clk(clk),
         .idExRegs(idExRegsQ),
@@ -88,27 +102,34 @@ module datapath_pipelined
         .exHints(exHints)
     );
 
-    mem_wb_regs_t memWbRegsP;
     mem_stage memStage (
-        .clk(clk),  // drives memory
+        .clk(clk),
         .exMemRegs(exMemRegsQ),
         .memControl(memControl),
-        .memWbRegs(memWbRegsP),
         .memHints(memHints),
-        // .cacheRequest(DEBUG_dataMemoryCpuRequest.master)
-        .cacheRequest(dataCacheCpuRequest.master)
+        .cacheRequest(dataCacheCpuRequest.master),
+        .storeQuery(robStoreQuery.master)
 `ifdef DATA_CACHE_DIVERGENCE_TEST,
         .DEBUG_dataMemRequest(DEBUG_dataMemoryCpuRequest.master)
 `endif
     );
 
-    wb_hints_t wbHintsP;
     wb_stage wbStage (
-        .memWbRegs(memWbRegsQ),
         .wbControl(wbControl),
         .wbHints  (wbHints)
     );
 
+    // ========================= Reorder Buffer =========================
+    reorder_buffer rob (
+        .clk(clk),
+        .robControl(robControl),
+        .robHints(robHints),
+        .ticketRequest(robTicketRequest.slave),
+        .regQuery(robRegQuery.slave),
+        .storeQuery(robStoreQuery.slave)
+    );
+
+    // ========================= Cache and Store Buffer =========================
     mem_request_if instCacheMemRequest ();
     mem_request_if dataCacheMemRequest ();
     mem_request_if sequencerMemRequest ();
@@ -177,8 +198,14 @@ module datapath_pipelined
     );
 `endif
 
+    // ========================= Stage Control Logic =========================
     // Pipeline State Registers Propogation
-    bool_t IfIdRegs_writeEnable, IdExRegs_writeEnable, ExMemRegs_writeEnable, MemWbRegs_writeEnable;
+    bool_t
+        IfIdRegs_writeEnable,
+        IdExRegs_writeEnable,
+        IdImulRegs_writeEnable,
+        ExMemRegs_writeEnable,
+        MemWbRegs_writeEnable;
     bool_t IF_injectNop, ID_injectNop, EX_injectNop, MEM_injectNop;
     always_ff @(posedge clk) begin : PipelinePropogation
         // IF -> ID
@@ -192,19 +219,19 @@ module datapath_pipelined
                 ifIdRegsQ <= ifIdRegsP;
             end
         end
+
         // ID -> EX
         if (IdExRegs_writeEnable) begin
             if (ID_injectNop) begin
                 // idExRegsQ.pc <= idExRegsP.pc;
                 idExRegsQ.pc <= 32'h0;
-
+                idExRegsQ.ticket <= ROB_TICKET_INVALID;
 `ifdef DEBUG_INST_INFO_EXTENSION
                 idExRegsQ.instInfo <=
                     inst_info_make_nop_with_inst_id(idExRegsP.instInfo.DEBUG_instID);
 `else
                 idExRegsQ.instInfo <= inst_info_make_nop();
 `endif
-
                 idExRegsQ.exceptions <= exception_make_none();
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
                 idExRegsQ.rs2Data <= IMM_32_WHATEVER;
@@ -213,11 +240,23 @@ module datapath_pipelined
             end
         end
 
+        // ID -> IMUL
+        if (IdImulRegs_writeEnable) begin
+            if (ID_injectNop) begin
+                idImulRegsQ.ticket <= ROB_TICKET_INVALID;
+                idImulRegsQ.A <= IMM_32_WHATEVER;
+                idImulRegsQ.B <= IMM_32_WHATEVER;
+            end else begin
+                idImulRegsQ <= idImulRegsQ;
+            end
+        end
+
         // EX -> MEM
         if (ExMemRegs_writeEnable) begin
             if (EX_injectNop) begin
                 // exMemRegsQ.pc <= exMemRegsP.pc;
                 exMemRegsQ.pc <= 32'h0;
+                exMemRegsQ.ticket <= ROB_TICKET_INVALID;
 `ifdef DEBUG_INST_INFO_EXTENSION
                 exMemRegsQ.instInfo <=
                     inst_info_make_nop_with_inst_id(exMemRegsP.instInfo.DEBUG_instID);
@@ -231,26 +270,6 @@ module datapath_pipelined
                 exMemRegsQ <= exMemRegsP;
             end
         end
-        // MEM -> WB
-        if (MemWbRegs_writeEnable) begin
-            if (MEM_injectNop) begin
-                // memWbRegsQ.pc <= memWbRegsP.pc;
-                memWbRegsQ.pc <= 32'h0;
-`ifdef DEBUG_INST_INFO_EXTENSION
-                memWbRegsQ.instInfo <=
-                    inst_info_make_nop_with_inst_id(memWbRegsP.instInfo.DEBUG_instID);
-`else
-                memWbRegsQ.instInfo <= inst_info_make_nop();
-`endif
-                memWbRegsQ.exceptions <= exception_make_none();
-                memWbRegsQ.memResult  <= IMM_32_WHATEVER;
-            end else begin
-                if (!memWbRegsQ.instInfo.DEBUG_isForcedNop) begin
-                    DEBUG_executedInstCount <= DEBUG_executedInstCount + 1;
-                end
-                memWbRegsQ <= memWbRegsP;
-            end
-        end
     end
 
     always_comb begin : StageControl
@@ -259,40 +278,63 @@ module datapath_pipelined
         // 2. if later stage halts, previous stage must also halt
 
         // IF Control (IF is stateful, needs halting)
-        ifControl.halt = idHints.shouldHalt || exHints.shouldHalt || memHints.shouldHalt;
-        ifControl.branchTaken = exHints.EX_branchTaken;
-        ifControl.pcBr = exHints.EX_pcBr;
+        ifControl.halt = idHints.shouldHalt || exHints.shouldHalt ||
+                        memHints.shouldHalt || wbHints.shouldHalt;
+        ifControl.branchTaken = wbHints.WB_jump;
+        ifControl.pcBr = wbHints.WB_jumpPC;
 
         // ID Control (ID is stateful because of ROB ticket, needs halting)
-        idControl.halt = exHints.shouldHalt || memHints.shouldHalt;
+        idControl.halt = exHints.shouldHalt || memHints.shouldHalt || wbHints.shouldHalt;
         idControl.WB_isWriteback = wbHints.WB_isWriteback;
         idControl.WB_rd = wbHints.WB_rd;
-        idControl.WB_hasException = wbHints.WB_hasException;
         idControl.WB_rdData = wbHints.WB_rdData;
+        idControl.WB_hasException = wbHints.WB_hasException;
 
         // EX Control
         // EX is not stateful
-        exControl.IF_cannotJump = ifHints.cannotJump;
+        exControl.placeholder = TRUE;
 
         // MEM Control
         // MEM is stateful
-        memControl.placeholder = ifHints.cannotJump;
+        memControl.ROB_commitEntryValid = robHints.commitEntryValid;
+        memControl.ROB_commitIsStore = robHints.commitIsStore;
+        memControl.ROB_commitStVirtAddrValid = robHints.commitStVirtAddrValid;
+        memControl.ROB_commitStVirtAddr = robHints.commitStVirtAddr;
+        memControl.ROB_commitStData = robHints.commitStData;
+        memControl.ROB_commitStLen = robHints.commitStLen;
 
         // WB Control
         // WB is stateful
-        wbControl.placeholder = TRUE;
+        wbControl.ROB_commitEntryValid = robHints.commitEntryValid;
+        wbControl.ROB_commitException = robHints.commitExceptions;
+        wbControl.ROB_commitIsWriteback = robHints.commitIsWriteback;
+        wbControl.ROB_commitRd = robHints.commitRd;
+        wbControl.ROB_commitRdDataValid = robHints.commitRdDataValid;
+        wbControl.ROB_commitRdData = robHints.commitRdData;
+        wbControl.ROB_commitIsBranch = robHints.commitIsBranch;
+        wbControl.ROB_commitShouldBranch = robHints.commitShouldBranch;
+        wbControl.ROB_commitBranchPCVirtAddr = robHints.commitBranchPCVirtAddr;
+        wbControl.IF_cannotJump = ifHints.cannotJump;
 
-        // Bypass Network Control
-        bypassControl.EX_rd = exHints.EX_rd;
-        bypassControl.EX_isWriteback = exHints.EX_isWriteback;
-        bypassControl.EX_isLoad = exHints.EX_isLoad;
-        bypassControl.EX_aluResult = exHints.EX_aluResult;
-        bypassControl.MEM_rd = memHints.MEM_rd;
-        bypassControl.MEM_isWriteback = memHints.MEM_isWriteback;
-        bypassControl.MEM_memResult = memHints.MEM_memResult;
-        bypassControl.WB_isWriteback = wbHints.WB_isWriteback;
-        bypassControl.WB_rd = wbHints.WB_rd;
-        bypassControl.WB_rdData = wbHints.WB_rdData;
+        // ROB Control
+        robControl.EX_ticket = exHints.EX_ticket;
+        robControl.EX_isLoad = exHints.EX_isLoad;
+        robControl.EX_isWriteback = exHints.EX_isWriteback;
+        robControl.EX_isBranch = exHints.EX_isBranch;
+        robControl.EX_aluResult = exHints.EX_aluResult;
+        robControl.EX_shouldBranch = exHints.EX_shouldBranch;
+        robControl.EX_exceptions = exHints.EX_excaptions;
+        robControl.MEM_ticket = memHints.ticket;
+        robControl.MEM_exceptions = memHints.MEM_exceptions;
+        robControl.MEM_isLoad = memHints.MEM_pipeIsLoad;
+        robControl.MEM_loadData = memHints.MEM_pipeLoadData;
+        robControl.MEM_loadDataReady = memHints.MEM_pipeLoadDataReady;
+        robControl.MEM_isCommitStore = memHints.MEM_isCommitStore;
+        robControl.MEM_commitStoreComplete = memHints.MEM_commitStoreComplete;
+        robControl.IMUL_ticket = imulHints.ticket;
+        robControl.IMUL_result = imulHints.IMUL_result;
+        robControl.WB_acceptCommit = !wbHints.shouldHalt;
+        robControl.MEM_acceptCommit = !memHints.shouldHalt;
     end
 
 
@@ -309,6 +351,7 @@ module datapath_pipelined
         // semantics of *Hints.shouldHalt:
         // 1. don't send new instruction into this stage
         // 2. don't propogate the pipeline registers of this stage into the next stage
+        //    -> The original pipeline registers are kept intacked
         if (ifHints.shouldHalt) begin
             IF_injectNop = TRUE;
         end
@@ -319,8 +362,6 @@ module datapath_pipelined
         end
 
         if (exHints.shouldHalt) begin
-            // cannot branch when IF is draining
-            assert (!exHints.EX_branchTaken);
             EX_injectNop = TRUE;
             IfIdRegs_writeEnable = FALSE;
             IdExRegs_writeEnable = FALSE;
@@ -333,19 +374,14 @@ module datapath_pipelined
             ExMemRegs_writeEnable = FALSE;
         end
 
-        if (exHints.EX_branchTaken) begin
-            assert (!exHints.shouldHalt);
-            // kill previous instructions
-            IF_injectNop = TRUE;
-            ID_injectNop = TRUE;
-        end
-
-        if (wbHints.WB_hasException) begin
+        if (wbHints.WB_jump) begin
+            // kill all previous instructiosn
             IF_injectNop  = TRUE;
             ID_injectNop  = TRUE;
             EX_injectNop  = TRUE;
             MEM_injectNop = TRUE;
         end
+
     end
 
 endmodule
