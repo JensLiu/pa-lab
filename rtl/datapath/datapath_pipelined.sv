@@ -254,13 +254,17 @@ module datapath_pipelined
     end
 
     always_comb begin : StageControl
+        // semantics of *Control.halt:
+        // 1. the pipeline tells this stage to halt, i.e. don't change its state
+        // 2. if later stage halts, previous stage must also halt
+
         // IF Control (IF is stateful, needs halting)
         ifControl.halt = idHints.shouldHalt || exHints.shouldHalt || memHints.shouldHalt;
         ifControl.branchTaken = exHints.EX_branchTaken;
         ifControl.pcBr = exHints.EX_pcBr;
 
         // ID Control (ID is stateful because of ROB ticket, needs halting)
-        idControl.shouldHalt = exHints.shouldHalt || memHints.shouldHalt;
+        idControl.halt = exHints.shouldHalt || memHints.shouldHalt;
         idControl.WB_isWriteback = wbHints.WB_isWriteback;
         idControl.WB_rd = wbHints.WB_rd;
         idControl.WB_hasException = wbHints.WB_hasException;
@@ -302,6 +306,9 @@ module datapath_pipelined
         EX_injectNop = FALSE;
         MEM_injectNop = FALSE;
 
+        // semantics of *Hints.shouldHalt:
+        // 1. don't send new instruction into this stage
+        // 2. don't propogate the pipeline registers of this stage into the next stage
         if (ifHints.shouldHalt) begin
             IF_injectNop = TRUE;
         end

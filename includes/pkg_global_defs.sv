@@ -152,7 +152,7 @@ package pkg_global_defs;
     } if_hints_t;
 
     typedef struct {
-        bool_t   shouldHalt;    // ID shuold not request ROB tickts on this signal
+        bool_t   halt;    // ID shuold not request ROB tickts on this signal
         bool_t   WB_isWriteback;
         reg_nr_t WB_rd;
         word_t   WB_rdData;
@@ -160,6 +160,7 @@ package pkg_global_defs;
     } id_control_t;
 
     typedef struct {
+        word_t ticket;
         reg_t pc;
         inst_info_t instInfo;
         exception_t exceptions;
@@ -184,6 +185,7 @@ package pkg_global_defs;
     } ex_hints_t;
 
     typedef struct {
+        word_t ticket;
         reg_t pc;
         inst_info_t instInfo;
         word_t aluResult;
@@ -201,12 +203,7 @@ package pkg_global_defs;
         // hints from ROB
         bool_t ROB_isEmpty;
         bool_t ROB_isFull;
-        // registers
-        bool_t ROB_oldestIsWriteback;
-        reg_nr_t ROB_oldestRd;
-        bool_t ROB_oldestRdDataValid;
-        word_t ROB_oldestRdData;
-        // store
+        // ROB store commit
         bool_t ROB_oldestIsStore;
         bool_t ROB_oldestStVirtAddrValid;
         virt_addr_unique_t ROB_oldestStVirtAddr;
@@ -216,40 +213,34 @@ package pkg_global_defs;
     } mem_control_t;
 
     typedef struct {
-        bool_t   shouldHalt;
+        bool_t shouldHalt;
         word_t MEM_ticket;
         virt_addr_unique_t MEM_virtAddr;  // should be available immediately
         // for load instructions
-        bool_t MEM_isLoad;
-        word_t MEM_loadResult;  // should be available after memory access
-        bool_t MEM_loadResultReady;
-        // for store instructions
-        bool_t MEM_isStore;
-        word_t MEM_storeData;   // should be available immediately
-        mem_stlen_t MEM_storeLen;
-        bool_t MEM_exception_invalidAccess;
-
-        // lagacy interface for bypass network
-        // reg_nr_t MEM_rd;
-        // bool_t   MEM_isWriteback;
-        // word_t   MEM_memResult;
+        bool_t MEM_pipeIsLoad;
+        word_t MEM_pipeLoadData;  // should be available after memory access
+        bool_t MEM_pipeLoadDataReady;
+        bool_t MEM_pipeLoadException;   // MEM exception for load
+        // for store instructions (should be put into the ROB)
+        bool_t MEM_pipeIsStore;
+        word_t MEM_pipeStoreData;   // should be available immediately
+        mem_stlen_t MEM_pipeStoreLen;
+        // for oldest store instructions (commit write)
+        bool_t MEM_robCommitStoreComplete;
+        bool_t MEM_robCommitStoreException; // MEM exception for store
     } mem_hints_t;
 
     typedef struct {
+        word_t ticket;
         reg_t pc;
         inst_info_t instInfo;
         word_t memResult;
         exception_t exceptions;
     } mem_wb_regs_t;
 
-    typedef struct {bool_t placeholder;} wb_control_t;
-
     typedef struct {
-        bool_t WB_isWriteback;
-        reg_nr_t WB_rd;
+       
         word_t WB_rdData;
-        bool_t WB_hasException;
-        exception_t WB_exceptions;
     } wb_hints_t;
 
     typedef struct {
@@ -257,7 +248,20 @@ package pkg_global_defs;
         reg_nr_t EX_rd;
         bool_t   EX_isWriteback;
         // If is load, the ALU result is the address, not the register
-        bool_t   EX_isLoad;
+        bool_t   EX_isLoad; // hints from ROB
+        exception_t ROB_oldestException;
+        // register writeback commit
+        bool_t ROB_oldestIsWriteback;
+        reg_nr_t ROB_oldestRd;
+        bool_t ROB_oldestRdDataValid;
+        word_t ROB_oldestRdData;
+        // non-writeback commit (memory access)
+        // check for memory access exceptions
+    } wb_control_t;
+
+    typedef struct {
+        bool_t WB_isWriteback;
+        reg_nr_t WB_rd;
         word_t   EX_aluResult;
         // MEM -> ID bypass
         reg_nr_t MEM_rd;
@@ -273,6 +277,8 @@ package pkg_global_defs;
         bool_t isEmpty;
         bool_t isFull;
         bool_t oldestIsValid;
+        word_t oldestPC;
+        exception_t oldestExceptions;
         // registers
         bool_t oldestIsWriteback;
         reg_nr_t oldestRd;
@@ -296,18 +302,24 @@ package pkg_global_defs;
         bool_t EX_aluResultValid;
         bool_t EX_isBranch;
         bool_t EX_branchTaken;
-        // MEM Stage
-        word_t MEM_ticket;
+        exception_t EX_exceptions;
+
+        // MEM Stage (Assume serving one request per cycle)
+        word_t MEM_ticket;  // surving ticket
+        exception_t MEM_exceptions;  // exceptions
         virt_addr_unique_t MEM_virtAddr;
-        bool_t MEM_isLoad;  // for load instructions
+        // when serving load instructions
+        bool_t MEM_isLoad;
         word_t MEM_loadResult;
         bool_t MEM_loadResultReady;
-        bool_t MEM_isStore;  // for store instructions
+        // when serving store instructions
+        bool_t MEM_isStore;
         word_t MEM_storeData;
         mem_stlen_t MEM_storeLen;
-        bool_t MEM_storeComplete; // Indicates store has been committed
-        bool_t MEM_exception_invalidAccess;  // exceptions
-        // INT-MUL Stage (Multiplication Pipeline Finished)
+        // when committing store instructions
+        bool_t MEM_storeComplete;
+
+        // INT-MUL Stage
         word_t IMUL_ticket;
         word_t IMUL_result;
         bool_t IMUL_resultValid;
