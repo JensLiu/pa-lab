@@ -48,7 +48,7 @@ module reorder_buffer (
         bool_t isBranch;
         bool_t branchTaken;
         // exception
-        word_t exceptions;
+        exception_t exceptions;
         word_t pc;
         // debug
         word_t DEBUG_ticketId;
@@ -68,13 +68,13 @@ module reorder_buffer (
     always_comb begin : TicketResponse
         ticketRequest.ready  = FALSE;
         ticketRequest.ticket = IMM_32_WHATEVER;
-        if (!isFull) begin
+        if (!isFull && ticketRequest.request) begin
             ticketRequest.ready  = TRUE;
             ticketRequest.ticket = nextYoungest;
-            // if (ticketRequest.request) begin
-            //     `ROB_DEBUG_PRINT(
-            //         ("[ROB]: @%0d: ROB Ticket Requested: Assigned Ticket %0d", DEBUG_tick, nextYoungest));
-            // end
+            if (ticketRequest.request) begin
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Ticket Requested: Assigned Ticket %0d", DEBUG_tick, nextYoungest));
+            end
         end
     end
 
@@ -137,6 +137,8 @@ module reorder_buffer (
         robHints.isEmpty = isEmpty;
         robHints.isFull = isFull;
         robHints.oldestIsValid = buffer[oldest].entryValid;
+        robHints.oldestExceptions = buffer[oldest].exceptions;
+        robHints.oldestPC = buffer[oldest].pc;
         // for regiester writeback commit
         robHints.oldestIsWriteback = buffer[oldest].isWriteback;
         robHints.oldestRdDataValid = buffer[oldest].rdDataValid;
@@ -151,13 +153,14 @@ module reorder_buffer (
     end
 
     always_ff @(posedge clk) begin : DequeueLogic
-        `ROB_DEBUG_PRINT(
-            ("[ROB]: @%0d: Dequeue Logic Check: isEmpty=%0b, isFull=%0b, oldest=%0d, oldestIsWriteback=%0b, oldestRdDataValid=%0b, oldestIsStore=%0b, oldestStComplete=%0b",
-         DEBUG_tick, isEmpty, isFull, oldest, robHints.oldestIsWriteback, robHints.oldestRdDataValid, robHints.oldestIsStore, robHints.oldestStComplete));
+        // `ROB_DEBUG_PRINT(
+        //     ("[ROB]: @%0d: Dequeue Logic Check: isEmpty=%0b, isFull=%0b, oldest=%0d, oldestIsWriteback=%0b, oldestRdDataValid=%0b, oldestIsStore=%0b, oldestStComplete=%0b",
+        //  DEBUG_tick, isEmpty, isFull, oldest, robHints.oldestIsWriteback, robHints.oldestRdDataValid, robHints.oldestIsStore, robHints.oldestStComplete));
         if (rst) begin
             oldest <= 0;
-        end else if (robHints.oldestIsWriteback && robHints.oldestRdDataValid ||
-                    (robHints.oldestIsStore && robHints.oldestStComplete)) begin
+        end else if (robHints.oldestExceptions == 'b0 &&
+                    (robHints.oldestIsWriteback && robHints.oldestRdDataValid ||
+                    (robHints.oldestIsStore && robHints.oldestStComplete))) begin
             // TODO: dequeue when store is complete (from the control signals)
             if (robHints.oldestIsWriteback) begin
                 `ROB_DEBUG_PRINT(
@@ -194,6 +197,8 @@ module reorder_buffer (
         // Each stage should have different tickets if they are valid
         if (robControl.EX_ticket != ROB_TICKET_INVALID &&
             robControl.MEM_ticket != ROB_TICKET_INVALID) begin
+            // $display("[ROB]: @%0d: EX_ticket=%0d, MEM_ticket=%0d", DEBUG_tick,
+            //          robControl.EX_ticket, robControl.MEM_ticket);
             assert (robControl.EX_ticket != robControl.MEM_ticket);
         end
         if (robControl.EX_ticket != ROB_TICKET_INVALID &&
@@ -206,6 +211,9 @@ module reorder_buffer (
         end
         // ticket range checks and entry valid checks
         if (robControl.EX_ticket != ROB_TICKET_INVALID) begin
+            `ROB_DEBUG_PRINT(
+                ("[ROB]: @%0d: EX_ticket=%0d, valid=%0d", DEBUG_tick, robControl.EX_ticket, 
+                buffer[robControl.EX_ticket].entryValid));
             assert (robControl.EX_ticket < ROB_SIZE);
             assert (buffer[robControl.EX_ticket].entryValid);
         end
@@ -230,6 +238,7 @@ module reorder_buffer (
                 buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
                 buffer[robControl.EX_ticket].rdDataValid <= robControl.EX_aluResultValid;
                 buffer[robControl.EX_ticket].branchTaken <= robControl.EX_branchTaken;
+                buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
                 if (!robControl.EX_isBranch) begin
                     EX_isRegBypassing = robControl.EX_aluResultValid;
                 end
@@ -259,6 +268,7 @@ module reorder_buffer (
                 buffer[robControl.MEM_ticket].stComplete <= robControl.MEM_storeComplete;
                 buffer[robControl.MEM_ticket].stData <= robControl.MEM_storeData;
                 buffer[robControl.MEM_ticket].stLen <= robControl.MEM_storeLen;
+                buffer[robControl.MEM_ticket].exceptions <= robControl.MEM_exceptions;
                 MEM_isStoreBypassing = TRUE;
             end else if (robControl.MEM_isLoad) begin  // < LOAD enters the MEM stage
                 `ROB_DEBUG_PRINT(
@@ -310,9 +320,15 @@ module reorder_buffer (
             // start from the oldest to the youngest, iterate through the ROB
             // we do NOT use `break` so the latest entry always overrides previous ones
             automatic int index = (oldest + i + ROB_SIZE) % ROB_SIZE;
-            // `ROB_DEBUG_PRINT(
-            //     ("[ROB]: @%0d: RegQuery Checking ROB Entry %0d: rd=%0d",
-            //          DEBUG_tick, index, buffer[index].rd));
+            if (index == regQuery.ticket) begin
+                // total range: [oldest, ... ticket, ... youngest]
+                // we only query the range [oldest, ..., ticket]
+                break;
+            end
+            // if (buffer[index].entryValid)
+            //     `ROB_DEBUG_PRINT(
+            //         ("[ROB]: @%0d: RegQuery Checking %0d, %0d ROB Entry %0d: rd=%0d, isWriteback=%0b, isEntryValid=%0b",
+            //          DEBUG_tick, regQuery.rs1, regQuery.rs2, index, buffer[index].rd, buffer[index].isWriteback, buffer[index].entryValid));
             if (buffer[index].entryValid && buffer[index].isWriteback) begin
                 if (buffer[index].rd == regQuery.rs1) begin
 `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
@@ -337,12 +353,12 @@ module reorder_buffer (
 
         // check if we have bypasses that has newer version
         if (_rs1EntryFound) begin
-`ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
-            `ROB_DEBUG_PRINT(
-                ("[ROB]: @%0d: RegQuery rs1 Hit at ROB Entry %0d: rd=%0d, data=%h, dataValid=%0b",
-                 DEBUG_tick, _rs1EntryIndex, buffer[_rs1EntryIndex].rd,
-                 buffer[_rs1EntryIndex].rdData, buffer[_rs1EntryIndex].rdDataValid));
-`endif
+            // `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
+            //             `ROB_DEBUG_PRINT(
+            //                 ("[ROB]: @%0d: RegQuery rs1 Hit at ROB Entry %0d: rd=%0d, data=%h, dataValid=%0b",
+            //                  DEBUG_tick, _rs1EntryIndex, buffer[_rs1EntryIndex].rd,
+            //                  buffer[_rs1EntryIndex].rdData, buffer[_rs1EntryIndex].rdDataValid));
+            // `endif
             regQuery.rs1Data = buffer[_rs1EntryIndex].rdData;
             regQuery.rs1DataValid = buffer[_rs1EntryIndex].rdDataValid;
             regQuery.rs1HasEntry = TRUE;

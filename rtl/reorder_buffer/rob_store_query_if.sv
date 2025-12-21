@@ -1,4 +1,5 @@
 interface rob_store_query_if;  // LOAD for bypasses (MEM)
+    word_t ticket;  // should only query from [oldest, ticket]
     virt_addr_unique_t virtAddr;
     bool_t hasEntry;
     word_t data;
@@ -8,6 +9,7 @@ interface rob_store_query_if;  // LOAD for bypasses (MEM)
     mem_stlen_t dataLen;
     bool_t sufficientLength; // true if the requested data length is <= the stored data length
     modport master(
+        output ticket,
         output virtAddr,
         input hasEntry,
         input data,
@@ -15,6 +17,7 @@ interface rob_store_query_if;  // LOAD for bypasses (MEM)
         input dataLen
     );
     modport slave(
+        input ticket,
         input virtAddr,
         output hasEntry,
         output data,

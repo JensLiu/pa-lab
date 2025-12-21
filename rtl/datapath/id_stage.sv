@@ -13,7 +13,8 @@ module id_stage
     input if_id_regs_t ifIdRegs,
     output id_ex_regs_t idExRegs,
     output id_hints_t idHints,
-    bypass_network_query_if.master bypassQuery
+    rob_reg_query_if.master regQuery,
+    rob_ticket_request_if.master ticketRequest
 );
 
     inst_info_t instInfo;
@@ -41,15 +42,30 @@ module id_stage
         .write_data(idControl.WB_rdData)
     );
 
-
-    assign bypassQuery.rs1 = instInfo.rs1;
-    assign bypassQuery.rs2 = instInfo.rs2;
-    bool_t ID_shouldHalt;
-    assign ID_shouldHalt = bypassQuery.rs1ShouldHalt || bypassQuery.rs2ShouldHalt;
-    // EX, MEM, WB bypass
+    // bypass network queries
+    bool_t ID_shouldHalt, _rs1ShouldHalt, _rs2ShouldHalt;
     word_t ID_rs1Data, ID_rs2Data;
-    assign ID_rs1Data = bypassQuery.rs1HasDep ? bypassQuery.rs1Data : ID_oldRs1Data;
-    assign ID_rs2Data = bypassQuery.rs2HasDep ? bypassQuery.rs2Data : ID_oldRs2Data;
+    always_comb begin : BypassQueryLogic
+        regQuery.rs1 = instInfo.rs1;
+        regQuery.rs2 = instInfo.rs2;
+        _rs1ShouldHalt = regQuery.rs1HasEntry && !regQuery.rs1DataValid;
+        _rs2ShouldHalt = regQuery.rs2HasEntry && !regQuery.rs2DataValid;
+        ID_shouldHalt = _rs1ShouldHalt || _rs2ShouldHalt;
+        ID_rs1Data = regQuery.rs1HasEntry ? regQuery.rs1Data : ID_oldRs1Data;
+        ID_rs2Data = regQuery.rs2HasEntry ? regQuery.rs2Data : ID_oldRs2Data;
+    end
+
+    always_comb begin : RobTicketRequestLogic
+        ticketRequest.request = !ID_shouldHalt;
+        ticketRequest.isStore = instInfo.isStore;
+        ticketRequest.stLen = instInfo.memStLen;
+        ticketRequest.stData = ID_rs2Data;
+        ticketRequest.isWriteback = instInfo.isWriteback;
+        ticketRequest.rd = instInfo.rd;
+        ticketRequest.pc = ifIdRegs.pc;
+        ticketRequest.DEBUG_instInfo = instInfo;
+
+    end
 
     always_comb begin
         // propagate pipeline

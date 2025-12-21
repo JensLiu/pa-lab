@@ -87,6 +87,7 @@ module tb_reorder_buffer;
     // Helper task to request a ticket
     task request_ticket(input bool_t isStore, input bool_t isWriteback, input reg_nr_t rd,
                         output word_t ticket);
+        #1;
         ticketRequest.request = TRUE;
         ticketRequest.isStore = isStore;
         ticketRequest.isWriteback = isWriteback;
@@ -97,15 +98,17 @@ module tb_reorder_buffer;
 
         wait (ticketRequest.ready);
         ticket = ticketRequest.ticket;
-        @(posedge clk);
-        ticketRequest.request = FALSE;
         $display("@%0d Got ticket: %0d", tick, ticket);
+        @(posedge clk);
+        #1;
+        ticketRequest.request = FALSE;
+        $display("@%0d Dessert", tick);
         @(posedge clk);
     endtask
 
     // Test scenarios
     initial begin
-        word_t t1, t2, t3;
+        word_t t1, t2, t3, t4, t5, t6, t7, t8;
 
         $display("@%0d Starting tb_reorder_buffer...", tick);
 
@@ -201,6 +204,159 @@ module tb_reorder_buffer;
         // Now ROB should be empty
         assert (robHints.isEmpty == TRUE)
         else $error("ROB should be empty after retiring t2");
+
+        // 7. Simultaneous Updates (EX and MEM)
+        $display("@%0d Test: Simultaneous Updates (EX and MEM)", tick);
+
+        // Request t3 (ALU op, Writeback to r6)
+        request_ticket(FALSE, TRUE, 6, t3);
+        // Request t4 (Load op, Writeback to r7)
+        request_ticket(FALSE, TRUE, 7, t4);
+        assert (t3 != t4);
+
+        // Update both in the same cycle
+        robControl.EX_ticket = t3;
+        robControl.EX_aluResult = 32'hCAFEBABE;
+        robControl.EX_aluResultValid = TRUE;
+
+        robControl.MEM_ticket = t4;
+        robControl.MEM_isLoad = TRUE;
+        robControl.MEM_loadResult = 32'hDEADBEEF;
+        robControl.MEM_loadResultReady = TRUE;
+
+        // @(posedge clk);
+        #1;
+        $display("@%0d Updating t3 (EX) and t4 (MEM) simultaneously", tick);
+
+        @(posedge clk);
+        #1;
+        robControl.EX_ticket = ROB_TICKET_INVALID;
+        robControl.EX_aluResultValid = FALSE;
+        robControl.MEM_ticket = ROB_TICKET_INVALID;
+        robControl.MEM_isLoad = FALSE;
+        robControl.MEM_loadResultReady = FALSE;
+        $display("@%0d Cleared EX and MEM updates", tick);
+        // Verify updates via RegQuery
+        regQuery.rs1 = 6;
+        regQuery.rs2 = 7;
+        #1;  // NOTE: Small delay to allow regQuery to process
+        $display("@%0d Querying registers r6 and r7", tick);
+        assert (regQuery.rs1HasEntry == TRUE && regQuery.rs1Data == 32'hCAFEBABE && regQuery.rs1DataValid == TRUE)
+        else $error("t3 (%0d) update failed or not visible", t3);
+        assert (regQuery.rs2HasEntry == TRUE && regQuery.rs2Data == 32'hDEADBEEF && regQuery.rs2DataValid == TRUE)
+        else $error("t4 (%0d) update failed or not visible", t4);
+
+        // 8. Simultaneous Retire (t3) and Enqueue (t5)
+        $display("@%0d Test: Simultaneous Retire (t3) and Enqueue (t5)", tick);
+
+        // t3 is oldest now (t1, t2 retired). t3 is valid.
+        // Expect t3 to retire this cycle.
+        // We also request t5 (Store)
+
+        ticketRequest.request = TRUE;
+        ticketRequest.isStore = TRUE;
+        ticketRequest.isWriteback = FALSE;
+        ticketRequest.stLen = MEM_STLEN_WORD;
+        ticketRequest.stData = 32'h11223344;
+
+        // Wait for clock edge (Retire logic and Enqueue logic run)
+        @(posedge clk);
+        #1;
+        ticketRequest.request = TRUE;
+        if (ticketRequest.ready) begin
+            t5 = ticketRequest.ticket;
+            $display("@%0d: t5 Got ticket %0d", tick, t5);
+        end else $error("Should have accepted ticket request");
+
+        // Check if t3 retired (Oldest should be t4)
+        // t4 is Load/Writeback and is valid
+        assert (robHints.oldestIsWriteback == TRUE)
+        else $error("Oldest should be t4 (Writeback)");
+        assert (robHints.oldestRdDataValid == TRUE)
+        else $error("t4 should be valid");
+
+        // 9. Simultaneous Retire (t4) and Update (t5)
+        $display("@%0d Test: Sequential Retire (t4, %0d) and Update (t5, %0d)", tick, t4, t5);
+
+
+        // Update t5 (Store address)
+        robControl.MEM_ticket = t5;
+        robControl.MEM_isStore = TRUE;
+        robControl.MEM_virtAddr.va = 32'h3000;
+        robControl.MEM_storeData = 32'h11223344;
+        robControl.MEM_storeLen = MEM_STLEN_WORD;
+        robControl.MEM_storeComplete = FALSE;  // Do NOT mark complete yet
+
+        // t4 is oldest and valid. Should retire.
+        @(posedge clk);
+        #1;
+        robControl.MEM_ticket = ROB_TICKET_INVALID;
+        robControl.MEM_isStore = FALSE;
+        robControl.MEM_storeComplete = FALSE;
+
+        // Check if t4 retired. Oldest should be t5.
+        assert (robHints.oldestIsStore == TRUE)
+        else $error("Oldest should be t5 (Store)");
+        // assert (robHints.oldestStComplete == TRUE) // t5 is not complete yet
+
+        // 10. Multiple Stores and Queries
+        $display("@%0d Test: Multiple Stores and Queries", tick);
+
+        // t5 is still in ROB (oldest).
+        // Request t6 (Store to 0x4000)
+        request_ticket(TRUE, FALSE, 0, t6);
+
+        // Update t6
+        robControl.MEM_ticket = t6;
+        robControl.MEM_isStore = TRUE;
+        robControl.MEM_virtAddr.va = 32'h4000;
+        robControl.MEM_storeData = 32'h55667788;
+        robControl.MEM_storeLen = MEM_STLEN_WORD;
+        robControl.MEM_storeComplete = TRUE;
+
+        @(posedge clk);
+        #1;
+        robControl.MEM_ticket = ROB_TICKET_INVALID;
+        robControl.MEM_isStore = FALSE;
+        robControl.MEM_storeComplete = FALSE;
+
+        // Query t5 (0x3000)
+        storeQuery.virtAddr.va = 32'h3000;
+        #1;
+        assert (storeQuery.hasEntry == TRUE && storeQuery.data == 32'h11223344)
+        else $error("Query t5 failed");
+
+        // Query t6 (0x4000)
+        storeQuery.virtAddr.va = 32'h4000;
+        #1;
+        assert (storeQuery.hasEntry == TRUE && storeQuery.data == 32'h55667788)
+        else $error("Query t6 failed");
+
+        // Retire t5
+        @(posedge clk);  // t5 retires
+        #1;
+        // Mark t5 as complete so it can retire
+        robControl.MEM_ticket = t5;
+        robControl.MEM_isStore = TRUE;
+        robControl.MEM_storeComplete = TRUE;
+        @(posedge clk);
+        #1;
+        robControl.MEM_ticket = ROB_TICKET_INVALID;
+        robControl.MEM_isStore = FALSE;
+        robControl.MEM_storeComplete = FALSE;
+
+
+        // Query t5 again (should miss or be invalid, depending on implementation, but usually ROB entry is gone)
+        storeQuery.virtAddr.va = 32'h3000;
+        #1;
+        assert (storeQuery.hasEntry == FALSE)
+        else $error("Query t5 should fail after retire");
+
+        // Retire t6
+        @(posedge clk);  // t6 retires
+        #1;
+        assert (robHints.isEmpty == TRUE)
+        else $error("ROB should be empty");
 
         $display("@%0d Test finished successfully", tick);
         $finish;
