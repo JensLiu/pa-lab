@@ -126,7 +126,7 @@ package pkg_global_defs;
         logic carry;
     } alu_flags_t;
 
-    typedef struct {
+    typedef struct packed {
         bool_t illegalInstruction;
         bool_t illegalMemoryAccess;
         bool_t divideByZero;
@@ -140,6 +140,7 @@ package pkg_global_defs;
     } if_control_t;
 
     typedef struct {
+        bool_t instValid;   // ID shold NOT insert into ROB if instruction is invalid
         reg_t pc;
         instruction_t inst;
         exception_t exceptions;
@@ -210,13 +211,14 @@ package pkg_global_defs;
     } ex_mem_regs_t;
 
     typedef logic [8:0] asid_t;
-    typedef struct {
-        addr_t va;
+    typedef struct packed {
         asid_t asid;
+        addr_t va;
     } virt_addr_unique_t;
 
     typedef struct {
         // hints from ROB
+        word_t DEBUG_ROB_commitTicket;
         bool_t ROB_commitEntryValid;
         bool_t ROB_commitIsStore;
         bool_t ROB_commitStVirtAddrValid;
@@ -228,7 +230,7 @@ package pkg_global_defs;
     typedef struct {
         word_t ticket;
         bool_t shouldHalt;
-        bool_t MEM_exceptions;
+        exception_t MEM_exceptions;
         // for load instructions
         bool_t MEM_pipeIsLoad;
         word_t MEM_pipeLoadData;  // should be available after memory access
@@ -258,6 +260,7 @@ package pkg_global_defs;
 
     typedef struct {
         // hints from ROB
+        word_t DEBUG_ROB_commitTicket;
         bool_t ROB_commitEntryValid;
         exception_t ROB_commitException;
         // register writeback commit
@@ -298,6 +301,7 @@ package pkg_global_defs;
         bool_t commitIsWriteback;
         bool_t commitIsStore;
         bool_t commitIsBranch;
+        word_t DEBUG_commitTicket;
         // writeback
         reg_nr_t commitRd;
         bool_t commitRdDataValid;
@@ -347,7 +351,9 @@ package pkg_global_defs;
         bool_t WB_acceptCommit;
         // MEM stage
         // should not dequeue when MEM stage is stops accepting/reaping commits
-        bool_t MEM_acceptCommit;
+        // bool_t MEM_acceptCommit;
+        // NOTE: no need for this signal, since the receiver (ROB) can decide to dequeue when the mem stage set
+        //       MEM_isCommitStore and MEM_commitStoreComplete signals
     } rob_control_t;
 
     typedef struct {
@@ -361,7 +367,6 @@ package pkg_global_defs;
     } imul_control_t;
 
     typedef struct {
-        word_t ticket;
         word_t IMUL_resultTicket;
         word_t IMUL_result;
     } imul_hints_t;
@@ -381,7 +386,7 @@ package pkg_global_defs;
         info.cmpIsSigned = FALSE;
         info.aluOp = ALU_INVALID;
         info.aluUseImmAsRs2 = FALSE;
-        info.isWriteback = FALSE;
+        info.isWriteback = TRUE;    // NOP writes back to Rd=0
         info.isStore = FALSE;
         info.isLoad = FALSE;
         info.stldDataLen = DL_INVALID;

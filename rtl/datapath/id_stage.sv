@@ -18,6 +18,9 @@ module id_stage
     rob_ticket_request_if.master ticketRequest
 );
 
+    bool_t IF_instValid;
+    assign IF_instValid = ifIdRegs.instValid;
+
     inst_info_t instInfo;
     decoder decoder (
         .inst(ifIdRegs.inst),
@@ -45,6 +48,8 @@ module id_stage
 
     // bypass network queries
     bool_t rs1ShouldHalt, rs2ShouldHalt;
+    bool_t dependencyShouldHalt;
+    assign dependencyShouldHalt = rs1ShouldHalt || rs2ShouldHalt;
     word_t ID_rs1Data, ID_rs2Data;
     always_comb begin : BypassQueryLogic
         regQuery.rs1 = instInfo.rs1;
@@ -53,6 +58,29 @@ module id_stage
         rs2ShouldHalt = regQuery.rs2HasEntry && !regQuery.rs2DataValid;
         ID_rs1Data = regQuery.rs1HasEntry ? regQuery.rs1Data : ID_oldRs1Data;
         ID_rs2Data = regQuery.rs2HasEntry ? regQuery.rs2Data : ID_oldRs2Data;
+        `ID_STAGE_DEBUG_PRINT(
+            ("[ID]: @%0d: ticket=%0d, inst=%h", DEBUG_tick, ticket, instInfo.DEBUG_instBinary));
+        `ID_STAGE_DEBUG_PRINT(
+            ("[ID]: @%0d Querying ROB for rs1=%0d, rs2=%0d",
+                              DEBUG_tick,
+                              instInfo.rs1,
+                              instInfo.rs2));
+        `ID_STAGE_DEBUG_PRINT(
+            ("[ID]: @%0d rs1= %0d, rs1HasEntry=%0b, rs1DataValid=%0b, rs1Data(Queried)=%h, rs1Data(Selected)=%h",
+                              DEBUG_tick,
+                              instInfo.rs1,
+                              regQuery.rs1HasEntry,
+                              regQuery.rs1DataValid,
+                              regQuery.rs1Data,
+                              ID_rs1Data));
+        `ID_STAGE_DEBUG_PRINT(
+            ("[ID]: @%0d rs2= %0d, rs2HasEntry=%0b, rs2DataValid=%0b, rs2Data(Queried)=%h, rs2Data(Selected)=%h",
+                              DEBUG_tick,
+                              instInfo.rs2,
+                              regQuery.rs2HasEntry,
+                              regQuery.rs2DataValid,
+                              regQuery.rs2Data,
+                              ID_rs2Data));
     end
 
     mem_stlen_t ID_stldDataLen;
@@ -70,9 +98,16 @@ module id_stage
     end
 
     word_t ticket;
+    bool_t _ticketShouldRequest;
+    assign _ticketShouldRequest = !idControl.halt && IF_instValid && !dependencyShouldHalt;
     bool_t ticketShouldHalt;
     always_comb begin : RobTicketRequestLogic
-        ticketRequest.request = !ID_shouldHalt;
+        `ID_STAGE_DEBUG_PRINT(
+            ("[ID]: @%0d Preparing ROB ticket request: IF_instValid=%0b, dependencyShouldHalt=%0b",
+                          DEBUG_tick,
+                          IF_instValid,
+                          dependencyShouldHalt));
+        ticketRequest.request = _ticketShouldRequest;
         ticketRequest.isStore = instInfo.isStore;
         ticketRequest.stLen = ID_stldDataLen;
         ticketRequest.stData = ID_rs2Data;
@@ -81,11 +116,20 @@ module id_stage
         ticketRequest.pc = ifIdRegs.pc;
         ticketRequest.DEBUG_instInfo = instInfo;
         ticket = ticketRequest.ticket;
-        ticketShouldHalt = !ticketRequest.ready;
+        ticketShouldHalt = _ticketShouldRequest && !ticketRequest.ready;
+        if (_ticketShouldRequest) begin
+            `ID_STAGE_DEBUG_PRINT(
+                ("[ID]: @%0d Requested ROB ticket for instruction at PC %h: ticket=%0d, ready=%0b",
+                              DEBUG_tick,
+                              ifIdRegs.pc,
+                              ticket,
+                              ticketRequest.ready));
+        end
     end
 
-
-    bool_t ID_shouldHalt = rs1ShouldHalt || rs2ShouldHalt || ticketShouldHalt;
+    // Only halt if the fetch instruction is valid and there is a dependency stall
+    bool_t ID_shouldHalt;
+    assign ID_shouldHalt = IF_instValid && (dependencyShouldHalt || ticketShouldHalt);
     always_comb begin
         // default values
         idImulRegs.ticket = ROB_TICKET_INVALID;
@@ -104,11 +148,21 @@ module id_stage
         // propagate pipeline
         if (instInfo.isImul) begin
             // deligate to the multiplication pipeline
+            `ID_STAGE_DEBUG_PRINT(
+                ("[ID]: @%0d Deligating IMUL instruction at PC %h to IMUL pipeline with ticket %0d",
+                                  DEBUG_tick,
+                                  ifIdRegs.pc,
+                                  ticket));
             idImulRegs.ticket = ticket;
             idImulRegs.A = ID_rs1Data;
             idImulRegs.B = ID_rs2Data;
         end else begin
             // deligate to the EX-MEM pipeline
+            `ID_STAGE_DEBUG_PRINT(
+                ("[ID]: @%0d Deligating instruction at PC %h to EX stage with ticket %0d",
+                                  DEBUG_tick,
+                                  ifIdRegs.pc,
+                                  ticket));
             idExRegs.ticket = ticket;
             idExRegs.pc = ifIdRegs.pc;
             idExRegs.instInfo = instInfo;
@@ -123,6 +177,18 @@ module id_stage
 
         // emit signal
         idHints.shouldHalt = ID_shouldHalt;
+        `ID_STAGE_DEBUG_PRINT(
+            ("[ID]: @%0d ID_shouldHalt=%0b (IF_instValid=%0b, dependencyShouldHalt=%0b, ticketShouldHalt=%0b)",
+                              DEBUG_tick,
+                              ID_shouldHalt,
+                              IF_instValid,
+                              dependencyShouldHalt,
+                              ticketShouldHalt));
+    end
+
+    word_t DEBUG_tick;
+    always_ff @(posedge clk) begin
+        DEBUG_tick <= DEBUG_tick + 1;
     end
 
 endmodule

@@ -15,7 +15,7 @@ module reorder_buffer (
     localparam ROB_SIZE = 16;
 
     bool_t ROB_reset;
-    assign ROB_reset = FALSE; // TODO: reset
+    assign ROB_reset = FALSE;  // TODO: reset
 
     // NOTE:
     // In our implementation, Write ROB and Write Reg are two different phases
@@ -69,7 +69,7 @@ module reorder_buffer (
 
     always_comb begin : TicketResponse
         ticketRequest.ready  = FALSE;
-        ticketRequest.ticket = IMM_32_WHATEVER;
+        ticketRequest.ticket = ROB_TICKET_INVALID;  // default invalid
         if (!isFull && ticketRequest.request) begin
             ticketRequest.ready  = TRUE;
             ticketRequest.ticket = nextYoungest;
@@ -77,6 +77,9 @@ module reorder_buffer (
                 `ROB_DEBUG_PRINT(
                     ("[ROB]: @%0d: ROB Ticket Requested: Assigned Ticket %0d", DEBUG_tick, nextYoungest));
             end
+        end
+        if (isFull && ticketRequest.request) begin
+            `ROB_DEBUG_PRINT(("[ROB]: @%0d: ROB Ticket Requested but ROB is Full", DEBUG_tick));
         end
     end
 
@@ -141,11 +144,13 @@ module reorder_buffer (
     always_comb begin : Hints
         robHints.isEmpty = isEmpty;
         robHints.isFull = isFull;
+        robHints.DEBUG_commitTicket = buffer[oldest].DEBUG_ticketId;
         robHints.commitEntryValid = buffer[oldest].entryValid;
         robHints.commitExceptions = buffer[oldest].exceptions;
         robHints.commitPC = buffer[oldest].pc;
         // for regiester writeback commit
         robHints.commitIsWriteback = buffer[oldest].isWriteback;
+        robHints.commitRd = buffer[oldest].rd;
         robHints.commitRdDataValid = buffer[oldest].rdDataValid;
         robHints.commitRdData = buffer[oldest].rdData;
         // for store commit
@@ -182,7 +187,7 @@ module reorder_buffer (
             end else if (robHints.commitIsStore) begin
                 // only dequeue when MEM stage is acceping commits (to avoid losing instructions)
                 // TODO: dequeue when store is complete (from the control signals)
-                if (robControl.MEM_acceptCommit && robHints.commitStComplete) begin
+                if (robHints.commitStComplete) begin
                     _shouldDequeue = TRUE;
                     `ROB_DEBUG_PRINT(
                         ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Store (addr=%h, len=%0d, data=%h)",
@@ -216,8 +221,8 @@ module reorder_buffer (
         // Each stage should have different tickets if they are valid
         if (robControl.EX_ticket != ROB_TICKET_INVALID &&
             robControl.MEM_ticket != ROB_TICKET_INVALID) begin
-            // $display("[ROB]: @%0d: EX_ticket=%0d, MEM_ticket=%0d", DEBUG_tick,
-            //          robControl.EX_ticket, robControl.MEM_ticket);
+            $display("[ROB]: @%0d: EX_ticket=%0d, MEM_ticket=%0d", DEBUG_tick,
+                     robControl.EX_ticket, robControl.MEM_ticket);
             assert (robControl.EX_ticket != robControl.MEM_ticket);
         end
         if (robControl.EX_ticket != ROB_TICKET_INVALID &&
@@ -237,10 +242,12 @@ module reorder_buffer (
             assert (buffer[robControl.EX_ticket].entryValid);
         end
         if (robControl.MEM_ticket != ROB_TICKET_INVALID) begin
+            `ROB_DEBUG_PRINT(("[ROB]: @%0d: MEM_ticket=%0d", DEBUG_tick, robControl.MEM_ticket));
             assert (robControl.MEM_ticket < ROB_SIZE);
             assert (buffer[robControl.MEM_ticket].entryValid);
         end
         if (robControl.IMUL_ticket != ROB_TICKET_INVALID) begin
+            $display("[ROB]: @%0d: IMUL_ticket = %0d", DEBUG_tick, robControl.IMUL_ticket);
             assert (robControl.IMUL_ticket < ROB_SIZE);
             assert (buffer[robControl.IMUL_ticket].entryValid);
         end
@@ -255,12 +262,13 @@ module reorder_buffer (
                 // otherwise, they are virtual addresses, however we only want physical addresses
                 if (robControl.EX_isBranch) begin
                     buffer[robControl.EX_ticket].shouldBranch <= robControl.EX_shouldBranch;
-                end else begin
-                    assert (buffer[robControl.EX_ticket].isWriteback);
+                end else if (buffer[robControl.EX_ticket].isWriteback) begin
                     buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
                     buffer[robControl.EX_ticket].rdDataValid <= TRUE;
                     buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
                     EX_isRegBypassing = TRUE;
+                end else begin
+                    assert (buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
                 end
                 `ROB_DEBUG_PRINT(
                     ("[ROB]: @%0d: EX Stage ALU Update for ROB Ticket %0d: rdData=%h",
@@ -272,7 +280,8 @@ module reorder_buffer (
                     ("[ROB]: @%0d: EX Stage STORE Update for ROB Ticket %0d: stVirtAddr=%h",
                      DEBUG_tick, robControl.EX_ticket,
                      robControl.EX_aluResult));
-                buffer[robControl.EX_ticket].stVirtAddr <= robControl.EX_aluResult;
+                // TODO: use ASID
+                buffer[robControl.EX_ticket].stVirtAddr <= {9'b0, robControl.EX_aluResult};
                 buffer[robControl.EX_ticket].stVirtAddrValid <= TRUE;
                 buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
                 EX_isStoreBypassing = TRUE;
@@ -304,7 +313,8 @@ module reorder_buffer (
                 // `ROB_DEBUG_PRINT(
                 //     ("[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
                 assert (buffer[robControl.MEM_ticket].isWriteback ||
-                    buffer[robControl.MEM_ticket].isBranch);
+                    buffer[robControl.MEM_ticket].isBranch ||
+                    buffer[robControl.MEM_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
             end
         end
 
@@ -342,10 +352,10 @@ module reorder_buffer (
             // start from the oldest to the youngest, iterate through the ROB
             // we do NOT use `break` so the latest entry always overrides previous ones
             automatic int index = (oldest + i + ROB_SIZE) % ROB_SIZE;
-            // if (buffer[index].entryValid)
-            //     `ROB_DEBUG_PRINT(
-            //         ("[ROB]: @%0d: RegQuery Checking %0d, %0d ROB Entry %0d: rd=%0d, isWriteback=%0b, isEntryValid=%0b",
-            //          DEBUG_tick, regQuery.rs1, regQuery.rs2, index, buffer[index].rd, buffer[index].isWriteback, buffer[index].entryValid));
+            if (buffer[index].entryValid)
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: RegQuery Checking %0d, %0d ROB Entry %0d: rd=%0d, isWriteback=%0b, isEntryValid=%0b",
+                     DEBUG_tick, regQuery.rs1, regQuery.rs2, index, buffer[index].rd, buffer[index].isWriteback, buffer[index].entryValid));
             if (buffer[index].entryValid && buffer[index].isWriteback) begin
                 if (buffer[index].rd == regQuery.rs1) begin
 `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
@@ -520,13 +530,14 @@ module reorder_buffer (
                 assert (buffer[i].DEBUG_ticketId == i);
                 `ROB_DEBUG_PRINT(
                     (
-                    "[ROB]: @%0d ROB Entry %0d: PC=%h, isStore=%0b, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stComplete=%0b, isWriteback=%0b, rd=%0d, rdDataValid=%0b, rdData=%h, isBranch=%0b, shouldBranch=%0b, exceptions=%0h, inst=%h",
+                    "[ROB]: @%0d ROB Entry %0d: PC=%h, isStore=%0b, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stData=%h, stComplete=%0b, isWriteback=%0b, rd=%0d, rdDataValid=%0b, rdData=%h, isBranch=%0b, shouldBranch=%0b, exceptions=%0h, inst=%h",
                     DEBUG_tick,
                     i,
                     buffer[i].pc,
                     buffer[i].isStore,
                     buffer[i].stVirtAddrValid,
                     buffer[i].stVirtAddr.va,
+                    buffer[i].stData,
                     buffer[i].stLen,
                     buffer[i].stComplete,
                     buffer[i].isWriteback,

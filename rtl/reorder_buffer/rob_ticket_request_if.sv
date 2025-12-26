@@ -15,6 +15,7 @@ interface rob_ticket_request_if;
     addr_t pc;
     // debug
     inst_info_t DEBUG_instInfo;
+
     modport master(
         output request,
         input ready,

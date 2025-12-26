@@ -64,6 +64,10 @@ module if_stage
         cacheRequest.isRead = TRUE;
         cacheRequest.request = TRUE;
         cacheRequest.dataLen = MEM_STLEN_WORD;
+        `IF_STAGE_DEBUG_PRINT(
+            ("[IF]: @%0d Requesting instruction at PA %h",
+                                      DEBUG_tick,
+                              cacheRequest.addr));
 `ifdef INSTRUCTION_CACHE_DIVERGENCE_TEST
         DEBUG_instMemRequest.addr = cacheRequest.addr;
         DEBUG_instMemRequest.isRead = cacheRequest.isRead;
@@ -82,6 +86,15 @@ module if_stage
 `endif
 
     always_comb begin
+        if (cacheRequest.ready) begin
+            `IF_STAGE_DEBUG_PRINT(
+                ("[IF]: @%0d Fetched instruction %h from PA %h",
+                                          DEBUG_tick,
+                                  IF_inst,
+                                  IF_pcQ));
+        end
+        `IF_STAGE_DEBUG_PRINT(("[IF]: @%0d instValid=%0b", DEBUG_tick, cacheRequest.ready));
+        ifIdRegs.instValid = cacheRequest.ready;
         ifIdRegs.pc   = IF_pcQ;
         ifIdRegs.inst = IF_inst;
         assert (cacheRequest.request);  // should always be true
@@ -106,5 +119,10 @@ module if_stage
         end
     end
 `endif
+
+    logic [31:0] DEBUG_tick;
+    always_ff @(posedge clk) begin
+        DEBUG_tick <= DEBUG_tick + 1;
+    end
 
 endmodule

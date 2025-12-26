@@ -20,10 +20,16 @@ module datapath_pipelined
     end
 
     // pipeline registers
-    if_id_regs_t ifIdRegsQ;
-    id_ex_regs_t idExRegsQ;
-    ex_mem_regs_t exMemRegsQ;
+    if_id_regs_t   ifIdRegsQ;
+    id_ex_regs_t   idExRegsQ;
+    ex_mem_regs_t  exMemRegsQ;
     id_imul_regs_t idImulRegsQ;
+    initial begin
+        idExRegsQ.ticket   = ROB_TICKET_INVALID;
+        exMemRegsQ.ticket  = ROB_TICKET_INVALID;
+        idImulRegsQ.ticket = ROB_TICKET_INVALID;
+        idImulRegsQ.ticket = ROB_TICKET_INVALID;
+    end
 
     // pipeline register wires
     if_id_regs_t ifIdRegsP;
@@ -115,8 +121,9 @@ module datapath_pipelined
     );
 
     wb_stage wbStage (
+        .clk(clk),
         .wbControl(wbControl),
-        .wbHints  (wbHints)
+        .wbHints(wbHints)
     );
 
     // ========================= Reorder Buffer =========================
@@ -211,18 +218,24 @@ module datapath_pipelined
         // IF -> ID
         if (IfIdRegs_writeEnable) begin
             if (IF_injectNop) begin
+                `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d Injecting NOP into ID stage", DEBUG_tick));
                 // ifIdRegsQ.pc <= ifIdRegsP.pc;
                 ifIdRegsQ.pc <= 32'h0;
                 ifIdRegsQ.inst <= inst_make_nop();
                 ifIdRegsQ.exceptions <= exception_make_none();
+                ifIdRegsQ.instValid <= FALSE;
             end else begin
+                `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF->ID forwarding", DEBUG_tick));
                 ifIdRegsQ <= ifIdRegsP;
             end
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF->ID stage register stalled", DEBUG_tick));
         end
 
         // ID -> EX
         if (IdExRegs_writeEnable) begin
             if (ID_injectNop) begin
+                `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d Injecting NOP into EX stage", DEBUG_tick));
                 // idExRegsQ.pc <= idExRegsP.pc;
                 idExRegsQ.pc <= 32'h0;
                 idExRegsQ.ticket <= ROB_TICKET_INVALID;
@@ -236,24 +249,40 @@ module datapath_pipelined
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
                 idExRegsQ.rs2Data <= IMM_32_WHATEVER;
             end else begin
+                `DATAPATH_DEBUG_PRINT(
+                    ("[Datapath]: @%0d Forwarding into EX stage (%0d -> %0d)", DEBUG_tick, 
+                        idExRegsQ.ticket, idExRegsP.ticket));
                 idExRegsQ <= idExRegsP;
             end
+        end else begin
+            `DATAPATH_DEBUG_PRINT(
+                ("[Datapath]: @%0d ID->EX stage register stalled (%0d)", DEBUG_tick, idExRegsQ.ticket));
         end
 
         // ID -> IMUL
         if (IdImulRegs_writeEnable) begin
             if (ID_injectNop) begin
+                `DATAPATH_DEBUG_PRINT(
+                    ("[Datapath]: @%0d Injecting NOP into IMUL stage", DEBUG_tick));
                 idImulRegsQ.ticket <= ROB_TICKET_INVALID;
                 idImulRegsQ.A <= IMM_32_WHATEVER;
                 idImulRegsQ.B <= IMM_32_WHATEVER;
             end else begin
-                idImulRegsQ <= idImulRegsQ;
+                `DATAPATH_DEBUG_PRINT(
+                    ("[Datapath]: @%0d ID->IMUL forwarding (%0d -> %0d)", DEBUG_tick,
+                                       idImulRegsQ.ticket, idImulRegsP.ticket));
+                idImulRegsQ <= idImulRegsP;
             end
+        end else begin
+            `DATAPATH_DEBUG_PRINT(
+                ("[Datapath]: @%0d ID->IMUL stage register stalled (%0d)", DEBUG_tick, idImulRegsQ.ticket));
         end
 
         // EX -> MEM
         if (ExMemRegs_writeEnable) begin
             if (EX_injectNop) begin
+                `DATAPATH_DEBUG_PRINT(
+                    ("[Datapath]: @%0d Injecting NOP into MEM stage", DEBUG_tick));
                 // exMemRegsQ.pc <= exMemRegsP.pc;
                 exMemRegsQ.pc <= 32'h0;
                 exMemRegsQ.ticket <= ROB_TICKET_INVALID;
@@ -267,8 +296,14 @@ module datapath_pipelined
                 exMemRegsQ.aluResult <= IMM_32_WHATEVER;
                 exMemRegsQ.stData <= IMM_32_WHATEVER;
             end else begin
+                `DATAPATH_DEBUG_PRINT(
+                    ("[Datapath]: @%0d EX->MEM forwarding (%0d -> %0d)", DEBUG_tick,
+                    exMemRegsQ.ticket, exMemRegsP.ticket));
                 exMemRegsQ <= exMemRegsP;
             end
+        end else begin
+            `DATAPATH_DEBUG_PRINT(
+                ("[Datapath]: @%0d EX->MEM stage register stalled (%0d)", DEBUG_tick, exMemRegsQ.ticket));
         end
     end
 
@@ -296,6 +331,7 @@ module datapath_pipelined
 
         // MEM Control
         // MEM is stateful
+        memControl.DEBUG_ROB_commitTicket = robHints.DEBUG_commitTicket;
         memControl.ROB_commitEntryValid = robHints.commitEntryValid;
         memControl.ROB_commitIsStore = robHints.commitIsStore;
         memControl.ROB_commitStVirtAddrValid = robHints.commitStVirtAddrValid;
@@ -305,6 +341,7 @@ module datapath_pipelined
 
         // WB Control
         // WB is stateful
+        wbControl.DEBUG_ROB_commitTicket = robHints.DEBUG_commitTicket;
         wbControl.ROB_commitEntryValid = robHints.commitEntryValid;
         wbControl.ROB_commitException = robHints.commitExceptions;
         wbControl.ROB_commitIsWriteback = robHints.commitIsWriteback;
@@ -319,6 +356,7 @@ module datapath_pipelined
         // ROB Control
         robControl.EX_ticket = exHints.EX_ticket;
         robControl.EX_isLoad = exHints.EX_isLoad;
+        robControl.EX_isStore = exHints.EX_isStore;
         robControl.EX_isWriteback = exHints.EX_isWriteback;
         robControl.EX_isBranch = exHints.EX_isBranch;
         robControl.EX_aluResult = exHints.EX_aluResult;
@@ -331,10 +369,10 @@ module datapath_pipelined
         robControl.MEM_loadDataReady = memHints.MEM_pipeLoadDataReady;
         robControl.MEM_isCommitStore = memHints.MEM_isCommitStore;
         robControl.MEM_commitStoreComplete = memHints.MEM_commitStoreComplete;
-        robControl.IMUL_ticket = imulHints.ticket;
+        robControl.IMUL_ticket = imulHints.IMUL_resultTicket;
         robControl.IMUL_result = imulHints.IMUL_result;
         robControl.WB_acceptCommit = !wbHints.shouldHalt;
-        robControl.MEM_acceptCommit = !memHints.shouldHalt;
+        // robControl.MEM_acceptCommit = !memHints.shouldHalt;
     end
 
 
@@ -374,6 +412,7 @@ module datapath_pipelined
             ExMemRegs_writeEnable = FALSE;
         end
 
+        // semantics of jump: kill everything before
         if (wbHints.WB_jump) begin
             // kill all previous instructiosn
             IF_injectNop  = TRUE;
@@ -382,6 +421,32 @@ module datapath_pipelined
             MEM_injectNop = TRUE;
         end
 
+    end
+
+    word_t DEBUG_tick;
+    always_ff @(posedge clk) begin
+        DEBUG_tick <= DEBUG_tick + 1;
+        if (ifHints.shouldHalt) begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage hint: Halt", DEBUG_tick));
+        end
+        if (idHints.shouldHalt) begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage hint: Halt", DEBUG_tick));
+        end
+        if (exHints.shouldHalt) begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d EX stage hint: Halt", DEBUG_tick));
+        end
+        if (memHints.shouldHalt) begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d MEM stage hint: Halt", DEBUG_tick));
+        end
+        if (wbHints.shouldHalt) begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d WB stage hint: Halt", DEBUG_tick));
+        end
+        if (ifControl.halt) begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage control: Halt", DEBUG_tick));
+        end
+        if (idControl.halt) begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage control: Halt", DEBUG_tick));
+        end
     end
 
 endmodule

@@ -83,8 +83,8 @@ module ex_stage
     assign EX_expectedAluResult = EX_instInfo.branchType == BR_UNCOND ? EX_pc + 4 : EX_aluResult;
 
     always_comb begin
-
         // propagate
+        exMemRegs.ticket = EX_ticket;
         exMemRegs.pc = idExRegs.pc;
         exMemRegs.instInfo = idExRegs.instInfo;
         exMemRegs.aluResult = EX_expectedAluResult;
@@ -92,7 +92,7 @@ module ex_stage
 
         // emit hints
         exHints.EX_ticket = EX_ticket;
-        exHints.EX_excaptions = '0; // TODO: add exceptions
+        exHints.EX_excaptions = '0;  // TODO: add exceptions
         exHints.EX_isWriteback = EX_instInfo.isWriteback;
         exHints.EX_isLoad = EX_instInfo.isLoad;
         exHints.EX_isStore = EX_instInfo.isStore;
@@ -110,6 +110,10 @@ module ex_stage
     logic [31:0] DEBUG_tick;
     always_ff @(posedge clk) begin
         DEBUG_tick <= DEBUG_tick + 1;
+    end
+
+    always_ff @(posedge clk) begin
+        `EX_STAGE_DEBUG_PRINT(("[EX]: @%0d ticket %0d", DEBUG_tick, EX_ticket));
     end
 
 endmodule

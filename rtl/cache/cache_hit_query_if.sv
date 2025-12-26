@@ -1,6 +1,5 @@
 interface cache_hit_query_if;
     import pkg_global_defs::*;
-
     addr_t addr;
     mem_stlen_t dataLen;
     word_t dataFromCache;
