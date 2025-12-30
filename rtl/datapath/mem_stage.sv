@@ -25,6 +25,7 @@ module mem_stage
     //          - we write as many entries to the store buffer as the number of cycles we are halted
     //          - while store buffer is draining, the first write may have cache miss,
     //            but the following writes hit in cache
+    //          - we will have the panelty of draining the store buffer when exception or jump occour
 
     word_t MEM_aluResult = exMemRegs.aluResult;
     inst_info_t MEM_instInfo = exMemRegs.instInfo;
@@ -64,9 +65,10 @@ module mem_stage
         storeQuery.ticket = ROB_TICKET_INVALID;
 
         if (memControl.ROB_commitIsStore) begin // Highest priority to the oldest instruction
-            if (memControl.ROB_commitEntryValid) begin
-                // ROB commit STORE instruction: write to cache
-                if (memControl.ROB_commitStVirtAddrValid) begin
+            if (memControl.ROB_commitEntryValid) begin // ROB commit STORE instruction: write to cache
+                // if it's committed, we don't need to write again
+
+                if (memControl.ROB_commitStVirtAddrValid /*&& memControl.ROB_commitStComplete*/) begin
                     cacheRequest.request = TRUE;
                     cacheRequest.isRead = FALSE;
                     // TODO: use PHYSICAL address
@@ -141,6 +143,17 @@ module mem_stage
                 end else begin
                     `MEM_STAGE_DEBUG_PRINT(("[MEM]: @%0d pending on commit from ROB ticket %0d",
                     DEBUG_tick, memControl.DEBUG_ROB_commitTicket));
+                    // NOTE: should we halt here? If we halt, we will pause the pipeline so that
+                    //       the address will NOT be calculated -> which means we continue to halt
+                    // This will only happen when
+                    //  1. STORE is the oldest instruction in ROB
+                    //  2. STORE has not calculated its address yet (EX stage not finished, for example in EX, ID, IF stages)
+                    // ->
+                    //  1. EX stage is NOP, MEM stage is NOP
+                    //  -> we don't need to halt, since there is no instruction in the pipeline
+                    //  2. EX stage is the instruction itself, MEM stage is NOP
+                    //  -> we don't need to halt since in the next cycle, we will get the address from the ROB
+                    memHints.shouldHalt = FALSE;
                 end
             end
         end else if (MEM_isLoad) begin

@@ -109,9 +109,10 @@ module id_stage
                           dependencyShouldHalt));
         ticketRequest.request = _ticketShouldRequest;
         ticketRequest.isStore = instInfo.isStore;
+        ticketRequest.isWriteback = instInfo.isWriteback;
+        ticketRequest.isBranch = instInfo.branchType != BR_INVALID;
         ticketRequest.stLen = ID_stldDataLen;
         ticketRequest.stData = ID_rs2Data;
-        ticketRequest.isWriteback = instInfo.isWriteback;
         ticketRequest.rd = instInfo.rd;
         ticketRequest.pc = ifIdRegs.pc;
         ticketRequest.DEBUG_instInfo = instInfo;

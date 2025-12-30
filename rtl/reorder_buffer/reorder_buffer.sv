@@ -15,7 +15,7 @@ module reorder_buffer (
     localparam ROB_SIZE = 16;
 
     bool_t ROB_reset;
-    assign ROB_reset = FALSE;  // TODO: reset
+    assign ROB_reset = robControl.WB_jump;  // reset on jump
 
     // NOTE:
     // In our implementation, Write ROB and Write Reg are two different phases
@@ -40,18 +40,27 @@ module reorder_buffer (
         virt_addr_unique_t stVirtAddr;
         word_t stData;
         mem_stlen_t stLen;
-        bool_t stComplete;  // only write to cache when it is the oldest instruction, block retire until write complete
+        // removed entry `stComplete`, instead, dequeue immediataly on the next cycle when MEM stage said it's done,
+        // otherwise, it would take EXTRA 2 CYCLES to commit
+        // t1: write success (ROB.complete <= 1, still 0 atm)
+        // t2: update success (ROB.complete = 1, not dequeued)
+        // t3: dequeued
+        // bool_t stComplete;  // only write to cache when it is the oldest instruction, block retire until write complete
+
         // register
-        bool_t isWriteback;
+        bool_t   isWriteback;
         reg_nr_t rd;
-        bool_t rdDataValid;  // we only know the data in EX (ALU), MEM (LOAD) or IMUL stage
-        word_t rdData;
+        bool_t   rdDataValid;  // we only know the data in EX (ALU), MEM (LOAD) or IMUL stage
+        word_t   rdData;
+
         // branch: This is added to simplify our flush logic?
         bool_t isBranch;
         bool_t shouldBranch;
+
         // exception
         exception_t exceptions;
         word_t pc;
+
         // debug
         word_t DEBUG_ticketId;
         inst_info_t DEBUG_instInfo;
@@ -112,7 +121,7 @@ module reorder_buffer (
                 buffer[nextYoungest].stVirtAddrValid <= FALSE;
                 buffer[nextYoungest].stData <= ticketRequest.stData;
                 buffer[nextYoungest].stLen <= ticketRequest.stLen;
-                buffer[nextYoungest].stComplete <= FALSE;
+                // buffer[nextYoungest].stComplete <= FALSE;
                 // for writebacks
                 buffer[nextYoungest].isWriteback <= ticketRequest.isWriteback;
                 buffer[nextYoungest].rd <= ticketRequest.rd;
@@ -159,13 +168,14 @@ module reorder_buffer (
         robHints.commitStVirtAddrValid = buffer[oldest].stVirtAddrValid;
         robHints.commitStData = buffer[oldest].stData;
         robHints.commitStLen = buffer[oldest].stLen;
-        robHints.commitStComplete = buffer[oldest].stComplete;
+        // robHints.commitStComplete = buffer[oldest].stComplete;
         // for branch commit
         robHints.commitIsBranch = buffer[oldest].isBranch;
         robHints.commitShouldBranch = buffer[oldest].shouldBranch;
     end
 
     bool_t _shouldDequeue;
+    bool_t commitStComplete;
     always @(posedge clk) begin : DequeueLogic
         // `ROB_DEBUG_PRINT(
         //     ("[ROB]: @%0d: Dequeue Logic Check: isEmpty=%0b, isFull=%0b, oldest=%0d, oldestIsWriteback=%0b, oldestRdDataValid=%0b, oldestIsStore=%0b, oldestStComplete=%0b",
@@ -187,7 +197,7 @@ module reorder_buffer (
             end else if (robHints.commitIsStore) begin
                 // only dequeue when MEM stage is acceping commits (to avoid losing instructions)
                 // TODO: dequeue when store is complete (from the control signals)
-                if (robHints.commitStComplete) begin
+                if (commitStComplete) begin
                     _shouldDequeue = TRUE;
                     `ROB_DEBUG_PRINT(
                         ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Store (addr=%h, len=%0d, data=%h)",
@@ -243,8 +253,20 @@ module reorder_buffer (
         end
         if (robControl.MEM_ticket != ROB_TICKET_INVALID) begin
             `ROB_DEBUG_PRINT(("[ROB]: @%0d: MEM_ticket=%0d", DEBUG_tick, robControl.MEM_ticket));
-            assert (robControl.MEM_ticket < ROB_SIZE);
-            assert (buffer[robControl.MEM_ticket].entryValid);
+            if (robControl.MEM_isLoad) begin
+                assert (robControl.MEM_ticket < ROB_SIZE);
+                assert (buffer[robControl.MEM_ticket].entryValid);
+            end else begin
+                // is STORE instruction, the following scenario may happen
+                // t1: ID stage: STORE@ticket 1: r1 -> A1 (not calculated)
+                //     EX stage: NOP@ticket INVALID
+                //     MEM stage: NOP@ticket INVALID
+                // t2: ID stage: NOP@ticket INVALID
+                //     EX stage: STORE@ticket 1: r1 -> A1 (calculated)
+                //     MEM stage: NOP@ticket INVALID (not visible now)
+                // t3: ID stage: NOP@ticket INVALID
+                //     EX stage: NOP@ticket INVALID
+            end
         end
         if (robControl.IMUL_ticket != ROB_TICKET_INVALID) begin
             $display("[ROB]: @%0d: IMUL_ticket = %0d", DEBUG_tick, robControl.IMUL_ticket);
@@ -289,12 +311,22 @@ module reorder_buffer (
         end
 
         // MEM update
-        if (robControl.MEM_ticket != ROB_TICKET_INVALID) begin
-            `ROB_DEBUG_PRINT(
-                ("[ROB]: @%0d: MEM Stage Update for ROB Ticket %0d, MEM_isLoad=%0b",
+        commitStComplete = FALSE;
+        if (robControl.MEM_isCommitStore) begin
+            // Do not check for MEM_ticket validity here. We can still commit STORE
+            // while MEM_ticket = INVALID (for example, an injected NOP)
+            assert (!robControl.MEM_isLoad);
+            // MEM update: commit STORE
+            // TODO: debug print
+            // buffer[robControl.MEM_ticket].stComplete <= robControl.MEM_commitStoreComplete;
+            commitStComplete = robControl.MEM_commitStoreComplete;
+            buffer[robControl.MEM_ticket].exceptions <= robControl.MEM_exceptions;
+        end else if (robControl.MEM_isLoad) begin  // < LOAD enters the MEM stage
+            if (robControl.MEM_ticket != ROB_TICKET_INVALID) begin
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: MEM Stage Update for ROB Ticket %0d, MEM_isLoad=%0b",
                 DEBUG_tick, robControl.MEM_ticket, robControl.MEM_isLoad));
-            assert (buffer[robControl.MEM_ticket].entryValid);
-            if (robControl.MEM_isLoad) begin  // < LOAD enters the MEM stage
+                assert (buffer[robControl.MEM_ticket].entryValid);
                 assert (!robControl.MEM_isCommitStore);
                 `ROB_DEBUG_PRINT(
                     ("[ROB]: @%0d: MEM Stage LOAD Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
@@ -303,20 +335,18 @@ module reorder_buffer (
                 buffer[robControl.MEM_ticket].rdDataValid <= robControl.MEM_loadDataReady;
                 buffer[robControl.MEM_ticket].rdData <= robControl.MEM_loadData;
                 MEM_isLoadBypassing = robControl.MEM_loadDataReady;
-            end else if (robControl.MEM_isCommitStore) begin
-                assert (!robControl.MEM_isLoad);
-                // MEM update: commit STORE
-                // TODO: debug print
-                buffer[robControl.MEM_ticket].stComplete <= robControl.MEM_commitStoreComplete;
-                buffer[robControl.MEM_ticket].exceptions <= robControl.MEM_exceptions;
-            end else begin  // < register-register instructions or branches, ignore
-                // `ROB_DEBUG_PRINT(
-                //     ("[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
-                assert (buffer[robControl.MEM_ticket].isWriteback ||
+            end
+        end else begin  // < register-register instructions or branches, ignore
+            `ROB_DEBUG_PRINT(
+                ("[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
+            assert (buffer[robControl.MEM_ticket].isWriteback ||
                     buffer[robControl.MEM_ticket].isBranch ||
                     buffer[robControl.MEM_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
-            end
         end
+        $display(
+            "[ROB] DEBG: commitStComplete=%0d, robControl.MEM_ticket=%0d robControl.MEM_isCommitStore=%0d, robControl.MEM_commitStoreComplete=%0d",
+            commitStComplete, robControl.MEM_ticket, robControl.MEM_isCommitStore,
+            robControl.MEM_commitStoreComplete);
 
         // IMUL update
         if (robControl.IMUL_ticket != ROB_TICKET_INVALID) begin
@@ -530,7 +560,7 @@ module reorder_buffer (
                 assert (buffer[i].DEBUG_ticketId == i);
                 `ROB_DEBUG_PRINT(
                     (
-                    "[ROB]: @%0d ROB Entry %0d: PC=%h, isStore=%0b, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stData=%h, stComplete=%0b, isWriteback=%0b, rd=%0d, rdDataValid=%0b, rdData=%h, isBranch=%0b, shouldBranch=%0b, exceptions=%0h, inst=%h",
+                    "[ROB]: @%0d ROB Entry %0d: PC=%h, isStore=%0b, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stData=%h, isWriteback=%0b, rd=%0d, rdDataValid=%0b, rdData=%h, isBranch=%0b, shouldBranch=%0b, exceptions=%0h, inst=%h",
                     DEBUG_tick,
                     i,
                     buffer[i].pc,
@@ -539,7 +569,6 @@ module reorder_buffer (
                     buffer[i].stVirtAddr.va,
                     buffer[i].stData,
                     buffer[i].stLen,
-                    buffer[i].stComplete,
                     buffer[i].isWriteback,
                     buffer[i].rd,
                     buffer[i].rdDataValid,

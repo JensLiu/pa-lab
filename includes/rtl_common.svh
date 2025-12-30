@@ -14,11 +14,11 @@
 
 `define REGISTER_FILE_DEBUG_PRINT(x) $display({$sformatf x})
 
-`define SB_DEBUG_PRINT(x) $display({$sformatf x})
-// `define SB_DEBUG_PRINT(x)
+// `define SB_DEBUG_PRINT(x) $display({$sformatf x})
+`define SB_DEBUG_PRINT(x)
 
-`define SB_FRONTEND_DEBUG_PRINT(x) $display({$sformatf x})
-// `define SB_FRONTEND_DEBUG_PRINT(x)
+// `define SB_FRONTEND_DEBUG_PRINT(x) $display({$sformatf x})
+`define SB_FRONTEND_DEBUG_PRINT(x)
 
 // `define CACHE_DEBUG_PRINT(x) $display({$sformatf x})
 `define CACHE_DEBUG_PRINT(x)

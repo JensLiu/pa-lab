@@ -349,6 +349,7 @@ package pkg_global_defs;
         // WB stage
         // should not dequeue when the WB stage stops accepting/reaping commits
         bool_t WB_acceptCommit;
+        bool_t WB_jump;
         // MEM stage
         // should not dequeue when MEM stage is stops accepting/reaping commits
         // bool_t MEM_acceptCommit;

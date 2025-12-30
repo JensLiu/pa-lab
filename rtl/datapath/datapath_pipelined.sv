@@ -354,6 +354,7 @@ module datapath_pipelined
         wbControl.IF_cannotJump = ifHints.cannotJump;
 
         // ROB Control
+        robControl.WB_jump = wbHints.WB_jump;
         robControl.EX_ticket = exHints.EX_ticket;
         robControl.EX_isLoad = exHints.EX_isLoad;
         robControl.EX_isStore = exHints.EX_isStore;
@@ -427,19 +428,19 @@ module datapath_pipelined
     always_ff @(posedge clk) begin
         DEBUG_tick <= DEBUG_tick + 1;
         if (ifHints.shouldHalt) begin
-            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage hint: Halt", DEBUG_tick));
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage hint: Should Halt", DEBUG_tick));
         end
         if (idHints.shouldHalt) begin
-            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage hint: Halt", DEBUG_tick));
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage hint: Should Halt", DEBUG_tick));
         end
         if (exHints.shouldHalt) begin
-            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d EX stage hint: Halt", DEBUG_tick));
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d EX stage hint: Should Halt", DEBUG_tick));
         end
         if (memHints.shouldHalt) begin
-            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d MEM stage hint: Halt", DEBUG_tick));
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d MEM stage hint: Should Halt", DEBUG_tick));
         end
         if (wbHints.shouldHalt) begin
-            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d WB stage hint: Halt", DEBUG_tick));
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d WB stage hint: Should Halt", DEBUG_tick));
         end
         if (ifControl.halt) begin
             `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage control: Halt", DEBUG_tick));
