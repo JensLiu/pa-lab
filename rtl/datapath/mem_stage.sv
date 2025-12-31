@@ -3,6 +3,7 @@
 module mem_stage
     import pkg_riscv_instructions::*;
     import pkg_global_defs::*;
+    import pkg_virtual_memory::*;
 (
     input clk_t clk,
     input ex_mem_regs_t exMemRegs,
@@ -22,6 +23,22 @@ module mem_stage
     addr_t MEM_addr = MEM_aluResult;  // <- address calculation
     bool_t MEM_writeEnabled = MEM_instInfo.isStore;
     word_t MEM_writeData = exMemRegs.stData;
+
+    // MMU: translate virtual address to physical address
+    // TODO: MMU is under implementation
+    mmu d_mmu(
+        .clk(clk),
+        .reset(memControl.reset),
+        .satp(exMemRegs.satp),
+        .virtual_addr(MEM_aluResult),
+        .access_type(MEM_instInfo.accessType),
+        .physical_addr(MEM_addr),
+        .req_o(cacheRequest.request),
+        .we_o(cacheRequest.isRead ? 1'b0 : 1'b1), // write enable
+        .stall(), // stop pipeline
+        .exception_o(), // page fault or other exception
+        .cause_o()
+    );
 
     mem_stlen_t MEM_readWriteDataLen;
     always_comb begin

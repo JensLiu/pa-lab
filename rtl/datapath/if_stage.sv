@@ -4,6 +4,7 @@
 module if_stage
     import pkg_riscv_instructions::*;
     import pkg_global_defs::*;
+    import pkg_virtual_memory::*;
 (
 `ifdef INSTRUCTION_MEMORY_EXPOSE_INTERNALS
     output byte_t                  DEBUG_mem   [INST_MEM_SIZE],
@@ -20,27 +21,8 @@ module if_stage
 `endif
 );
 
-    // Bug Hunt: Confusing Response
-    // ALU:     "let's jump"
-    // IF:      "Sure, let's fetch from the new PC"
-    //          "Cache, I changed my mind, give me the new PC"
-    // CACHE:   "Sorry, didn't hear you"
-    //          ...
-    //          "here is the instruction at your previous PC"
-    //          "I'm not telling you it's the old one"
-    //          "bacause you didn't let me finish your previous request"
-    // IF:      "WTF"
-
-    // Temporary Fix: Halt when IF is draining
-    // ALU:     "I want to jump. IF, can we jump?"
-    // IF:      "Not yet, I am waiting for my cache response"
-    // ALU:     "Eveybody, wait"
-    // CACHE:   "Done"
-    // IF:      "I am ready"
-    // ALU:     "Let's jump"
-
     reg_t IF_pcQ;  // PC register
-
+  
     initial begin
         IF_pcQ = START_ADDRESS;
         $display("Start executing at %h", IF_pcQ);
@@ -56,6 +38,20 @@ module if_stage
             IF_pcQ <= IF_pcQ + 4;
         end
     end
+    
+    mmu i_mmu (
+        .clk(clk),
+        .reset(1'b0),  // no reset in this stage
+        .satp(0),  // no virtual memory in this stage
+        .virtual_addr(IF_pcQ),
+        .access_type(ACCESS_EXECUTE), // instruction fetch
+        .physical_addr(),  // not used in this stage
+        .req_o(),  // request to cache
+        .we_o(),  // write enable for cache
+        .stall(),  // stop pipeline
+        .exception_o(),  // page fault or other exception
+        .cause_o()  // exception cause
+    );
 
     instruction_t IF_inst;
     always_comb begin : CacheRequestLogic
