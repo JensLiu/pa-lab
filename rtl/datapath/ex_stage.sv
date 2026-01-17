@@ -92,14 +92,14 @@ module ex_stage
 
         // emit hints
         exHints.EX_ticket = EX_ticket;
-        exHints.EX_excaptions = '0;  // TODO: add exceptions
+        exHints.EX_exceptions = '0;  // TODO: add exceptions
         exHints.EX_isWriteback = EX_instInfo.isWriteback;
         exHints.EX_isLoad = EX_instInfo.isLoad;
         exHints.EX_isStore = EX_instInfo.isStore;
         exHints.EX_isBranch = EX_instInfo.branchType != BR_INVALID;
         // branch hints
         exHints.EX_shouldBranch = EX_shouldBranch;
-        exHints.EX_pcBr = EX_aluResult;
+        exHints.EX_branchPC = EX_aluResult;
         // writeback hints
         exHints.EX_rd = EX_instInfo.rd;
         // arithmetic hints

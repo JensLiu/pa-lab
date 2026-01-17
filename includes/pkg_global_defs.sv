@@ -179,7 +179,7 @@ package pkg_global_defs;
     typedef struct {
         bool_t   shouldHalt;
         word_t   EX_ticket;
-        exception_t EX_excaptions;
+        exception_t EX_exceptions;
         // instruction types
         bool_t   EX_isWriteback;
         bool_t   EX_isLoad;
@@ -187,7 +187,7 @@ package pkg_global_defs;
         bool_t   EX_isBranch;
         // branch instructions
         bool_t   EX_shouldBranch;
-        addr_t   EX_pcBr;
+        addr_t   EX_branchPC;
         // store instruction
         word_t   EX_stData;
 
@@ -218,13 +218,12 @@ package pkg_global_defs;
 
     typedef struct {
         // hints from ROB
-        word_t DEBUG_ROB_commitTicket;
-        bool_t ROB_commitEntryValid;
+        word_t ROB_commitTicket;
         bool_t ROB_commitIsStore;
-        bool_t ROB_commitStVirtAddrValid;
         virt_addr_unique_t ROB_commitStVirtAddr;
         word_t ROB_commitStData;
         mem_stlen_t ROB_commitStLen;
+        bool_t ROB_commitStoreComplete;
     } mem_control_t;
 
     typedef struct {
@@ -236,7 +235,7 @@ package pkg_global_defs;
         word_t MEM_pipeLoadData;  // should be available after memory access
         bool_t MEM_pipeLoadDataReady;
         // for oldest store instructions (commit write)
-        bool_t MEM_isCommitStore;
+        word_t MEM_commitTicket;
         bool_t MEM_commitStoreComplete;
     } mem_hints_t;
 
@@ -250,6 +249,8 @@ package pkg_global_defs;
 
     typedef struct {
         bool_t shouldHalt;
+        word_t WB_commitTicket;
+        bool_t WB_commitFinished;
         bool_t WB_jump;
         addr_t WB_jumpPC;
         bool_t WB_isWriteback;
@@ -259,23 +260,23 @@ package pkg_global_defs;
     } wb_hints_t;
 
     typedef struct {
+        // hints from IF stage
+        bool_t IF_cannotJump;
         // hints from ROB
-        word_t DEBUG_ROB_commitTicket;
-        bool_t ROB_commitEntryValid;
+        word_t ROB_commitTicket;
         exception_t ROB_commitException;
-        // register writeback commit
+        // 1. register writeback commit
         bool_t ROB_commitIsWriteback;
         reg_nr_t ROB_commitRd;
-        bool_t ROB_commitRdDataValid;
         word_t ROB_commitRdData;
-        // non-writeback commit (memory access)
+        // 2. non-writeback commit LOAD
         // check for memory access exceptions
-        // branch
+        bool_t ROB_commitIsStore;
+        bool_t ROB_commitStoreComplete;
+        // 3. branch
         bool_t ROB_commitIsBranch;
         bool_t ROB_commitShouldBranch;
         addr_t ROB_commitBranchPCVirtAddr;
-        // hints from IF stage
-        bool_t IF_cannotJump;
     } wb_control_t;
 
     typedef struct {
@@ -295,19 +296,17 @@ package pkg_global_defs;
     typedef struct {
         bool_t isEmpty;
         bool_t isFull;
-        bool_t commitEntryValid;
+        // about the oldest entry
+        word_t commitTicket;
         word_t commitPC;
         exception_t commitExceptions;
         bool_t commitIsWriteback;
         bool_t commitIsStore;
         bool_t commitIsBranch;
-        word_t DEBUG_commitTicket;
-        // writeback
+        // writeback (arithmetic / load)
         reg_nr_t commitRd;
-        bool_t commitRdDataValid;
         word_t commitRdData;
         // store
-        bool_t commitStVirtAddrValid;
         virt_addr_unique_t commitStVirtAddr;
         word_t commitStData;
         mem_stlen_t commitStLen;
@@ -325,6 +324,7 @@ package pkg_global_defs;
         bool_t EX_isStore;
         bool_t EX_isBranch;
         word_t EX_aluResult;
+        word_t EX_branchPC;
         // branch instructions
         bool_t EX_shouldBranch;
         // ALU exceptions
@@ -339,7 +339,7 @@ package pkg_global_defs;
         word_t MEM_loadData;
         bool_t MEM_loadDataReady;
         // when committing store instructions
-        bool_t MEM_isCommitStore;
+        word_t MEM_commitTicket;
         bool_t MEM_commitStoreComplete;
 
         // INT-MUL Stage
@@ -348,7 +348,8 @@ package pkg_global_defs;
 
         // WB stage
         // should not dequeue when the WB stage stops accepting/reaping commits
-        bool_t WB_acceptCommit;
+        word_t WB_commitTicket;
+        bool_t WB_commitFinished;
         bool_t WB_jump;
         // MEM stage
         // should not dequeue when MEM stage is stops accepting/reaping commits

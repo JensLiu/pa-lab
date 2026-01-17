@@ -64,19 +64,15 @@ module mem_stage
         storeQuery.virtAddr = '0;
         storeQuery.ticket = ROB_TICKET_INVALID;
 
-        if (memControl.ROB_commitIsStore) begin // Highest priority to the oldest instruction
-            if (memControl.ROB_commitEntryValid) begin // ROB commit STORE instruction: write to cache
-                // if it's committed, we don't need to write again
-
-                if (memControl.ROB_commitStVirtAddrValid /*&& memControl.ROB_commitStComplete*/) begin
-                    cacheRequest.request = TRUE;
-                    cacheRequest.isRead = FALSE;
-                    // TODO: use PHYSICAL address
-                    cacheRequest.addr = memControl.ROB_commitStVirtAddr.va;
-                    cacheRequest.dataToCache = memControl.ROB_commitStData;
-                    cacheRequest.dataLen = memControl.ROB_commitStLen;
-                end
-            end
+        if (memControl.ROB_commitTicket != ROB_TICKET_INVALID &&
+            memControl.ROB_commitIsStore && !memControl.ROB_commitStoreComplete) begin
+            // ROB commit STORE instruction: write to cache
+            cacheRequest.request = TRUE;
+            cacheRequest.isRead = FALSE;
+            // TODO: use PHYSICAL address
+            cacheRequest.addr = memControl.ROB_commitStVirtAddr.va;
+            cacheRequest.dataToCache = memControl.ROB_commitStData;
+            cacheRequest.dataLen = memControl.ROB_commitStLen;
         end else if (MEM_isLoad) begin
             // LOAD instruction: first bypass from ROB, if miss, then request cache
             storeQuery.virtAddr = {9'b0, MEM_virtAddr}; // TODO: set ASID in VA
@@ -93,7 +89,6 @@ module mem_stage
                 cacheRequest.dataLen = MEM_stldDataLen;
             end
         end
-
 `ifdef DATA_CACHE_DIVERGENCE_TEST
         // request the data memory for divergence test
         DEBUG_dataMemRequest.request = cacheRequest.request;
@@ -105,56 +100,39 @@ module mem_stage
     end
 
     always_comb begin : MemHintsLogic
+        // execution hints
         memHints.ticket = exMemRegs.ticket;
         memHints.shouldHalt = FALSE;
         memHints.MEM_pipeIsLoad = FALSE;
         memHints.MEM_pipeLoadData = '0;
         memHints.MEM_pipeLoadDataReady = FALSE;
-        memHints.MEM_isCommitStore = FALSE;
+        // commit hints
+        memHints.MEM_commitTicket = ROB_TICKET_INVALID;
         memHints.MEM_commitStoreComplete = FALSE;
 
-        if (memControl.ROB_commitIsStore) begin // Highest priority to the oldest instruction
-            if (memControl.ROB_commitEntryValid) begin
-                `MEM_STAGE_DEBUG_PRINT(
-                    ("[MEM]: @%0d Committing STORE from ROB ticket %0d",
-                                              DEBUG_tick,
-                                      memControl.DEBUG_ROB_commitTicket));
-                // paulse the pipeline, keep instructions
-                memHints.shouldHalt = TRUE;
-                // ROB commit STORE instruction: write to cache
-                if (memControl.ROB_commitStVirtAddrValid) begin
-                    memHints.MEM_isCommitStore = TRUE;
-                    `MEM_STAGE_DEBUG_PRINT(
-                        ("[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d: request=%0b, ready=%0b",
-                                                  DEBUG_tick,
-                                          memControl.ROB_commitStVirtAddr.va,
-                                          memControl.DEBUG_ROB_commitTicket,
-                                          cacheRequest.request,
-                                          cacheRequest.ready));
-                    if (cacheRequest.request && cacheRequest.ready) begin
-                        `MEM_STAGE_DEBUG_PRINT(
-                            ("[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d complete",
-                                                      DEBUG_tick,
-                                              memControl.ROB_commitStVirtAddr.va,
-                                              memControl.DEBUG_ROB_commitTicket));
-                        memHints.MEM_commitStoreComplete = TRUE;
-                        memHints.shouldHalt = FALSE;
-                    end
-                end else begin
-                    `MEM_STAGE_DEBUG_PRINT(("[MEM]: @%0d pending on commit from ROB ticket %0d",
-                    DEBUG_tick, memControl.DEBUG_ROB_commitTicket));
-                    // NOTE: should we halt here? If we halt, we will pause the pipeline so that
-                    //       the address will NOT be calculated -> which means we continue to halt
-                    // This will only happen when
-                    //  1. STORE is the oldest instruction in ROB
-                    //  2. STORE has not calculated its address yet (EX stage not finished, for example in EX, ID, IF stages)
-                    // ->
-                    //  1. EX stage is NOP, MEM stage is NOP
-                    //  -> we don't need to halt, since there is no instruction in the pipeline
-                    //  2. EX stage is the instruction itself, MEM stage is NOP
-                    //  -> we don't need to halt since in the next cycle, we will get the address from the ROB
-                    memHints.shouldHalt = FALSE;
-                end
+        if (memControl.ROB_commitTicket != ROB_TICKET_INVALID &&
+            memControl.ROB_commitIsStore && !memControl.ROB_commitStoreComplete) begin
+            // pause the pipeline, keep instructions
+            memHints.shouldHalt = TRUE;
+            memHints.MEM_commitTicket = memControl.ROB_commitTicket;
+            // ROB commit STORE instruction: write to cache
+            assert (cacheRequest.request && !cacheRequest.isRead);
+            if (cacheRequest.ready) begin
+                `MEM_STAGE_DEBUG_PRINT((
+                    "[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d complete",
+                    DEBUG_tick,
+                    memControl.ROB_commitStVirtAddr.va,
+                    memControl.ROB_commitTicket));
+                memHints.MEM_commitStoreComplete = TRUE;
+                memHints.shouldHalt = FALSE;
+            end else begin
+                `MEM_STAGE_DEBUG_PRINT((
+                    "[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d: request=%0b, ready=%0b",
+                    DEBUG_tick,
+                    memControl.ROB_commitStVirtAddr.va,
+                    memControl.ROB_commitTicket,
+                    cacheRequest.request,
+                    cacheRequest.ready));
             end
         end else if (MEM_isLoad) begin
             memHints.MEM_pipeIsLoad = TRUE;
@@ -162,32 +140,32 @@ module mem_stage
             if (storeQuery.hasEntry) begin
                 // hit since STORE instruction is immediately written to the ROB
                 if (storeQuery.sufficientLength) begin
-                    `MEM_STAGE_DEBUG_PRINT(
-                        ("[MEM]: @%0d LOAD from ROB ticket %0d hit, returning data %h",
-                                                  DEBUG_tick,
-                                          exMemRegs.ticket,
-                                          storeQuery.data));
                     memHints.MEM_pipeLoadData = storeQuery.data;
                     memHints.MEM_pipeLoadDataReady = TRUE;
+                    `MEM_STAGE_DEBUG_PRINT((
+                        "[MEM]: @%0d LOAD from ROB ticket %0d hit, returning data %h",
+                        DEBUG_tick,
+                        exMemRegs.ticket,
+                        storeQuery.data));
                 end else begin
-                    `MEM_STAGE_DEBUG_PRINT(
-                        ("[MEM]: @%0d LOAD from ROB ticket %0d: hit, but insufficient length",
-                                                  DEBUG_tick,
-                                          exMemRegs.ticket));
-                    // partial data update: wait until it is written to the cache
-                    // then read from cache
+                    // partial data update: wait until it is written to the cache/store buffer
+                    // then read from cache/store buffer
                     // if written to cache, there should not be a ROB hit, hence we will
                     // move to the `else` branch on the next rising edge of the clock
                     memHints.shouldHalt = TRUE;
+                    `MEM_STAGE_DEBUG_PRINT((
+                        "[MEM]: @%0d LOAD from ROB ticket %0d: hit, but insufficient length",
+                        DEBUG_tick,
+                        exMemRegs.ticket));
                 end
             end else begin
-                `MEM_STAGE_DEBUG_PRINT(
-                    ("[MEM]: @%0d LOAD from ROB ticket %0d: miss, requesting cache at PA %h (ready=%0b, returning data %h)",
-                                              DEBUG_tick,
-                                      exMemRegs.ticket,
-                                      MEM_virtAddr,
-                                      cacheRequest.ready,
-                                      cacheRequest.dataFromCache));
+                `MEM_STAGE_DEBUG_PRINT((
+                    "[MEM]: @%0d LOAD from ROB ticket %0d: miss, requesting cache at PA %h (ready=%0b, returning data %h)",
+                    DEBUG_tick,
+                    exMemRegs.ticket,
+                    MEM_virtAddr,
+                    cacheRequest.ready,
+                    cacheRequest.dataFromCache));
                 // ROB miss, request cache
                 // halt until cache request finishes
                 memHints.shouldHalt = !cacheRequest.ready;
@@ -222,23 +200,22 @@ module mem_stage
     logic [31:0] DEBUG_tick;
     always_ff @(posedge clk) begin
         DEBUG_tick <= DEBUG_tick + 1;
-    end
-
-    always_ff @( posedge clk ) begin
-        `MEM_STAGE_DEBUG_PRINT(("[MEM]: @%0d: ticket=%0d, isLoad=%0b, isStore=%0b, virtAddr=%h, storeData=%h",
-                                          DEBUG_tick,
-                                  exMemRegs.ticket,
-                                  MEM_instInfo.isLoad,
-                                  MEM_instInfo.isStore,
-                                  MEM_virtAddr,
-                                  MEM_storeData));
+        `MEM_STAGE_DEBUG_PRINT((
+            "[MEM]: @%0d: ticket=%0d, isLoad=%0b, isStore=%0b, virtAddr=%h, storeData=%h",
+            DEBUG_tick,
+            exMemRegs.ticket,
+            MEM_instInfo.isLoad,
+            MEM_instInfo.isStore,
+            MEM_virtAddr,
+            MEM_storeData));
     end
 
 `ifdef DATA_CACHE_DIVERGENCE_TEST
     always_ff @(posedge clk) begin : DEBUG_DivergenceTest
         if (MEM_instInfo.isLoad && cacheRequest.ready) begin
             if (cacheRequest.dataFromCache != DEBUG_dataMemRequest.dataFromCache) begin
-                $display("@%d: Divergent: MEM @PA%h: cache %h != dataMem %h", DEBUG_tick, cacheRequest.addr,
+                $display("@%d: Divergent: MEM @PA%h: cache %h != dataMem %h",
+                         DEBUG_tick, cacheRequest.addr,
                          cacheRequest.dataFromCache, DEBUG_dataMemRequest.dataFromCache);
             end
             assert (DEBUG_dataMemRequest.ready);

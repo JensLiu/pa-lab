@@ -51,8 +51,17 @@ module if_stage
         if (ifControl.halt || !cacheRequest.ready) begin
             IF_pcQ <= IF_pcQ;
         end else if (ifControl.branchTaken) begin
+            `IF_STAGE_DEBUG_PRINT(
+                ("[IF]: @%0d Branch taken to %h",
+                                          DEBUG_tick,
+                                  ifControl.pcBr));
             IF_pcQ <= ifControl.pcBr;
         end else begin
+            `IF_STAGE_DEBUG_PRINT(
+                ("[IF]: @%0d Advancing PC from %h to %h",
+                                          DEBUG_tick,
+                                  IF_pcQ,
+                                  IF_pcQ + 4));
             IF_pcQ <= IF_pcQ + 4;
         end
     end

@@ -15,8 +15,19 @@ module reorder_buffer (
     localparam ROB_SIZE = 16;
 
     bool_t ROB_reset;
-    assign ROB_reset = robControl.WB_jump;  // reset on jump
-
+    always_comb begin
+        if (robControl.WB_commitTicket != ROB_TICKET_INVALID &&
+            robControl.WB_commitFinished &&
+            robControl.WB_jump) begin
+            ROB_reset = TRUE;
+            `ROB_DEBUG_PRINT((
+                "[ROB]: @%0d: ROB Reset Triggered by Commit, WB_commitTicket=%0h, WB_commitFinished=%0h, WB_commitJump=%0h", 
+                DEBUG_tick, robControl.WB_commitTicket,
+                robControl.WB_commitFinished, robControl.WB_jump));
+        end else begin
+            ROB_reset = FALSE;
+        end
+    end
     // NOTE:
     // In our implementation, Write ROB and Write Reg are two different phases
     // This introduces one cycle delay
@@ -40,12 +51,8 @@ module reorder_buffer (
         virt_addr_unique_t stVirtAddr;
         word_t stData;
         mem_stlen_t stLen;
-        // removed entry `stComplete`, instead, dequeue immediataly on the next cycle when MEM stage said it's done,
-        // otherwise, it would take EXTRA 2 CYCLES to commit
-        // t1: write success (ROB.complete <= 1, still 0 atm)
-        // t2: update success (ROB.complete = 1, not dequeued)
-        // t3: dequeued
-        // bool_t stComplete;  // only write to cache when it is the oldest instruction, block retire until write complete
+        // cannot complete until WB stage because we can have exceptions
+        bool_t stComplete;
 
         // register
         bool_t   isWriteback;
@@ -55,7 +62,9 @@ module reorder_buffer (
 
         // branch: This is added to simplify our flush logic?
         bool_t isBranch;
+        bool_t branchDecided;
         bool_t shouldBranch;
+        addr_t branchPCVirtAddr;
 
         // exception
         exception_t exceptions;
@@ -93,6 +102,7 @@ module reorder_buffer (
     end
 
     always_ff @(posedge clk) begin : EnqueueLogic
+        `ROB_DEBUG_PRINT(("[ROB]: @%0d: ========== ENQUEUE LOGIC RUN ===============", DEBUG_tick));
         if (ROB_reset) begin
             nextYoungest <= 0;
             isFull <= FALSE;
@@ -129,6 +139,7 @@ module reorder_buffer (
                 // for branches
                 buffer[nextYoungest].isBranch <= ticketRequest.isBranch;
                 buffer[nextYoungest].shouldBranch <= FALSE;
+                buffer[nextYoungest].branchDecided <= FALSE;
                 // exceptions
                 buffer[nextYoungest].exceptions <= '0;
                 buffer[nextYoungest].pc <= ticketRequest.pc;
@@ -151,52 +162,100 @@ module reorder_buffer (
     end
 
     always_comb begin : Hints
+        // ROB status
         robHints.isEmpty = isEmpty;
         robHints.isFull = isFull;
-        robHints.DEBUG_commitTicket = buffer[oldest].DEBUG_ticketId;
-        robHints.commitEntryValid = buffer[oldest].entryValid;
+
+        // ROB commit info
+        // NOTE: only valid when all information is ready
+        robHints.commitTicket = oldest;
+        if (!buffer[oldest].entryValid) begin
+            `ROB_DEBUG_PRINT(("[ROB]: @%0d: ROB Commit Entry %0d Not Valid", DEBUG_tick, oldest));
+            robHints.commitTicket = ROB_TICKET_INVALID;
+        end
         robHints.commitExceptions = buffer[oldest].exceptions;
         robHints.commitPC = buffer[oldest].pc;
-        // for regiester writeback commit
+
+        // for register writeback commit
+        if (buffer[oldest].isWriteback) begin
+            if (!buffer[oldest].rdDataValid) begin
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Commit Entry %0d Writeback Data Not Valid", DEBUG_tick, oldest));
+                robHints.commitTicket = ROB_TICKET_INVALID;
+            end
+        end
         robHints.commitIsWriteback = buffer[oldest].isWriteback;
         robHints.commitRd = buffer[oldest].rd;
-        robHints.commitRdDataValid = buffer[oldest].rdDataValid;
         robHints.commitRdData = buffer[oldest].rdData;
+
         // for store commit
+        if (buffer[oldest].isStore) begin
+            if (!buffer[oldest].stVirtAddrValid) begin
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Commit Entry %0d Store Address Not Valid", DEBUG_tick, oldest));
+                robHints.commitTicket = ROB_TICKET_INVALID;
+            end
+        end
         robHints.commitIsStore = buffer[oldest].isStore;
         robHints.commitStVirtAddr = buffer[oldest].stVirtAddr;
-        robHints.commitStVirtAddrValid = buffer[oldest].stVirtAddrValid;
         robHints.commitStData = buffer[oldest].stData;
         robHints.commitStLen = buffer[oldest].stLen;
-        // robHints.commitStComplete = buffer[oldest].stComplete;
+        robHints.commitStComplete = buffer[oldest].stComplete;
+
         // for branch commit
+        if (buffer[oldest].isBranch) begin
+            if (!buffer[oldest].branchDecided) begin
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Commit Entry %0d Branch Not Decided", DEBUG_tick, oldest));
+                robHints.commitTicket = ROB_TICKET_INVALID;
+            end
+        end
         robHints.commitIsBranch = buffer[oldest].isBranch;
         robHints.commitShouldBranch = buffer[oldest].shouldBranch;
+        robHints.commitBranchPCVirtAddr = buffer[oldest].branchPCVirtAddr;
+
+        if (robHints.commitTicket != ROB_TICKET_INVALID) begin
+            `ROB_DEBUG_PRINT(
+                ("[ROB]: @%0d: ROB Commit Ready for Ticket %0d", DEBUG_tick, robHints.commitTicket));
+            `ROB_DEBUG_PRINT(
+                (
+            "[ROB]: @%0d: ROB Commit Check for Oldest Ticket %0d, entry's ticket ID %0d",
+            DEBUG_tick, oldest, buffer[oldest].DEBUG_ticketId));
+            assert (buffer[oldest].DEBUG_ticketId == oldest);
+        end
     end
 
     bool_t _shouldDequeue;
     bool_t commitStComplete;
     always @(posedge clk) begin : DequeueLogic
+        `ROB_DEBUG_PRINT(("[ROB]: @%0d: ========== DEQUEUE LOGIC RUN ===============", DEBUG_tick));
         // `ROB_DEBUG_PRINT(
         //     ("[ROB]: @%0d: Dequeue Logic Check: isEmpty=%0b, isFull=%0b, oldest=%0d, oldestIsWriteback=%0b, oldestRdDataValid=%0b, oldestIsStore=%0b, oldestStComplete=%0b",
         //  DEBUG_tick, isEmpty, isFull, oldest, robHints.commitIsWriteback, robHints.commitRdDataValid, robHints.commitIsStore, robHints.commitStComplete));
         _shouldDequeue = FALSE;
         if (ROB_reset) begin
+            `ROB_DEBUG_PRINT(("[ROB]: @%0d: ROB Reset Triggered, Clearing ROB", DEBUG_tick));
             oldest <= 0;
-        end else if (!isEmpty) begin
+            isFull <= FALSE;
+            for (int i = 0; i < ROB_SIZE; i++) begin
+                buffer[i].entryValid <= FALSE;
+            end
+        end else if (
+            !isEmpty && robControl.WB_commitTicket == oldest && robControl.WB_commitFinished) begin
+            `ROB_DEBUG_PRINT(("[ROB]: @%0d: ROB Ticket %0d Dequeue Requested", DEBUG_tick, oldest));
+            // only when instruction reaches the WB stage can we dequeue.
+            // Don't dequeue at early stages to check for exceptions
             if (robHints.commitIsWriteback) begin
-                // only dequeue when WB stage is acceping commits (to avoid losing instructions)
-                if (robControl.WB_acceptCommit && robHints.commitRdDataValid) begin
-                    _shouldDequeue = TRUE;
-                    `ROB_DEBUG_PRINT(
-                        ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Writeback (rd=%0d, data=%h)",
+                _shouldDequeue = TRUE;
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Writeback (rd=%0d, data=%h)",
                                  DEBUG_tick, oldest,
                                  buffer[oldest].rd,
                                  buffer[oldest].rdData));
-                end
-            end else if (robHints.commitIsStore) begin
+            end
+
+            if (robHints.commitIsStore) begin
                 // only dequeue when MEM stage is acceping commits (to avoid losing instructions)
-                // TODO: dequeue when store is complete (from the control signals)
                 if (commitStComplete) begin
                     _shouldDequeue = TRUE;
                     `ROB_DEBUG_PRINT(
@@ -208,6 +267,19 @@ module reorder_buffer (
                 end
             end
 
+            if (robHints.commitIsBranch) begin
+                // when the branch is not taken, we can dequeue
+                // when the branch is taken, the rob should be reset anyway
+                // NOTE: WB_finishedTicket is ONLY valid when WB assume we can safely delete this entry
+                //       if branch should be taken but IF cannot jump, WB_finishedTicket is INVALID
+                _shouldDequeue = TRUE;
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Ticket %0d Dequeue for Branch (shouldBranch=%0b, branchAddr=%h)",
+                                 DEBUG_tick, oldest,
+                                 buffer[oldest].shouldBranch,
+                                 buffer[oldest].branchPCVirtAddr));
+            end
+
             if (_shouldDequeue) begin
                 if (oldest + 1 == ROB_SIZE) begin
                     oldest <= 0;
@@ -217,12 +289,18 @@ module reorder_buffer (
                 buffer[oldest].entryValid <= FALSE;
                 isFull <= FALSE;
             end
+        end else begin
+            `ROB_DEBUG_PRINT(
+                (
+                "[ROB]: @%0d: ROB Ticket %0d Not Dequeued, WB_commitTicket=%0d, WB_commitFinished=%0d",
+                DEBUG_tick, oldest, robControl.WB_commitTicket, robControl.WB_commitFinished));
         end
     end
 
     // this logic is expensive, perhaps seralise update requests (slower performance)?
     bool_t EX_isRegBypassing, EX_isStoreBypassing, MEM_isLoadBypassing, IMUL_isRegBypassing;
     always @(posedge clk) begin : UpdateLogic
+        `ROB_DEBUG_PRINT(("[ROB]: @%0d: ========== UPDATE LOGIC RUN ===============", DEBUG_tick));
         EX_isRegBypassing   = FALSE;
         EX_isStoreBypassing = FALSE;
         MEM_isLoadBypassing = FALSE;
@@ -274,7 +352,7 @@ module reorder_buffer (
             assert (buffer[robControl.IMUL_ticket].entryValid);
         end
 
-        // EX: ALU update
+        // EX (ALU) update
         if (robControl.EX_ticket != ROB_TICKET_INVALID) begin
             `ROB_DEBUG_PRINT(
                 ("[ROB]: @%0d: EX Stage Update for ROB Ticket %0d", DEBUG_tick, robControl.EX_ticket));
@@ -283,13 +361,18 @@ module reorder_buffer (
                 // not memory instructions -> ALU Result is rd data (not an address)
                 // otherwise, they are virtual addresses, however we only want physical addresses
                 if (robControl.EX_isBranch) begin
+                    // JAL/JALR/BRANCH enters the BRANCH category
+                    // NOTE: they can also be writeback instructions (JAL/JALR)
                     buffer[robControl.EX_ticket].shouldBranch <= robControl.EX_shouldBranch;
-                end else if (buffer[robControl.EX_ticket].isWriteback) begin
+                    buffer[robControl.EX_ticket].branchDecided <= TRUE;
+                    buffer[robControl.EX_ticket].branchPCVirtAddr <= robControl.EX_branchPC;
+                end
+                if (buffer[robControl.EX_ticket].isWriteback) begin
                     buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
                     buffer[robControl.EX_ticket].rdDataValid <= TRUE;
                     buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
                     EX_isRegBypassing = TRUE;
-                end else begin
+                end else if (!robControl.EX_isBranch) begin
                     assert (buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
                 end
                 `ROB_DEBUG_PRINT(
@@ -312,40 +395,39 @@ module reorder_buffer (
 
         // MEM update
         commitStComplete = FALSE;
-        if (robControl.MEM_isCommitStore) begin
-            // Do not check for MEM_ticket validity here. We can still commit STORE
-            // while MEM_ticket = INVALID (for example, an injected NOP)
-            assert (!robControl.MEM_isLoad);
-            // MEM update: commit STORE
-            // TODO: debug print
-            // buffer[robControl.MEM_ticket].stComplete <= robControl.MEM_commitStoreComplete;
+        if (robControl.MEM_commitTicket != ROB_TICKET_INVALID) begin
             commitStComplete = robControl.MEM_commitStoreComplete;
             buffer[robControl.MEM_ticket].exceptions <= robControl.MEM_exceptions;
-        end else if (robControl.MEM_isLoad) begin  // < LOAD enters the MEM stage
-            if (robControl.MEM_ticket != ROB_TICKET_INVALID) begin
-                `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: MEM Stage Update for ROB Ticket %0d, MEM_isLoad=%0b",
-                DEBUG_tick, robControl.MEM_ticket, robControl.MEM_isLoad));
-                assert (buffer[robControl.MEM_ticket].entryValid);
-                assert (!robControl.MEM_isCommitStore);
-                `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: MEM Stage LOAD Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
-                // MEM update: LOAD
-                assert (buffer[robControl.MEM_ticket].isWriteback);
-                buffer[robControl.MEM_ticket].rdDataValid <= robControl.MEM_loadDataReady;
-                buffer[robControl.MEM_ticket].rdData <= robControl.MEM_loadData;
-                MEM_isLoadBypassing = robControl.MEM_loadDataReady;
-            end
-        end else begin  // < register-register instructions or branches, ignore
             `ROB_DEBUG_PRINT(
-                ("[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
+                (
+                "[ROB]: @%0d: MEM Stage Commit Update for ROB Ticket %0d, MEM_isCommitStore=%0b",
+                DEBUG_tick, robControl.MEM_commitTicket,
+                robControl.MEM_commitStoreComplete));
+        end else if (robControl.MEM_ticket != ROB_TICKET_INVALID && robControl.MEM_isLoad) begin
+            assert (buffer[robControl.MEM_ticket].entryValid);
+            assert (buffer[robControl.MEM_ticket].isWriteback);
+            buffer[robControl.MEM_ticket].rdDataValid <= robControl.MEM_loadDataReady;
+            buffer[robControl.MEM_ticket].rdData <= robControl.MEM_loadData;
+            MEM_isLoadBypassing = robControl.MEM_loadDataReady;
+            `ROB_DEBUG_PRINT(
+                (
+                "[ROB]: @%0d: MEM Stage Update for ROB Ticket %0d, MEM_isLoad=%0b",
+                DEBUG_tick, robControl.MEM_ticket, robControl.MEM_isLoad));
+            `ROB_DEBUG_PRINT(
+                (
+                "[ROB]: @%0d: MEM Stage LOAD Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
+        end else begin
+            `ROB_DEBUG_PRINT(
+                (
+                "[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
             assert (buffer[robControl.MEM_ticket].isWriteback ||
                     buffer[robControl.MEM_ticket].isBranch ||
                     buffer[robControl.MEM_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
         end
+
         $display(
-            "[ROB] DEBG: commitStComplete=%0d, robControl.MEM_ticket=%0d robControl.MEM_isCommitStore=%0d, robControl.MEM_commitStoreComplete=%0d",
-            commitStComplete, robControl.MEM_ticket, robControl.MEM_isCommitStore,
+            "[ROB] DEBUG: commitStComplete=%0d, robControl.MEM_ticket=%0d robControl.MEM_commitTicket=%0d, robControl.MEM_commitStoreComplete=%0d",
+            commitStComplete, robControl.MEM_ticket, robControl.MEM_commitTicket,
             robControl.MEM_commitStoreComplete);
 
         // IMUL update
@@ -553,18 +635,60 @@ module reorder_buffer (
     always_ff @(posedge clk) begin
         DEBUG_tick <= DEBUG_tick + 1;
         `ROB_DEBUG_PRINT(
-            ("[ROB]: @%0d ----- ROB Entries (Oldest: %0d, NextYoungest: %0d, isFull: %0b, isEmpty: %0b) -----",
+            ("[ROB]: @%0d ====== ROB Entries (Oldest: %0d, NextYoungest: %0d, isFull: %0b, isEmpty: %0b) =======",
             DEBUG_tick, oldest, nextYoungest, isFull, isEmpty));
         for (int i = 0; i < ROB_SIZE; i++) begin
             if (buffer[i].entryValid) begin
                 assert (buffer[i].DEBUG_ticketId == i);
-                `ROB_DEBUG_PRINT(
-                    (
-                    "[ROB]: @%0d ROB Entry %0d: PC=%h, isStore=%0b, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stData=%h, isWriteback=%0b, rd=%0d, rdDataValid=%0b, rdData=%h, isBranch=%0b, shouldBranch=%0b, exceptions=%0h, inst=%h",
+                if (buffer[i].isBranch) begin
+                    if (buffer[i].isWriteback) begin
+                        `ROB_DEBUG_PRINT(
+                            ("[ROB]: @%0d [%0d] BR: PC=%h, inst=%h, rd=%0d, rdDataValid=%0b, rdData=%h, shouldBranch=%0b, branchDecided=%0b, branchAddr=%0h, exceptions=%h",
+                        DEBUG_tick,
+                        i,
+                        buffer[i].pc,
+                        buffer[i].DEBUG_instInfo.DEBUG_instBinary,
+                        buffer[i].rd,
+                        buffer[i].rdDataValid,
+                        buffer[i].rdData,
+                        buffer[i].shouldBranch,
+                        buffer[i].branchDecided,
+                        buffer[i].branchPCVirtAddr,
+                        buffer[i].exceptions));
+                    end else begin
+                        `ROB_DEBUG_PRINT(
+                            ("[ROB]: @%0d [%0d] BR: PC=%h, inst=%h, isBranch=%0b, shouldBranch=%0b, branchDecided=%0b, branchAddr=%0h, exceptions=%h",
+                        DEBUG_tick,
+                        i,
+                        buffer[i].pc,
+                        buffer[i].DEBUG_instInfo.DEBUG_instBinary,
+                        buffer[i].isBranch,
+                        buffer[i].shouldBranch,
+                        buffer[i].branchDecided,
+                        buffer[i].branchPCVirtAddr,
+                        buffer[i].exceptions));
+                    end
+                end else if (buffer[i].isStore) begin
+                    `ROB_DEBUG_PRINT(
+                        ("[ROB]: @%0d [%0d] ST: PC=%h, inst=%h, stVirtAddrValid=%0b, stVirtAddr=%h, stLen=%0d, stData=%h, stComplete=%0b, exceptions=%h",
                     DEBUG_tick,
                     i,
                     buffer[i].pc,
-                    buffer[i].isStore,
+                    buffer[i].DEBUG_instInfo.DEBUG_instBinary,
+                    buffer[i].stVirtAddrValid,
+                    buffer[i].stVirtAddr.va,
+                    buffer[i].stLen,
+                    buffer[i].stData,
+                    buffer[i].stComplete,
+                    buffer[i].exceptions));
+                end else if (buffer[i].isWriteback) begin
+                    `ROB_DEBUG_PRINT(
+                        (
+                    "[ROB]: @%0d [%0d] WB: PC=%h, inst=%h, rd=%0d, rdDataValid=%0b, rdData=%h, exceptions=%h",
+                    DEBUG_tick,
+                    i,
+                    buffer[i].pc,
+                    buffer[i].DEBUG_instInfo.DEBUG_instBinary,
                     buffer[i].stVirtAddrValid,
                     buffer[i].stVirtAddr.va,
                     buffer[i].stData,
@@ -575,9 +699,11 @@ module reorder_buffer (
                     buffer[i].rdData,
                     buffer[i].isBranch,
                     buffer[i].shouldBranch,
-                    buffer[i].exceptions,
-                    buffer[i].DEBUG_instInfo.DEBUG_instBinary
+                    buffer[i].branchDecided,
+                    buffer[i].branchPCVirtAddr,
+                    buffer[i].exceptions
                 ));
+                end
             end
         end
         `ROB_DEBUG_PRINT(("[ROB]: @%0d -------------------------------", DEBUG_tick));

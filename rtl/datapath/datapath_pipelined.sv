@@ -331,22 +331,18 @@ module datapath_pipelined
 
         // MEM Control
         // MEM is stateful
-        memControl.DEBUG_ROB_commitTicket = robHints.DEBUG_commitTicket;
-        memControl.ROB_commitEntryValid = robHints.commitEntryValid;
+        memControl.ROB_commitTicket = robHints.commitTicket;
         memControl.ROB_commitIsStore = robHints.commitIsStore;
-        memControl.ROB_commitStVirtAddrValid = robHints.commitStVirtAddrValid;
         memControl.ROB_commitStVirtAddr = robHints.commitStVirtAddr;
         memControl.ROB_commitStData = robHints.commitStData;
         memControl.ROB_commitStLen = robHints.commitStLen;
 
         // WB Control
         // WB is stateful
-        wbControl.DEBUG_ROB_commitTicket = robHints.DEBUG_commitTicket;
-        wbControl.ROB_commitEntryValid = robHints.commitEntryValid;
+        wbControl.ROB_commitTicket = robHints.commitTicket;
         wbControl.ROB_commitException = robHints.commitExceptions;
         wbControl.ROB_commitIsWriteback = robHints.commitIsWriteback;
         wbControl.ROB_commitRd = robHints.commitRd;
-        wbControl.ROB_commitRdDataValid = robHints.commitRdDataValid;
         wbControl.ROB_commitRdData = robHints.commitRdData;
         wbControl.ROB_commitIsBranch = robHints.commitIsBranch;
         wbControl.ROB_commitShouldBranch = robHints.commitShouldBranch;
@@ -361,19 +357,20 @@ module datapath_pipelined
         robControl.EX_isWriteback = exHints.EX_isWriteback;
         robControl.EX_isBranch = exHints.EX_isBranch;
         robControl.EX_aluResult = exHints.EX_aluResult;
+        robControl.EX_branchPC = exHints.EX_branchPC;
         robControl.EX_shouldBranch = exHints.EX_shouldBranch;
-        robControl.EX_exceptions = exHints.EX_excaptions;
+        robControl.EX_exceptions = exHints.EX_exceptions;
         robControl.MEM_ticket = memHints.ticket;
         robControl.MEM_exceptions = memHints.MEM_exceptions;
         robControl.MEM_isLoad = memHints.MEM_pipeIsLoad;
         robControl.MEM_loadData = memHints.MEM_pipeLoadData;
         robControl.MEM_loadDataReady = memHints.MEM_pipeLoadDataReady;
-        robControl.MEM_isCommitStore = memHints.MEM_isCommitStore;
+        robControl.MEM_commitTicket = memHints.MEM_commitTicket;
         robControl.MEM_commitStoreComplete = memHints.MEM_commitStoreComplete;
         robControl.IMUL_ticket = imulHints.IMUL_resultTicket;
         robControl.IMUL_result = imulHints.IMUL_result;
-        robControl.WB_acceptCommit = !wbHints.shouldHalt;
-        // robControl.MEM_acceptCommit = !memHints.shouldHalt;
+        robControl.WB_commitTicket = wbHints.WB_commitTicket;
+        robControl.WB_commitFinished = wbHints.WB_commitFinished;
     end
 
 
