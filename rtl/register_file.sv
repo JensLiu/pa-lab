@@ -10,13 +10,13 @@ module register_file
     // output bool_t debug_is_writing,
 `endif
 
-    input clk_t    clk,
+    input clk_t clk,
 
     // read (combinational)
-    input reg_nr_t read_reg1,    // @decode stage
-    input reg_nr_t read_reg2,    // @decode stage
+    input reg_nr_t read_reg1,  // @decode stage
+    input reg_nr_t read_reg2,  // @decode stage
     output reg_t read_data1,  // @decode stage
-    output reg_t read_data2,   // @decode stage
+    output reg_t read_data2,  // @decode stage
 
     // write (sequential)
     input reg_nr_t write_reg,    // @writeback stage
@@ -60,5 +60,17 @@ module register_file
     assign debug_regs = gp_regs;
     // assign debug_is_writing = write_enable && write_reg != 0;
 `endif
+
+    always_ff @(posedge clk) begin
+        for (int i = 0; i < 32; i++) begin
+            `REGISTER_FILE_DEBUG_PRINT(
+                ("[REG FILE]: @%0d R[%0d] = %h", DEBUGD_tick, i, gp_regs[i]));
+        end
+    end
+
+    word_t DEBUGD_tick;
+    always_ff @(posedge clk) begin
+        DEBUGD_tick <= DEBUGD_tick + 1;
+    end
 
 endmodule

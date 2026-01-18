@@ -85,11 +85,18 @@ test_driver:
 	verilator -sv $(VERILATOR_TRACE_FLAGS) --cc --exe --build -j 0 \
 	--top-module datapath_pipelined \
 	-CFLAGS "-I$(abspath obj_dir) -I$(abspath ../../sim)" \
-	-I$(abspath ${BASE_DIR}/includes) -I$(abspath ${BASE_DIR}/rtl) -I$(abspath ${BASE_DIR}/rtl/datapath) -I$(abspath obj_dir) \
+	-I$(abspath ${BASE_DIR}/includes) -I$(abspath ${BASE_DIR}/rtl) \
+	-I$(abspath ${BASE_DIR}/rtl/datapath) -I$(abspath ${BASE_DIR}/rtl/cache) \
+	-I$(abspath ${BASE_DIR}/rtl/memory) -I$(abspath ${BASE_DIR}/rtl/reorder_buffer) \
+	-I$(abspath ${BASE_DIR}/rtl/store_buffer) -I$(abspath obj_dir) \
 	${BASE_DIR}/includes/pkg_riscv_instructions.sv \
 	${BASE_DIR}/includes/pkg_global_defs.sv \
 	${BASE_DIR}/rtl/*.sv \
 	${BASE_DIR}/rtl/datapath/*.sv \
+	${BASE_DIR}/rtl/cache/*.sv \
+	${BASE_DIR}/rtl/memory/*.sv \
+	${BASE_DIR}/rtl/reorder_buffer/*.sv \
+	${BASE_DIR}/rtl/store_buffer/*.sv \
 	sim_main.cpp
 	@echo "  -> ./sim_main"
 

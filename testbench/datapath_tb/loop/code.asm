@@ -1,7 +1,7 @@
 .global _start
 _start:
     # compute F(N) where N = 11 (stored in s0)
-    li      s0, 11          # s0 = N
+    li      s0, 30          # s0 = N
     beqz    s0, fib_n_zero
     li      a0, 1
     beq     s0, a0, fib_n_one

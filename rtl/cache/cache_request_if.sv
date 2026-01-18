@@ -1,6 +1,5 @@
 interface cache_request_if;
     import pkg_global_defs::*;
-
     bool_t request;
     bool_t ready;
     bool_t failed;

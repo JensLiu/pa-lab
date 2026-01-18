@@ -626,8 +626,13 @@ public:
         sim->rootp->PIPELINE_ACCESS(DEBUG_EX_haltHintCounter);
     metric_counters["Datapath::MEM::haltHintCounter"] = 
         sim->rootp->PIPELINE_ACCESS(DEBUG_MEM_haltHintCounter);
+<<<<<<< HEAD
     // metric_counters["Datapath::WB::haltHintCounter"] = 
     //     sim->rootp->PIPELINE_ACCESS(DEBUG_WB_haltHintCounter);
+=======
+    metric_counters["Datapath::WB::haltHintCounter"] = 
+        sim->rootp->PIPELINE_ACCESS(DEBUG_WB_haltHintCounter);
+>>>>>>> reorder-buffer-development
     {
       const double &n_insts = metric_counters["insts"];
       const double &n_cycles = metric_counters["cycles"];

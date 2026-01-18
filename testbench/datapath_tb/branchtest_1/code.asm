@@ -12,3 +12,4 @@ loop:
 
 loop_exit:
     addi    t0, t0, 1   # x <- x + 1
+    # STOP *(unsigned int *)(0xcafebabe) = 0xbeafbabe

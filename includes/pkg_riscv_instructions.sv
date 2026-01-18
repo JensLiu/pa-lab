@@ -52,7 +52,8 @@ package pkg_riscv_instructions;
 
     typedef enum logic [6:0] {
         FN7_ADD_SRL = 7'b0000000,
-        FN7_SUB_SRA = 7'b0100000
+        FN7_SUB_SRA = 7'b0100000,
+        FN7_MULDIV  = 7'b0000001
     } inst_funct7_alu_t;
 
     typedef struct packed {

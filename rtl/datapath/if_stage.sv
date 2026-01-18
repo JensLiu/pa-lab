@@ -39,21 +39,83 @@ module if_stage
     // IF:      "I am ready"
     // ALU:     "Let's jump"
 
+    typedef enum logic [1:0] {
+        SEQUENTIAL,
+        BRANCH_WAIT
+    } state_t;
+
+    state_t currentState, nextState;
+
+    reg_t jumpPC;
     reg_t IF_pcQ;  // PC register
 
     initial begin
         IF_pcQ = START_ADDRESS;
+        currentState = SEQUENTIAL;
         $display("Start executing at %h", IF_pcQ);
     end
 
+    always_comb begin
+        nextState = currentState;
+        case (currentState)
+            SEQUENTIAL: begin
+                if (ifControl.WB_shouldJump && !cacheRequest.ready) begin
+                    `IF_STAGE_DEBUG_PRINT((
+                        "[IF]: @%0d received jump while requesting memory, transition to BRANCH_WAIT",
+                        DEBUG_tick));
+                    nextState = BRANCH_WAIT;
+                end
+            end
+            BRANCH_WAIT: begin
+                if (cacheRequest.ready) begin
+                    `IF_STAGE_DEBUG_PRINT((
+                        "[IF]: @%0d memory request finished, resuming branch",
+                        DEBUG_tick));
+                    nextState = SEQUENTIAL;
+                end
+            end
+            default: begin
+                assert (FALSE);
+            end
+        endcase
+    end
     always_ff @(posedge clk) begin
-        // TODO exception handling
-        if (ifControl.halt) begin
-            IF_pcQ <= IF_pcQ;
-        end else if (ifControl.branchTaken) begin
-            IF_pcQ <= ifControl.pcBr;
+        currentState <= nextState;
+    end
+
+    always_ff @(posedge clk) begin
+        `IF_STAGE_DEBUG_PRINT((
+            "[IF]: @%0d halt=%0b, cacheReady=%0b, WB_jumpPC=%0h, WB_shouldJump=%0b",
+            DEBUG_tick, ifControl.halt, cacheRequest.ready, ifControl.WB_jumpPC, ifControl.WB_shouldJump));
+        if (currentState == BRANCH_WAIT) begin
+            `IF_STAGE_DEBUG_PRINT(("[IF]: @%0d In BRANCH_WAIT state", DEBUG_tick));
         end else begin
-            IF_pcQ <= IF_pcQ + 4;
+            `IF_STAGE_DEBUG_PRINT(("[IF]: @%0d In SEQUENTIAL state", DEBUG_tick));
+        end
+        if (currentState == SEQUENTIAL && nextState == SEQUENTIAL) begin
+            if (ifControl.WB_shouldJump && cacheRequest.ready) begin
+                IF_pcQ <= ifControl.WB_jumpPC;
+            end else if (ifControl.halt || !cacheRequest.ready) begin
+                `IF_STAGE_DEBUG_PRINT(("[IF]: @%0d Halting, keeping PC at %h", DEBUG_tick, IF_pcQ));
+                IF_pcQ <= IF_pcQ;
+            end else begin
+                `IF_STAGE_DEBUG_PRINT((
+                    "[IF]: @%0d Advancing PC from %h to %h",
+                    DEBUG_tick,
+                    IF_pcQ,
+                    IF_pcQ + 4));
+                IF_pcQ <= IF_pcQ + 4;
+            end
+        end else if (currentState == SEQUENTIAL && nextState == BRANCH_WAIT) begin
+            `IF_STAGE_DEBUG_PRINT((
+                "[IF]: @%0d transition to BRANCH_WAIT, saving jumpPC=%0h",
+                DEBUG_tick, ifControl.WB_jumpPC));
+            jumpPC <= ifControl.WB_jumpPC;
+        end else if (currentState == BRANCH_WAIT && nextState == SEQUENTIAL) begin
+            `IF_STAGE_DEBUG_PRINT((
+                "[IF]: @%0d transition to SEQUENTIAL, restoring jumpPC=%0h",
+                DEBUG_tick, ifControl.WB_jumpPC));
+            IF_pcQ <= jumpPC;
         end
     end
 
@@ -64,6 +126,10 @@ module if_stage
         cacheRequest.isRead = TRUE;
         cacheRequest.request = TRUE;
         cacheRequest.dataLen = MEM_STLEN_WORD;
+        `IF_STAGE_DEBUG_PRINT(
+            ("[IF]: @%0d Requesting instruction at PA %h",
+                                      DEBUG_tick,
+                              cacheRequest.addr));
 `ifdef INSTRUCTION_CACHE_DIVERGENCE_TEST
         DEBUG_instMemRequest.addr = cacheRequest.addr;
         DEBUG_instMemRequest.isRead = cacheRequest.isRead;
@@ -82,6 +148,17 @@ module if_stage
 `endif
 
     always_comb begin
+        if (cacheRequest.ready) begin
+            `IF_STAGE_DEBUG_PRINT(
+                ("[IF]: @%0d Fetched instruction %h from PA %h",
+                                          DEBUG_tick,
+                                  IF_inst,
+                                  IF_pcQ));
+            if (ifControl.WB_shouldJump) begin
+            end
+        end
+        `IF_STAGE_DEBUG_PRINT(("[IF]: @%0d instValid=%0b", DEBUG_tick, cacheRequest.ready));
+        ifIdRegs.instValid = cacheRequest.ready;
         ifIdRegs.pc   = IF_pcQ;
         ifIdRegs.inst = IF_inst;
         assert (cacheRequest.request);  // should always be true
@@ -91,7 +168,7 @@ module if_stage
         // 3. ifControl.halt = (...) || exHints.shouldHalt || ifHints.shouldHalt
         //                   = (...) || (cacheRequest.ready || cacheRequest.ready) <- redundent 
         ifHints.shouldHalt = !cacheRequest.ready;
-        ifHints.cannotJump = !cacheRequest.ready;
+        ifHints.IF_memRequestBusy = !cacheRequest.ready;
 `ifdef DEBUG_INST_INFO_EXTENSION
         ifIdRegs.DEBUG_instID = DEBUG_nextInstID;
 `endif
@@ -106,5 +183,10 @@ module if_stage
         end
     end
 `endif
+
+    logic [31:0] DEBUG_tick;
+    always_ff @(posedge clk) begin
+        DEBUG_tick <= DEBUG_tick + 1;
+    end
 
 endmodule

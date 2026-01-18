@@ -12,14 +12,13 @@ module ex_stage
     output ex_mem_regs_t exMemRegs,
     output ex_hints_t exHints
 );
+    word_t EX_ticket = idExRegs.ticket;
     addr_t EX_pc = idExRegs.pc;
     inst_info_t EX_instInfo;
     assign EX_instInfo = idExRegs.instInfo;
     word_t EX_rs1Data, EX_rs2Data;
     assign EX_rs1Data = idExRegs.rs1Data;
     assign EX_rs2Data = idExRegs.rs2Data;
-
-    bool_t IF_cannotJump = exControl.IF_cannotJump;
 
     word_t EX_aluA;
     word_t EX_aluB;
@@ -66,15 +65,15 @@ module ex_stage
     );
 
     // Branch
-    bool_t EX_branchTaken;
+    bool_t EX_shouldBranch;
     always_comb begin
         case (EX_instInfo.branchType)
-            BR_BEQ: EX_branchTaken = EX_cmpResult.eq;
-            BR_BNE: EX_branchTaken = !EX_cmpResult.eq;
-            BR_BLT, BR_BLTU: EX_branchTaken = EX_cmpResult.lt;
-            BR_BGE, BR_BGEU: EX_branchTaken = EX_cmpResult.eq | EX_cmpResult.gt;
-            BR_UNCOND: EX_branchTaken = TRUE;
-            default: EX_branchTaken = FALSE;
+            BR_BEQ: EX_shouldBranch = EX_cmpResult.eq;
+            BR_BNE: EX_shouldBranch = !EX_cmpResult.eq;
+            BR_BLT, BR_BLTU: EX_shouldBranch = EX_cmpResult.lt;
+            BR_BGE, BR_BGEU: EX_shouldBranch = EX_cmpResult.eq | EX_cmpResult.gt;
+            BR_UNCOND: EX_shouldBranch = TRUE;
+            default: EX_shouldBranch = FALSE;
         endcase
     end
 
@@ -85,32 +84,40 @@ module ex_stage
 
     always_comb begin
         // propagate
+        exMemRegs.ticket = EX_ticket;
         exMemRegs.pc = idExRegs.pc;
         exMemRegs.instInfo = idExRegs.instInfo;
         exMemRegs.aluResult = EX_expectedAluResult;
         exMemRegs.stData = EX_instInfo.isStore ? EX_rs2Data : IMM_32_WHATEVER;
-        // emit signal
-        exHints.EX_branchTaken = EX_branchTaken & !IF_cannotJump;
-        exHints.EX_pcBr = EX_aluResult;
-        exHints.EX_isWriteback = EX_instInfo.isWriteback;
-        exHints.EX_rd = EX_instInfo.rd;
-        exHints.EX_isLoad = EX_instInfo.isLoad;
-        exHints.EX_aluResult = EX_expectedAluResult;
-        exHints.shouldHalt = EX_branchTaken & IF_cannotJump;
-        // if (exHints.shouldHalt) begin
-        //     $display("@%d: EX halting for IF", DEBUG_tick);
-        // end else if (EX_branchTaken) begin
-        //     $display("@%d: ALU ready to jump", DEBUG_tick);
-        // end
 
-        // if (EX_branchTaken) begin
-        //     $display("Branch to %h", EX_pcBr);
-        // end
+        // emit hints
+        exHints.EX_ticket = EX_ticket;
+        exHints.EX_exceptions = '0;  // TODO: add exceptions
+        exHints.EX_isWriteback = EX_instInfo.isWriteback;
+        exHints.EX_isLoad = EX_instInfo.isLoad;
+        exHints.EX_isStore = EX_instInfo.isStore;
+        exHints.EX_isBranch = EX_instInfo.branchType != BR_INVALID;
+        // branch hints
+        exHints.EX_shouldBranch = EX_shouldBranch;
+        exHints.EX_branchPC = EX_aluResult;
+        // writeback hints
+        exHints.EX_rd = EX_instInfo.rd;
+        // arithmetic hints
+        exHints.EX_aluResult = EX_expectedAluResult;
+
     end
 
     logic [31:0] DEBUG_tick;
     always_ff @(posedge clk) begin
         DEBUG_tick <= DEBUG_tick + 1;
+    end
+
+    always_ff @(posedge clk) begin
+        `EX_STAGE_DEBUG_PRINT(("[EX]: @%0d ticket %0d", DEBUG_tick, EX_ticket));
+        `EX_STAGE_DEBUG_PRINT(("[EX]: @%0d Branch Type=%0d, shouldBranch=%0b",
+            DEBUG_tick, EX_instInfo.branchType, EX_shouldBranch));
+        `EX_STAGE_DEBUG_PRINT(("[EX]: @%d ticket %0d, a=%h, b=%h, op=%d, result=%h",
+            DEBUG_tick, EX_ticket, EX_aluA, EX_aluB, EX_aluOp, EX_aluResult));
     end
 
 endmodule
