@@ -7,6 +7,9 @@ module reorder_buffer (
     input logic clk,
     input rob_control_t robControl,
     output rob_hints_t robHints,
+    // this is to make verilator happy, ugly AF!
+    // input rob_control_t robControl1,
+    // output rob_hints_t robHints1,
     rob_ticket_request_if.slave ticketRequest,  // ID stage
     rob_reg_query_if.slave regQuery,  // ID stage: register forwarding (currently no bypass here)
     rob_store_query_if.slave storeQuery  // MEM stage: CAM + forwarding
@@ -16,14 +19,19 @@ module reorder_buffer (
 
     bool_t ROB_reset;
     always_comb begin
+        `ROB_DEBUG_PRINT((
+                "[ROB]: @%0d: ROB Reset check: WB_commitTicket=%0h, WB_commitFinished=%0h, WB_shouldJump=%0h", 
+                DEBUG_tick, robControl.WB_commitTicket,
+                robControl.WB_commitFinished, robControl.WB_shouldJump));
         if (robControl.WB_commitTicket != ROB_TICKET_INVALID &&
             robControl.WB_commitFinished &&
-            robControl.WB_jump) begin
+            robControl.WB_shouldJump) begin
             ROB_reset = TRUE;
-            `ROB_DEBUG_PRINT((
-                "[ROB]: @%0d: ROB Reset Triggered by Commit, WB_commitTicket=%0h, WB_commitFinished=%0h, WB_commitJump=%0h", 
+            `ROB_DEBUG_PRINT(
+                (
+                "[ROB]: @%0d: ROB Reset Triggered by Commit, WB_commitTicket=%0h, WB_commitFinished=%0h, WB_shouldJump=%0h", 
                 DEBUG_tick, robControl.WB_commitTicket,
-                robControl.WB_commitFinished, robControl.WB_jump));
+                robControl.WB_commitFinished, robControl.WB_shouldJump));
         end else begin
             ROB_reset = FALSE;
         end
@@ -107,6 +115,7 @@ module reorder_buffer (
             nextYoungest <= 0;
             isFull <= FALSE;
             for (int i = 0; i < ROB_SIZE; i++) begin
+                `ROB_DEBUG_PRINT(("[ROB]: @%0d: ROB Clearing Entry %0d", DEBUG_tick, i));
                 buffer[i].entryValid <= FALSE;
             end
         end else if (ticketRequest.request) begin
@@ -204,15 +213,24 @@ module reorder_buffer (
 
         // for branch commit
         if (buffer[oldest].isBranch) begin
-            if (!buffer[oldest].branchDecided) begin
+            if (!EX_isBranchBypassing && !buffer[oldest].branchDecided) begin
                 `ROB_DEBUG_PRINT(
                     ("[ROB]: @%0d: ROB Commit Entry %0d Branch Not Decided", DEBUG_tick, oldest));
                 robHints.commitTicket = ROB_TICKET_INVALID;
             end
         end
         robHints.commitIsBranch = buffer[oldest].isBranch;
-        robHints.commitShouldBranch = buffer[oldest].shouldBranch;
-        robHints.commitBranchPCVirtAddr = buffer[oldest].branchPCVirtAddr;
+        // FIXME: bypassing causes verilator to raise false circular logic (coarse grain struture)
+        //        and the scheduling is weird!!!!!
+        // if (EX_isBranchBypassing) begin
+        //     `ROB_DEBUG_PRINT(
+        //         ("[ROB]: @%0d: ROB Commit Entry %0d Branch Bypassing from EX Stage", DEBUG_tick, oldest));
+        //     robHints.commitShouldBranch = robControl.EX_shouldBranch;
+        //     robHints.commitBranchPCVirtAddr = robControl.EX_branchPC;
+        // end else begin
+            robHints.commitShouldBranch = buffer[oldest].shouldBranch;
+            robHints.commitBranchPCVirtAddr = buffer[oldest].branchPCVirtAddr;
+        // end
 
         if (robHints.commitTicket != ROB_TICKET_INVALID) begin
             `ROB_DEBUG_PRINT(
@@ -295,13 +313,20 @@ module reorder_buffer (
                 "[ROB]: @%0d: ROB Ticket %0d Not Dequeued, WB_commitTicket=%0d, WB_commitFinished=%0d",
                 DEBUG_tick, oldest, robControl.WB_commitTicket, robControl.WB_commitFinished));
         end
+        `ROB_DEBUG_PRINT(("[ROB]: @%0d: ========== DEQUEUE LOGIC END ===============", DEBUG_tick));
     end
 
     // this logic is expensive, perhaps seralise update requests (slower performance)?
-    bool_t EX_isRegBypassing, EX_isStoreBypassing, MEM_isLoadBypassing, IMUL_isRegBypassing;
+    bool_t
+        EX_isRegBypassing,
+        EX_isBranchBypassing,
+        EX_isStoreBypassing,
+        MEM_isLoadBypassing,
+        IMUL_isRegBypassing;
     always @(posedge clk) begin : UpdateLogic
         `ROB_DEBUG_PRINT(("[ROB]: @%0d: ========== UPDATE LOGIC RUN ===============", DEBUG_tick));
-        EX_isRegBypassing   = FALSE;
+        EX_isRegBypassing = FALSE;
+        EX_isBranchBypassing = FALSE;
         EX_isStoreBypassing = FALSE;
         MEM_isLoadBypassing = FALSE;
         IMUL_isRegBypassing = FALSE;
@@ -309,8 +334,9 @@ module reorder_buffer (
         // Each stage should have different tickets if they are valid
         if (robControl.EX_ticket != ROB_TICKET_INVALID &&
             robControl.MEM_ticket != ROB_TICKET_INVALID) begin
-            $display("[ROB]: @%0d: EX_ticket=%0d, MEM_ticket=%0d", DEBUG_tick,
-                     robControl.EX_ticket, robControl.MEM_ticket);
+            `ROB_DEBUG_PRINT(
+                ("[ROB]: @%0d: EX_ticket=%0d, MEM_ticket=%0d", DEBUG_tick,
+                     robControl.EX_ticket, robControl.MEM_ticket));
             assert (robControl.EX_ticket != robControl.MEM_ticket);
         end
         if (robControl.EX_ticket != ROB_TICKET_INVALID &&
@@ -366,6 +392,7 @@ module reorder_buffer (
                     buffer[robControl.EX_ticket].shouldBranch <= robControl.EX_shouldBranch;
                     buffer[robControl.EX_ticket].branchDecided <= TRUE;
                     buffer[robControl.EX_ticket].branchPCVirtAddr <= robControl.EX_branchPC;
+                    EX_isBranchBypassing = robControl.EX_ticket == oldest; // only bypass if it is the oldest
                 end
                 if (buffer[robControl.EX_ticket].isWriteback) begin
                     buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
@@ -419,16 +446,18 @@ module reorder_buffer (
         end else begin
             `ROB_DEBUG_PRINT(
                 (
-                "[ROB]: @%0d: MEM Stage Non-Mem Instruction Update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
+                "[ROB]: @%0d: MEM Stage no update for ROB Ticket %0d", DEBUG_tick, robControl.MEM_ticket));
             assert (buffer[robControl.MEM_ticket].isWriteback ||
                     buffer[robControl.MEM_ticket].isBranch ||
+                    buffer[robControl.MEM_ticket].isStore ||
                     buffer[robControl.MEM_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
         end
 
-        $display(
-            "[ROB] DEBUG: commitStComplete=%0d, robControl.MEM_ticket=%0d robControl.MEM_commitTicket=%0d, robControl.MEM_commitStoreComplete=%0d",
-            commitStComplete, robControl.MEM_ticket, robControl.MEM_commitTicket,
-            robControl.MEM_commitStoreComplete);
+        `ROB_DEBUG_PRINT(
+            (
+            "[ROB] @%0d: commitStComplete=%0d, robControl.MEM_ticket=%0d robControl.MEM_commitTicket=%0d, robControl.MEM_commitStoreComplete=%0d",
+            DEBUG_tick, commitStComplete, robControl.MEM_ticket,
+            robControl.MEM_commitTicket, robControl.MEM_commitStoreComplete));
 
         // IMUL update
         if (robControl.IMUL_ticket != ROB_TICKET_INVALID) begin
@@ -689,18 +718,9 @@ module reorder_buffer (
                     i,
                     buffer[i].pc,
                     buffer[i].DEBUG_instInfo.DEBUG_instBinary,
-                    buffer[i].stVirtAddrValid,
-                    buffer[i].stVirtAddr.va,
-                    buffer[i].stData,
-                    buffer[i].stLen,
-                    buffer[i].isWriteback,
                     buffer[i].rd,
                     buffer[i].rdDataValid,
                     buffer[i].rdData,
-                    buffer[i].isBranch,
-                    buffer[i].shouldBranch,
-                    buffer[i].branchDecided,
-                    buffer[i].branchPCVirtAddr,
                     buffer[i].exceptions
                 ));
                 end

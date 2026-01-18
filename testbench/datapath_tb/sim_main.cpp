@@ -145,6 +145,11 @@ static bool run_testcase(const fs::path &testdir) {
     sim->clk = 0;
     sim->eval();
     tfp->dump(cycle * 10 + 5);
+
+    if (Verilated::gotFinish()) {
+      std::cout << "Simulation finished at cycle " << cycle << std::endl;
+      break;
+    }
   }
 
   tfp->close();

@@ -1,5 +1,5 @@
 interface rob_reg_query_if;  // for bypasses (ID)
-    // word_t ticket;  // should only query from [oldest, ticket]
+    // word_t ticket;  // should only query from [oldest, ticket)
     reg_nr_t rs1;
     bool_t   rs1HasEntry;
     word_t   rs1Data;

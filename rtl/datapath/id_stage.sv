@@ -52,10 +52,11 @@ module id_stage
     assign dependencyShouldHalt = rs1ShouldHalt || rs2ShouldHalt;
     word_t ID_rs1Data, ID_rs2Data;
     always_comb begin : BypassQueryLogic
+        // regQuery.ticket = ticket;
         regQuery.rs1 = instInfo.rs1;
         regQuery.rs2 = instInfo.rs2;
-        rs1ShouldHalt = regQuery.rs1HasEntry && !regQuery.rs1DataValid;
-        rs2ShouldHalt = regQuery.rs2HasEntry && !regQuery.rs2DataValid;
+        rs1ShouldHalt = instInfo.rs1 != 0 && regQuery.rs1HasEntry && !regQuery.rs1DataValid;
+        rs2ShouldHalt = instInfo.rs2 != 0 && regQuery.rs2HasEntry && !regQuery.rs2DataValid;
         ID_rs1Data = regQuery.rs1HasEntry ? regQuery.rs1Data : ID_oldRs1Data;
         ID_rs2Data = regQuery.rs2HasEntry ? regQuery.rs2Data : ID_oldRs2Data;
         `ID_STAGE_DEBUG_PRINT(
@@ -99,14 +100,23 @@ module id_stage
 
     word_t ticket;
     bool_t _ticketShouldRequest;
-    assign _ticketShouldRequest = !idControl.halt && IF_instValid && !dependencyShouldHalt;
+    // if WB wants to jump, don't request new tickets, otherwise after flushing the ROB, an old entry will be added
+    assign _ticketShouldRequest = !idControl.WB_shouldJump && !idControl.halt && IF_instValid &&
+                                  !dependencyShouldHalt;
     bool_t ticketShouldHalt;
     always_comb begin : RobTicketRequestLogic
-        `ID_STAGE_DEBUG_PRINT(
-            ("[ID]: @%0d Preparing ROB ticket request: IF_instValid=%0b, dependencyShouldHalt=%0b",
-                          DEBUG_tick,
-                          IF_instValid,
-                          dependencyShouldHalt));
+        `ID_STAGE_DEBUG_PRINT((
+            "[ID]: @%0d Preparing ROB ticket request: PC=%h, inst=%h",
+            DEBUG_tick,
+            ifIdRegs.pc,
+            instInfo.DEBUG_instBinary));
+        `ID_STAGE_DEBUG_PRINT((
+            "[ID]: @%0d Preparing ROB ticket request: IF_instValid=%0b, dependencyShouldHalt=%0b, WB_shouldJump=%0b, ID_halt=%0b",
+            DEBUG_tick,
+            IF_instValid,
+            dependencyShouldHalt,
+            idControl.WB_shouldJump,
+            idControl.halt));
         ticketRequest.request = _ticketShouldRequest;
         ticketRequest.isStore = instInfo.isStore;
         ticketRequest.isWriteback = instInfo.isWriteback;
@@ -130,7 +140,7 @@ module id_stage
 
     // Only halt if the fetch instruction is valid and there is a dependency stall
     bool_t ID_shouldHalt;
-    assign ID_shouldHalt = IF_instValid && (dependencyShouldHalt || ticketShouldHalt);
+    assign ID_shouldHalt = !idControl.WB_shouldJump && IF_instValid && (dependencyShouldHalt || ticketShouldHalt);
     always_comb begin
         // default values
         idImulRegs.ticket = ROB_TICKET_INVALID;

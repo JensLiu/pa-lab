@@ -46,6 +46,9 @@ int main(int argc, char **argv) {
       }
 
       cycle += 1;
+      if (cycle % 10000 == 0) {
+        std::cout << cycle << "cycles" << std::endl;
+      }
     }
   } catch (const std::exception &e) {
     std::cerr << "Simulation error: " << e.what() << std::endl;

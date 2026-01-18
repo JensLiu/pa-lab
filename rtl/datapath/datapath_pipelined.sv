@@ -315,8 +315,8 @@ module datapath_pipelined
         // IF Control (IF is stateful, needs halting)
         ifControl.halt = idHints.shouldHalt || exHints.shouldHalt ||
                         memHints.shouldHalt || wbHints.shouldHalt;
-        ifControl.branchTaken = wbHints.WB_jump;
-        ifControl.pcBr = wbHints.WB_jumpPC;
+        ifControl.WB_shouldJump = wbHints.WB_shouldJump;
+        ifControl.WB_jumpPC = wbHints.WB_jumpPC;
 
         // ID Control (ID is stateful because of ROB ticket, needs halting)
         idControl.halt = exHints.shouldHalt || memHints.shouldHalt || wbHints.shouldHalt;
@@ -324,6 +324,7 @@ module datapath_pipelined
         idControl.WB_rd = wbHints.WB_rd;
         idControl.WB_rdData = wbHints.WB_rdData;
         idControl.WB_hasException = wbHints.WB_hasException;
+        idControl.WB_shouldJump = wbHints.WB_shouldJump;
 
         // EX Control
         // EX is not stateful
@@ -347,10 +348,11 @@ module datapath_pipelined
         wbControl.ROB_commitIsBranch = robHints.commitIsBranch;
         wbControl.ROB_commitShouldBranch = robHints.commitShouldBranch;
         wbControl.ROB_commitBranchPCVirtAddr = robHints.commitBranchPCVirtAddr;
-        wbControl.IF_cannotJump = ifHints.cannotJump;
+        wbControl.IF_memRequestBusy = ifHints.IF_memRequestBusy;
+        wbControl.MEM_memRequestBusy = memHints.MEM_memRequestBusy;
 
         // ROB Control
-        robControl.WB_jump = wbHints.WB_jump;
+        robControl.WB_shouldJump = wbHints.WB_shouldJump;
         robControl.EX_ticket = exHints.EX_ticket;
         robControl.EX_isLoad = exHints.EX_isLoad;
         robControl.EX_isStore = exHints.EX_isStore;
@@ -411,7 +413,7 @@ module datapath_pipelined
         end
 
         // semantics of jump: kill everything before
-        if (wbHints.WB_jump) begin
+        if (wbHints.WB_shouldJump) begin
             // kill all previous instructiosn
             IF_injectNop  = TRUE;
             ID_injectNop  = TRUE;
@@ -426,24 +428,38 @@ module datapath_pipelined
         DEBUG_tick <= DEBUG_tick + 1;
         if (ifHints.shouldHalt) begin
             `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage hint: Should Halt", DEBUG_tick));
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage hint: No need to Halt", DEBUG_tick));
         end
         if (idHints.shouldHalt) begin
             `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage hint: Should Halt", DEBUG_tick));
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage hint: No need to Halt", DEBUG_tick));
         end
         if (exHints.shouldHalt) begin
             `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d EX stage hint: Should Halt", DEBUG_tick));
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d EX stage hint: No need to Halt", DEBUG_tick));
         end
         if (memHints.shouldHalt) begin
             `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d MEM stage hint: Should Halt", DEBUG_tick));
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d MEM stage hint: No need to Halt", DEBUG_tick));
         end
         if (wbHints.shouldHalt) begin
             `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d WB stage hint: Should Halt", DEBUG_tick));
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d WB stage hint: No need to Halt", DEBUG_tick));
         end
         if (ifControl.halt) begin
-            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage control: Halt", DEBUG_tick));
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage !control!: Halt!", DEBUG_tick));
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d IF stage !control!: Go", DEBUG_tick));
         end
         if (idControl.halt) begin
-            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage control: Halt", DEBUG_tick));
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage !control!: Halt!", DEBUG_tick));
+        end else begin
+            `DATAPATH_DEBUG_PRINT(("[Datapath]: @%0d ID stage !control!: Go!", DEBUG_tick));
         end
     end
 

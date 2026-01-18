@@ -106,6 +106,9 @@ module mem_stage
         memHints.MEM_pipeIsLoad = FALSE;
         memHints.MEM_pipeLoadData = '0;
         memHints.MEM_pipeLoadDataReady = FALSE;
+        // NOTE: We cannot mutate values while we are busy, otherwise
+        //       we will get confused of the memory result
+        memHints.MEM_memRequestBusy = cacheRequest.request && !cacheRequest.ready;
         // commit hints
         memHints.MEM_commitTicket = ROB_TICKET_INVALID;
         memHints.MEM_commitStoreComplete = FALSE;
@@ -173,15 +176,6 @@ module mem_stage
                 memHints.MEM_pipeLoadDataReady = cacheRequest.ready;
             end
         end
-
-`ifdef DATA_CACHE_DIVERGENCE_TEST
-        // request the data memory for divergence test
-        DEBUG_dataMemRequest.request = cacheRequest.request;
-        DEBUG_dataMemRequest.isRead = cacheRequest.isRead;
-        DEBUG_dataMemRequest.addr = cacheRequest.addr;
-        DEBUG_dataMemRequest.dataToCache = cacheRequest.dataToCache;
-        DEBUG_dataMemRequest.dataLen = cacheRequest.dataLen;
-`endif
     end
 
     always_comb begin : MemoryInstructionConsistencyCheck

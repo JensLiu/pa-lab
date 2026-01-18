@@ -1,5 +1,5 @@
 interface rob_store_query_if;  // LOAD for bypasses (MEM)
-    word_t ticket;  // should only query from [oldest, ticket]
+    word_t ticket;  // should only query from [oldest, ticket)
     virt_addr_unique_t virtAddr;
     bool_t hasEntry;
     word_t data;

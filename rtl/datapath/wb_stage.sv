@@ -12,11 +12,14 @@ module wb_stage
     // we just simply forwarding the ROB commit info to WB hints
     // TODO: check exceptions and handle jump
 
+    bool_t hasStageMemRequestBusy;
+    assign hasStageMemRequestBusy = wbControl.IF_memRequestBusy || wbControl.MEM_memRequestBusy;
+
     always_comb begin
         wbHints.WB_commitTicket = wbControl.ROB_commitTicket;
         wbHints.WB_commitFinished = TRUE;
         wbHints.shouldHalt = FALSE;  // when halting, the WB stage DOES NOT accept commits
-        wbHints.WB_jump = FALSE;
+        wbHints.WB_shouldJump = FALSE;
         wbHints.WB_jumpPC = IMM_32_WHATEVER;
         wbHints.WB_isWriteback = FALSE;
         wbHints.WB_hasException = FALSE;
@@ -32,26 +35,36 @@ module wb_stage
                                       wbControl.ROB_commitException,
                                       wbControl.ROB_commitTicket));
                 // handle excaption
-                wbHints.WB_jump = TRUE;
+                wbHints.WB_shouldJump = TRUE;
                 wbHints.WB_jumpPC = 32'h0000_ffff;
-                wbHints.shouldHalt = wbControl.IF_cannotJump;
+                wbHints.shouldHalt = hasStageMemRequestBusy;
                 wbHints.WB_hasException = TRUE;
                 $display("Excaption handler is not implemented");
                 assert (FALSE);
             end else begin  // no exceptions, normal commit
                 if (wbControl.ROB_commitIsBranch) begin
                     if (wbControl.ROB_commitShouldBranch) begin
-                        wbHints.WB_jump = TRUE;
+                        wbHints.WB_shouldJump = TRUE;
                         wbHints.WB_jumpPC = wbControl.ROB_commitBranchPCVirtAddr;
                         // NOTE: hold back when IF cannot jump
-                        wbHints.shouldHalt = wbControl.IF_cannotJump;
-                        if (wbControl.IF_cannotJump) begin
+                        wbHints.shouldHalt = hasStageMemRequestBusy;
+                        if (hasStageMemRequestBusy) begin
                             wbHints.WB_commitFinished = FALSE;
                             `WB_STAGE_DEBUG_PRINT(
-                                ("[WB]: @%0d Branch to %h from ROB ticket %0d but IF cannot jump, holding back",
+                                ("[WB]: @%0d Branch to %h from ROB ticket %0d but cannot jump, holding back",
                                               DEBUGD_tick,
                                               wbControl.ROB_commitBranchPCVirtAddr,
                                               wbControl.ROB_commitTicket));
+                            if (wbControl.MEM_memRequestBusy) begin
+                                // `WB_STAGE_DEBUG_PRINT(
+                                //     ("[WB]: @%0d Additionally, MEM stage is busy", DEBUGD_tick));
+                                $display("[WB]: @%0d Additionally, MEM stage is busy", DEBUGD_tick);
+                            end
+                            if (wbControl.IF_memRequestBusy) begin
+                                // `WB_STAGE_DEBUG_PRINT(
+                                //     ("[WB]: @%0d Additionally, IF stage is busy", DEBUGD_tick));
+                                // $display("[WB]: @%0d Additionally, IF stage is busy", DEBUGD_tick);
+                            end
                         end else begin
                             `WB_STAGE_DEBUG_PRINT(
                                 ("[WB]: @%0d Branch taken to %h from ROB ticket %0d",

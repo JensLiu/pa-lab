@@ -134,8 +134,8 @@ package pkg_global_defs;
 
     typedef struct {
         bool_t halt;
-        bool_t branchTaken;
-        addr_t pcBr;
+        bool_t WB_shouldJump;
+        addr_t WB_jumpPC;
         exception_t exception;
     } if_control_t;
 
@@ -151,7 +151,7 @@ package pkg_global_defs;
 
     typedef struct {
         bool_t shouldHalt;
-        bool_t cannotJump;
+        bool_t IF_memRequestBusy;
     } if_hints_t;
 
     typedef struct {
@@ -160,6 +160,7 @@ package pkg_global_defs;
         reg_nr_t WB_rd;
         word_t   WB_rdData;
         bool_t   WB_hasException;
+        bool_t   WB_shouldJump;
     } id_control_t;
 
     typedef struct {
@@ -229,6 +230,7 @@ package pkg_global_defs;
     typedef struct {
         word_t ticket;
         bool_t shouldHalt;
+        bool_t MEM_memRequestBusy;
         exception_t MEM_exceptions;
         // for load instructions
         bool_t MEM_pipeIsLoad;
@@ -251,7 +253,7 @@ package pkg_global_defs;
         bool_t shouldHalt;
         word_t WB_commitTicket;
         bool_t WB_commitFinished;
-        bool_t WB_jump;
+        bool_t WB_shouldJump;
         addr_t WB_jumpPC;
         bool_t WB_isWriteback;
         reg_nr_t WB_rd;
@@ -261,7 +263,9 @@ package pkg_global_defs;
 
     typedef struct {
         // hints from IF stage
-        bool_t IF_cannotJump;
+        bool_t IF_memRequestBusy;
+        // hints from MEM stage
+        bool_t MEM_memRequestBusy;
         // hints from ROB
         word_t ROB_commitTicket;
         exception_t ROB_commitException;
@@ -293,7 +297,7 @@ package pkg_global_defs;
         word_t   WB_rdData;
     } bypass_network_basic_info_t;
 
-    typedef struct {
+    typedef struct packed {
         bool_t isEmpty;
         bool_t isFull;
         // about the oldest entry
@@ -350,7 +354,7 @@ package pkg_global_defs;
         // should not dequeue when the WB stage stops accepting/reaping commits
         word_t WB_commitTicket;
         bool_t WB_commitFinished;
-        bool_t WB_jump;
+        bool_t WB_shouldJump;
         // MEM stage
         // should not dequeue when MEM stage is stops accepting/reaping commits
         // bool_t MEM_acceptCommit;
