@@ -342,6 +342,7 @@ module datapath_pipelined
         memControl.ROB_commitStVirtAddr = robHints.commitStVirtAddr;
         memControl.ROB_commitStData = robHints.commitStData;
         memControl.ROB_commitStLen = robHints.commitStLen;
+        memControl.ROB_commitStoreComplete = robHints.commitStComplete;
 
         // WB Control
         // WB is stateful
@@ -374,6 +375,7 @@ module datapath_pipelined
         robControl.MEM_loadDataReady = memHints.MEM_pipeLoadDataReady;
         robControl.MEM_commitTicket = memHints.MEM_commitTicket;
         robControl.MEM_commitStoreComplete = memHints.MEM_commitStoreComplete;
+        robControl.MEM_isCommitting = memHints.MEM_isCommitting;
         robControl.IMUL_ticket = imulHints.IMUL_resultTicket;
         robControl.IMUL_result = imulHints.IMUL_result;
         robControl.WB_commitTicket = wbHints.WB_commitTicket;

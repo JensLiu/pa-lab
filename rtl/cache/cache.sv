@@ -5,7 +5,7 @@ import pkg_global_defs::*;
 import pkg_riscv_instructions::*;
 
 
-module cache (
+module cache #(parameter NAME = "CACHE") (
     input logic clk,
     cache_request_if.slave cpuRequest,
     mem_request_if.master memRequest,
@@ -58,8 +58,9 @@ module cache (
     } cache_state_t;
 
     cache_state_t currentState;
+    /* verilator lint_off UNOPTFLAT */
     cache_state_t nextState;
-
+    /* verilator lint_on UNOPTFLAT */
 
     cache_t cacheMem;
     cache_lru_policy_t policyMetadata[8];  // 8 sets
@@ -124,10 +125,10 @@ module cache (
             end
         end
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d:targetAddr: %h, targetSetIdx: %0d, targetWayIdx: %0d, isHit: %b, isSetFull: %b", DEBUG_tick,
+            ("[%s]: @%0d:targetAddr: %h, targetSetIdx: %0d, targetWayIdx: %0d, isHit: %b, isSetFull: %b", NAME, DEBUG_tick,
                  targetAddr, targetAddr.setIdx, targetWayIdx, isHit, isSetFull));
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d:victimAddrAligned: %h, victimLine: %h, victimAddrAligned.setIdx: %0d, isVictimDirty: %b", DEBUG_tick, victimAddrAligned,
+            ("[%s]: @%0d:victimAddrAligned: %h, victimLine: %h, victimAddrAligned.setIdx: %0d, isVictimDirty: %b", NAME, DEBUG_tick, victimAddrAligned,
                  victimLine, victimAddrAligned.setIdx, isVictimDirty));
     end
 
@@ -160,11 +161,11 @@ module cache (
     always_comb begin : DebugPrint
         for (int i = 0; i < 8; i++) begin
             `CACHE_DEBUG_PRINT(
-                ("[CACHE]: @%0d:Set %0d: Way 0 - valid: %b, dirty: %b, tag: %h, data: %h", DEBUG_tick,
+                ("[%s]: @%0d:Set %0d: Way 0 - valid: %b, dirty: %b, tag: %h, data: %h", NAME, DEBUG_tick,
                      i, cacheMem[i][0].valid, cacheMem[i][0].dirty, cacheMem[i][0].tag,
                      cacheMem[i][0].data));
             `CACHE_DEBUG_PRINT(
-                ("[CACHE]: @%0d:Set %0d: Way 1 - valid: %b, dirty: %b, tag: %h, data: %h", DEBUG_tick,
+                ("[%s]: @%0d:Set %0d: Way 1 - valid: %b, dirty: %b, tag: %h, data: %h", NAME, DEBUG_tick,
                      i, cacheMem[i][1].valid, cacheMem[i][1].dirty, cacheMem[i][1].tag,
                      cacheMem[i][1].data));
         end
@@ -199,18 +200,18 @@ module cache (
 
     always_comb begin : NextStateLogic
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d:=============== NextStateLogic run ===============", DEBUG_tick));
+            ("[%s]: @%0d:=============== NextStateLogic run ===============", NAME, DEBUG_tick));
         nextState = currentState;
         case (currentState)
             IDLE: begin
                 if (cpuRequest.request && !isHit) begin
                     if (isSetFull && isVictimDirty) begin
                         `CACHE_DEBUG_PRINT(
-                            ("[CACHE]: @%0d:decided: IDLE -> EVICT_WAIT", DEBUG_tick));
+                            ("[%s]: @%0d:decided: IDLE -> EVICT_WAIT", NAME, DEBUG_tick));
                         nextState = EVICT_WAIT;
                     end else begin
                         `CACHE_DEBUG_PRINT(
-                            ("[CACHE]: @%0d:decided: IDLE -> REFILL_WAIT", DEBUG_tick));
+                            ("[%s]: @%0d:decided: IDLE -> REFILL_WAIT", NAME, DEBUG_tick));
                         nextState = REFILL_WAIT;
                     end
                 end
@@ -220,11 +221,11 @@ module cache (
                 `ASSERT(isSetFull && isVictimDirty);
                 if (memRequest.ready) begin
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:decided: EVICT_WAIT -> REFILL_WAIT", DEBUG_tick));
+                        ("[%s]: @%0d:decided: EVICT_WAIT -> REFILL_WAIT", NAME, DEBUG_tick));
                     nextState = REFILL_WAIT;
                 end else begin
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:decided: EVICT_WAIT -> EVICT_WAIT", DEBUG_tick));
+                        ("[%s]: @%0d:decided: EVICT_WAIT -> EVICT_WAIT", NAME, DEBUG_tick));
                     `ASSERT(nextState == EVICT_WAIT);
                     `ASSERT(memRequest.request);
                     `ASSERT(!memRequest.isRead);
@@ -248,16 +249,16 @@ module cache (
                 end else begin
                     `ASSERT(nextState == REFILL_WAIT);
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:decided: REFILL_WAIT -> REFILL_WAIT", DEBUG_tick));
-                    `CACHE_DEBUG_PRINT(("[CACHE]: @%0d:checking assert", DEBUG_tick));
+                        ("[%s]: @%0d:decided: REFILL_WAIT -> REFILL_WAIT", NAME, DEBUG_tick));
+                    `CACHE_DEBUG_PRINT(("[%s]: @%0d:checking assert", NAME, DEBUG_tick));
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:checking assert: memRequest.request = %b", DEBUG_tick,
+                        ("[%s]: @%0d:checking assert: memRequest.request = %b", NAME, DEBUG_tick,
                              memRequest.request));
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:checking assert: memRequest.isRead = %b", DEBUG_tick,
+                        ("[%s]: @%0d:checking assert: memRequest.isRead = %b", NAME, DEBUG_tick,
                              memRequest.isRead));
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:checking assert: memRequest.addr = %h", DEBUG_tick,
+                        ("[%s]: @%0d:checking assert: memRequest.addr = %h", NAME, DEBUG_tick,
                              memRequest.addr));
                     `ASSERT(memRequest.request);
                     `ASSERT(memRequest.isRead);
@@ -267,7 +268,7 @@ module cache (
             WRITEBACK: begin
                 // now, since the cacheline is refilled, it is a hit
                 `ASSERT(!cpuRequest.isRead && isHit);
-                `CACHE_DEBUG_PRINT(("[CACHE]: @%0d:decided: WRITEBACK -> IDLE", DEBUG_tick));
+                `CACHE_DEBUG_PRINT(("[%s]: @%0d:decided: WRITEBACK -> IDLE", NAME, DEBUG_tick));
                 nextState = IDLE;
             end
             default: begin
@@ -275,7 +276,7 @@ module cache (
             end
         endcase
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d:currentState = %d, nextState = %d", DEBUG_tick, currentState, nextState));
+            ("[%s]: @%0d:currentState = %d, nextState = %d", NAME, DEBUG_tick, currentState, nextState));
         // if (currentState != IDLE) begin
         //     `ASSERT(cpuRequest.request);
         //     `ASSERT(!cpuRequest.invalidateAll);
@@ -292,7 +293,7 @@ module cache (
     // 4. NextStateLogic: (~memRequest.ready): decide REFILL_WAIT -> REFILL_WAIT
     always_comb begin : MemoryRequestLogic
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d:=============== MemoryRequestLogic run ===============", DEBUG_tick));
+            ("[%s]: @%0d:=============== MemoryRequestLogic run ===============", NAME, DEBUG_tick));
         memRequest.request = FALSE;
         memRequest.isRead = FALSE;
         memRequest.addr = 'hdeadbeef;
@@ -302,9 +303,9 @@ module cache (
         if (nextState == EVICT_WAIT) begin
             `ASSERT(currentState == IDLE || currentState == EVICT_WAIT);
             if (currentState == IDLE) begin
-                `CACHE_DEBUG_PRINT(("[CACHE]: @%0d:IDLE -> EVICT_WAIT edge", DEBUG_tick));
+                `CACHE_DEBUG_PRINT(("[%s]: @%0d:IDLE -> EVICT_WAIT edge", NAME, DEBUG_tick));
             end else begin
-                `CACHE_DEBUG_PRINT(("[CACHE]: @%0d:EVICT_WAIT -> EVICT_WAIT edge", DEBUG_tick));
+                `CACHE_DEBUG_PRINT(("[%s]: @%0d:EVICT_WAIT -> EVICT_WAIT edge", NAME, DEBUG_tick));
             end
             memRequest.request = TRUE;
             memRequest.isRead = FALSE;
@@ -312,32 +313,32 @@ module cache (
             memRequest.addr = victimAddrAligned;  // upper 25 bits
             memRequest.dataToMem = victimLine;
             `CACHE_DEBUG_PRINT(
-                ("[CACHE]: @%0d:memRequest.request = %d, memRequest.isRead = %d, memRequest.addr = %h, memRequest.dataToMem = %h",
-                DEBUG_tick, memRequest.request, memRequest.isRead, memRequest.addr,
+                ("[%s]: @%0d:memRequest.request = %d, memRequest.isRead = %d, memRequest.addr = %h, memRequest.dataToMem = %h",
+                NAME, DEBUG_tick, memRequest.request, memRequest.isRead, memRequest.addr,
                 memRequest.dataToMem));
         end else if (nextState == REFILL_WAIT) begin
             `ASSERT(
                 currentState == EVICT_WAIT || currentState == REFILL_WAIT || currentState == IDLE);
 
             if (currentState == EVICT_WAIT) begin
-                `CACHE_DEBUG_PRINT(("[CACHE]: @%0d:EVICT_WAIT -> REFILL_WAIT edge", DEBUG_tick));
+                `CACHE_DEBUG_PRINT(("[%s]: @%0d:EVICT_WAIT -> REFILL_WAIT edge", NAME, DEBUG_tick));
             end else if (currentState == REFILL_WAIT) begin
-                `CACHE_DEBUG_PRINT(("[CACHE]: @%0d:REFILL_WAIT -> REFILL_WAIT edge", DEBUG_tick));
+                `CACHE_DEBUG_PRINT(("[%s]: @%0d:REFILL_WAIT -> REFILL_WAIT edge", NAME, DEBUG_tick));
             end else begin
-                `CACHE_DEBUG_PRINT(("[CACHE]: @%0d:IDLE -> REFILL_WAIT edge", DEBUG_tick));
+                `CACHE_DEBUG_PRINT(("[%s]: @%0d:IDLE -> REFILL_WAIT edge", NAME, DEBUG_tick));
             end
 
             memRequest.request = TRUE;
             memRequest.isRead = TRUE;
             memRequest.addr = targetAddr & ADDRESS_MASK;
             `CACHE_DEBUG_PRINT(
-                ("[CACHE]: @%0d:memRequest.request = %d, memRequest.isRead = %d, memRequest.addr = %h, memRequest.dataToMem = %h",
-                DEBUG_tick, memRequest.request, memRequest.isRead, memRequest.addr,
+                ("[%s]: @%0d:memRequest.request = %d, memRequest.isRead = %d, memRequest.addr = %h, memRequest.dataToMem = %h",
+                NAME, DEBUG_tick, memRequest.request, memRequest.isRead, memRequest.addr,
                 memRequest.dataToMem));
         end else begin
             // `CACHE_DEBUG_PRINT(("@%d dropping memory request", DEBUG_tick));
             `CACHE_DEBUG_PRINT(
-                ("[CACHE]: @%0d:dropping memory request: currrentState=%d, nextState=%d", DEBUG_tick,
+                ("[%s]: @%0d:dropping memory request: currrentState=%d, nextState=%d", NAME, DEBUG_tick,
                      currentState, nextState));
         end
     end
@@ -345,33 +346,33 @@ module cache (
     always_comb begin : DEBUG_PrintRequests
         `CACHE_DEBUG_PRINT(
             (
-            "[CACHE]: @%0d:CpuRequest - req: %b, ready: %b, isRead: %b, addr: %h, dataToCache: %h, dataFromCache: %h",
-            DEBUG_tick, cpuRequest.request, cpuRequest.ready, cpuRequest.isRead, cpuRequest.addr,
+            "[%s]: @%0d:CpuRequest - req: %b, ready: %b, isRead: %b, addr: %h, dataToCache: %h, dataFromCache: %h",
+            NAME, DEBUG_tick, cpuRequest.request, cpuRequest.ready, cpuRequest.isRead, cpuRequest.addr,
             cpuRequest.dataToCache, cpuRequest.dataFromCache));
         `CACHE_DEBUG_PRINT(
             (
-            "[CACHE]: @%0d:MemRequest - req: %b, ready: %b, isRead: %b, addr: %h, dataToMem: %h, dataFromMem: %h",
-            DEBUG_tick, memRequest.request, memRequest.ready, memRequest.isRead, memRequest.addr,
+            "[%s]: @%0d:MemRequest - req: %b, ready: %b, isRead: %b, addr: %h, dataToMem: %h, dataFromMem: %h",
+            NAME, DEBUG_tick, memRequest.request, memRequest.ready, memRequest.isRead, memRequest.addr,
             memRequest.dataToMem, memRequest.dataFromMem));
     end
 
     always_ff @(posedge clk) begin : CacheMemoryUpdate
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d MEMORY UPDATE: request=%d, currentState=%d, nextState=%d, isHit=%d",
-                 DEBUG_tick, cpuRequest.request, currentState, nextState, isHit));
+            ("[%s]: @%0d MEMORY UPDATE: request=%d, currentState=%d, nextState=%d, isHit=%d",
+                 NAME, DEBUG_tick, cpuRequest.request, currentState, nextState, isHit));
 
         if (cpuRequest.request) begin
             `CACHE_DEBUG_PRINT(
                 (
-                "[CACHE]: @%0d MEMORY UPDATE: shouldWriteback=%d", DEBUG_tick,
+                "[%s]: @%0d MEMORY UPDATE: shouldWriteback=%d", NAME, DEBUG_tick,
                 (currentState == IDLE || currentState == WRITEBACK) && nextState == IDLE && !cpuRequest.isRead));
             `CACHE_DEBUG_PRINT(
                 (
-                "[CACHE]: @%0d MEMORY UPDATE: (currentState == IDLE || currentState == WRITEBACK)=",
-                DEBUG_tick, (currentState == IDLE || currentState == WRITEBACK)));
+                "[%s]: @%0d MEMORY UPDATE: (currentState == IDLE || currentState == WRITEBACK)=",
+                NAME, DEBUG_tick, (currentState == IDLE || currentState == WRITEBACK)));
             `CACHE_DEBUG_PRINT(
-                ("[CACHE]: @%0d MEMORY UPDATE: !cpuRequest.isRead=%d, nextState == IDLE=%d",
-                     DEBUG_tick, !cpuRequest.isRead, nextState == IDLE));
+                ("[%s]: @%0d MEMORY UPDATE: !cpuRequest.isRead=%d, nextState == IDLE=%d",
+                     NAME, DEBUG_tick, !cpuRequest.isRead, nextState == IDLE));
             if (currentState == REFILL_WAIT && nextState != REFILL_WAIT) begin
                 `ASSERT(!isHit);
                 `ASSERT(nextState == IDLE || nextState == WRITEBACK);
@@ -384,7 +385,7 @@ module cache (
                 // NOTE: the written memory is only visible in the next cycle
                 //       this is fine since we did a bypass in the `RequestResponse` block
                 `CACHE_DEBUG_PRINT(
-                    ("[CACHE]: @%0d:Writing data to cache: 0x%h at offset %0d", DEBUG_tick,
+                    ("[%s]: @%0d:Writing data to cache: 0x%h at offset %0d", NAME, DEBUG_tick,
                                    cpuRequest.dataToCache, targetAddr.offset));
                 cacheMem[targetAddr.setIdx][targetWayIdx].dirty <= 1'b1;
                 case (cpuRequest.dataLen)
@@ -398,7 +399,7 @@ module cache (
                     cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32] <= cpuRequest.dataToCache;
                     default: begin
                         `CACHE_DEBUG_PRINT(
-                            ("[CACHE]: @%0d:Invalid data length for store: %0d", DEBUG_tick,
+                            ("[%s]: @%0d:Invalid data length for store: %0d", NAME, DEBUG_tick,
                                              cpuRequest.dataLen));
                         `ASSERT(FALSE);  // TODO: exception
                     end
@@ -413,20 +414,20 @@ module cache (
     logic [31:0] dataFromCacheResponseFullWord;
     always_comb begin : RequestResponse
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d: =============== RequestResponse run ===============", DEBUG_tick));
+            ("[%s]: @%0d: =============== RequestResponse run ===============", NAME, DEBUG_tick));
         cpuRequest.failed = FALSE;  // never fails
         cpuRequest.ready = FALSE;
         cpuRequest.dataFromCache = '0;
         `CACHE_DEBUG_PRINT(
-            ("[CACHE]: @%0d:cpuRequest.request= %d, cpuRequest.isRead= %d, currentState= %d, nextState= %d, isHit= %d, cpuRequest.dataLen= %d",
-            DEBUG_tick, cpuRequest.request, cpuRequest.isRead, currentState, nextState, isHit, cpuRequest.dataLen));
+            ("[%s]: @%0d:cpuRequest.request= %d, cpuRequest.isRead= %d, currentState= %d, nextState= %d, isHit= %d, cpuRequest.dataLen= %d",
+            NAME, DEBUG_tick, cpuRequest.request, cpuRequest.isRead, currentState, nextState, isHit, cpuRequest.dataLen));
         if (cpuRequest.request && nextState == IDLE) begin
             cpuRequest.ready = TRUE;
             if (cpuRequest.isRead) begin
                 if (isHit) begin
                     // `ASSERT(currentState == IDLE);targetAddr.offset
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:Read hit: data from cache: 0x%h at offset %0d (cacheline=%h)", DEBUG_tick,
+                        ("[%s]: @%0d:Read hit: data from cache: 0x%h at offset %0d (cacheline=%h)", NAME, DEBUG_tick,
                                        cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32],
                                        targetAddr.offset, cacheMem[targetAddr.setIdx][targetWayIdx].data));
                     dataFromCacheResponseFullWord = cacheMem[targetAddr.setIdx][targetWayIdx].data[targetAddr.offset*8+:32];
@@ -438,7 +439,7 @@ module cache (
                     //       However, if we assigned the response at `DONE`, we would have 
                     //       wasted a cycle for the response to be visible to the CPU
                     `CACHE_DEBUG_PRINT(
-                        ("[CACHE]: @%0d:Bypass data from mem: 0x%h @offset=%0d (cacheline=%h)", DEBUG_tick,
+                        ("[%s]: @%0d:Bypass data from mem: 0x%h @offset=%0d (cacheline=%h)", NAME, DEBUG_tick,
                                        tmpDataFromMem[targetAddr.offset*8+:32], targetAddr.offset, tmpDataFromMem));
                     dataFromCacheResponseFullWord = tmpDataFromMem[targetAddr.offset*8+:32];
                 end
@@ -451,7 +452,7 @@ module cache (
                     default: begin
                         cpuRequest.dataFromCache = '0;
                         `CACHE_DEBUG_PRINT(
-                            ("[CACHE]: @%0d:Invalid data length for load: %0d", DEBUG_tick,
+                            ("[%s]: @%0d:Invalid data length for load: %0d", NAME, DEBUG_tick,
                                              cpuRequest.dataLen));
                         `ASSERT(FALSE);  // TODO: exception
                     end

@@ -57,8 +57,8 @@ module id_stage
         regQuery.rs2 = instInfo.rs2;
         rs1ShouldHalt = instInfo.rs1 != 0 && regQuery.rs1HasEntry && !regQuery.rs1DataValid;
         rs2ShouldHalt = instInfo.rs2 != 0 && regQuery.rs2HasEntry && !regQuery.rs2DataValid;
-        ID_rs1Data = regQuery.rs1HasEntry ? regQuery.rs1Data : ID_oldRs1Data;
-        ID_rs2Data = regQuery.rs2HasEntry ? regQuery.rs2Data : ID_oldRs2Data;
+        ID_rs1Data = instInfo.rs1 != 0 && regQuery.rs1HasEntry ? regQuery.rs1Data : ID_oldRs1Data;
+        ID_rs2Data = instInfo.rs2 != 0 && regQuery.rs2HasEntry ? regQuery.rs2Data : ID_oldRs2Data;
         `ID_STAGE_DEBUG_PRINT(
             ("[ID]: @%0d: ticket=%0d, inst=%h", DEBUG_tick, ticket, instInfo.DEBUG_instBinary));
         `ID_STAGE_DEBUG_PRINT(

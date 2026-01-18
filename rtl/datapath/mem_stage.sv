@@ -112,6 +112,7 @@ module mem_stage
         // commit hints
         memHints.MEM_commitTicket = ROB_TICKET_INVALID;
         memHints.MEM_commitStoreComplete = FALSE;
+        memHints.MEM_isCommitting = FALSE;
 
         if (memControl.ROB_commitTicket != ROB_TICKET_INVALID &&
             memControl.ROB_commitIsStore && !memControl.ROB_commitStoreComplete) begin
@@ -128,6 +129,9 @@ module mem_stage
                     memControl.ROB_commitTicket));
                 memHints.MEM_commitStoreComplete = TRUE;
                 memHints.shouldHalt = FALSE;
+                // $display("[MEM]: %0d WRITE: %h -> [%h]", DEBUG_tick,
+                //          memControl.ROB_commitStData,
+                //          memControl.ROB_commitStVirtAddr.va);
             end else begin
                 `MEM_STAGE_DEBUG_PRINT((
                     "[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d: request=%0b, ready=%0b",
@@ -137,6 +141,7 @@ module mem_stage
                     cacheRequest.request,
                     cacheRequest.ready));
             end
+            memHints.MEM_isCommitting = TRUE;
         end else if (MEM_isLoad) begin
             memHints.MEM_pipeIsLoad = TRUE;
             // LOAD instruction: first bypass from ROB, if miss, then request cache
@@ -150,6 +155,9 @@ module mem_stage
                         DEBUG_tick,
                         exMemRegs.ticket,
                         storeQuery.data));
+                    // $display("[MEM]: %0d READ: %h <- [%h]", DEBUG_tick,
+                    //      memControl.virtAddr,
+                    //      memControl.ROB_commitStVirtAddr.va);
                 end else begin
                     // partial data update: wait until it is written to the cache/store buffer
                     // then read from cache/store buffer
@@ -207,12 +215,18 @@ module mem_stage
 `ifdef DATA_CACHE_DIVERGENCE_TEST
     always_ff @(posedge clk) begin : DEBUG_DivergenceTest
         if (MEM_instInfo.isLoad && cacheRequest.ready) begin
-            if (cacheRequest.dataFromCache != DEBUG_dataMemRequest.dataFromCache) begin
+            if (DEBUG_dataMemRequest.addr != cacheRequest.addr) begin
+                $display("@%d: Divergent address: MEM addr %h != dataMem addr %h",
+                         DEBUG_tick, cacheRequest.addr, DEBUG_dataMemRequest.addr);
+            end else if (cacheRequest.dataFromCache != DEBUG_dataMemRequest.dataFromCache) begin
                 $display("@%d: Divergent: MEM @PA%h: cache %h != dataMem %h",
                          DEBUG_tick, cacheRequest.addr,
                          cacheRequest.dataFromCache, DEBUG_dataMemRequest.dataFromCache);
             end
             assert (DEBUG_dataMemRequest.ready);
+            assert (DEBUG_dataMemRequest.addr == cacheRequest.addr);
+            assert (DEBUG_dataMemRequest.isRead == cacheRequest.isRead);
+            assert (DEBUG_dataMemRequest.dataLen == cacheRequest.dataLen);
             assert (cacheRequest.dataFromCache == DEBUG_dataMemRequest.dataFromCache);
         end
     end

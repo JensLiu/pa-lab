@@ -220,13 +220,13 @@ module reorder_buffer (
         robHints.commitIsBranch = buffer[oldest].isBranch;
 
         // if (EX_isBranchBypassing) begin
-            //     `ROB_DEBUG_PRINT(
-            //         ("[ROB]: @%0d: ROB Commit Entry %0d Branch Bypassing from EX Stage", DEBUG_tick, oldest));
+        //     `ROB_DEBUG_PRINT(
+        //         ("[ROB]: @%0d: ROB Commit Entry %0d Branch Bypassing from EX Stage", DEBUG_tick, oldest));
         //     robHints.commitShouldBranch = robControl.EX_shouldBranch;
         //     robHints.commitBranchPCVirtAddr = robControl.EX_branchPC;
         // end else begin
-            robHints.commitShouldBranch = buffer[oldest].shouldBranch;
-            robHints.commitBranchPCVirtAddr = buffer[oldest].branchPCVirtAddr;
+        robHints.commitShouldBranch = buffer[oldest].shouldBranch;
+        robHints.commitBranchPCVirtAddr = buffer[oldest].branchPCVirtAddr;
         // end
 
         if (robHints.commitTicket != ROB_TICKET_INVALID) begin
@@ -324,7 +324,7 @@ module reorder_buffer (
     assign EX_isStoreBypassing = robControl.EX_ticket != ROB_TICKET_INVALID &&
                                  robControl.EX_isStore;
     assign MEM_isLoadBypassing = robControl.MEM_ticket != ROB_TICKET_INVALID &&
-                                 robControl.MEM_isLoad && robControl.MEM_loadDataReady;
+                                 !robControl.MEM_isCommitting && robControl.MEM_isLoad;
     assign IMUL_isRegBypassing = robControl.IMUL_ticket != ROB_TICKET_INVALID;
     always @(posedge clk) begin : UpdateLogic
         `ROB_DEBUG_PRINT(("[ROB]: @%0d: ========== UPDATE LOGIC RUN ===============", DEBUG_tick));
@@ -424,7 +424,9 @@ module reorder_buffer (
                 "[ROB]: @%0d: MEM Stage Commit Update for ROB Ticket %0d, MEM_isCommitStore=%0b",
                 DEBUG_tick, robControl.MEM_commitTicket,
                 robControl.MEM_commitStoreComplete));
-        end else if (robControl.MEM_ticket != ROB_TICKET_INVALID && robControl.MEM_isLoad) begin
+        end
+        if (robControl.MEM_ticket != ROB_TICKET_INVALID && robControl.MEM_isLoad &&
+            !robControl.MEM_isCommitting) begin
             assert (buffer[robControl.MEM_ticket].entryValid);
             assert (buffer[robControl.MEM_ticket].isWriteback);
             buffer[robControl.MEM_ticket].rdDataValid <= robControl.MEM_loadDataReady;
@@ -512,7 +514,7 @@ module reorder_buffer (
         end
 
         // check if we have bypasses that has newer version
-        if (_rs1EntryFound) begin
+        if (_rs1EntryFound && regQuery.rs1 > 0) begin
             // `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
             //             `ROB_DEBUG_PRINT(
             //                 ("[ROB]: @%0d: RegQuery rs1 Hit at ROB Entry %0d: rd=%0d, data=%h, dataValid=%0b",
@@ -528,12 +530,18 @@ module reorder_buffer (
                     regQuery.rs1Data = robControl.EX_aluResult;
                     regQuery.rs1DataValid = TRUE;
                 end
-            end
+            end 
             // else if (robControl.MEM_ticket == _rs1EntryIndex) begin
             //     if (MEM_isLoadBypassing) begin
+            //         assert (!robControl.MEM_isCommitting && robControl.MEM_commitTicket == ROB_TICKET_INVALID);
+            //         $display(
+            //             "@%d: bypassing instruction @%h: %h, rs1=%d, MEM_ticket=%0d, MEM_loadData=%h, MEM_loadDataReady=%b",
+            //             DEBUG_tick, buffer[_rs1EntryIndex].pc,
+            //             buffer[_rs1EntryIndex].DEBUG_instInfo.DEBUG_instBinary, regQuery.rs1,
+            //             robControl.MEM_ticket, robControl.MEM_loadData,
+            //             robControl.MEM_loadDataReady);
             //         regQuery.rs1Data = robControl.MEM_loadData;
             //         regQuery.rs1DataValid = robControl.MEM_loadDataReady;
-            //         assert (!buffer[_rs1EntryIndex].rdDataValid);
             //     end
             // end
             // else if (robControl.IMUL_ticket == _rs1EntryIndex) begin
@@ -546,7 +554,7 @@ module reorder_buffer (
         end
 
         // same as rs1
-        if (_rs2EntryFound) begin
+        if (_rs2EntryFound && regQuery.rs2 > 0) begin
 `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
             `ROB_DEBUG_PRINT(
                 ("[ROB]: @%0d: RegQuery rs2 Hit at ROB Entry %0d: rd=%0d",
@@ -564,9 +572,9 @@ module reorder_buffer (
             end
             // else if (robControl.MEM_ticket == _rs2EntryIndex) begin
             //     if (MEM_isLoadBypassing) begin
+            //         assert (!robControl.MEM_isCommitting && robControl.MEM_commitTicket == ROB_TICKET_INVALID);
             //         regQuery.rs2Data = robControl.MEM_loadData;
             //         regQuery.rs2DataValid = robControl.MEM_loadDataReady;
-            //         assert (!buffer[_rs2EntryIndex].rdDataValid);
             //     end
             // end
             // else if (robControl.IMUL_ticket == _rs2EntryIndex) begin

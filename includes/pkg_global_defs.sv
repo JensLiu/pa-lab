@@ -239,6 +239,7 @@ package pkg_global_defs;
         // for oldest store instructions (commit write)
         word_t MEM_commitTicket;
         bool_t MEM_commitStoreComplete;
+        bool_t MEM_isCommitting;
     } mem_hints_t;
 
     typedef struct {
@@ -345,6 +346,7 @@ package pkg_global_defs;
         // when committing store instructions
         word_t MEM_commitTicket;
         bool_t MEM_commitStoreComplete;
+        bool_t MEM_isCommitting;
 
         // INT-MUL Stage
         word_t IMUL_ticket;
