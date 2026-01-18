@@ -17,6 +17,9 @@ module datapath_pipelined
     word_t DEBUG_cycles;
     always_ff @(posedge clk) begin
         DEBUG_cycles <= DEBUG_cycles + 1;
+        if (wbHints.WB_commitFinished) begin
+            DEBUG_executedInstCount <= DEBUG_executedInstCount + 1;
+        end
     end
 
     // pipeline registers

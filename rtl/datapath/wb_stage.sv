@@ -26,6 +26,7 @@ module wb_stage
         wbHints.WB_rd = '0;
         wbHints.WB_rdData = '0;
         if (wbControl.ROB_commitTicket == ROB_TICKET_INVALID) begin
+            wbHints.WB_commitFinished = FALSE;
             `WB_STAGE_DEBUG_PRINT(("[WB]: @%0d No valid commit in this cycle", DEBUGD_tick));
         end else begin
             if (wbControl.ROB_commitException != '0) begin
