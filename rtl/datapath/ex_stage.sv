@@ -114,10 +114,10 @@ module ex_stage
 
     always_ff @(posedge clk) begin
         `EX_STAGE_DEBUG_PRINT(("[EX]: @%0d ticket %0d", DEBUG_tick, EX_ticket));
-        `EX_STAGE_DEBUG_PRINT(
-            (
-            "[EX]: @%0d Branch Type=%0d, shouldBranch=%0b",
+        `EX_STAGE_DEBUG_PRINT(("[EX]: @%0d Branch Type=%0d, shouldBranch=%0b",
             DEBUG_tick, EX_instInfo.branchType, EX_shouldBranch));
+        `EX_STAGE_DEBUG_PRINT(("[EX]: @%d ticket %0d, a=%h, b=%h, op=%d, result=%h",
+            DEBUG_tick, EX_ticket, EX_aluA, EX_aluB, EX_aluOp, EX_aluResult));
     end
 
 endmodule

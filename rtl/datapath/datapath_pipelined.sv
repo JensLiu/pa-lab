@@ -147,7 +147,7 @@ module datapath_pipelined
     mem_request_if sequencerMemRequest ();
 
     cache_hit_query_if _instCacheHitQuery ();  // unused
-    cache instructionCache (
+    cache #("InstructionCache") instructionCache (
         .clk(clk),
         .cpuRequest(instCacheCpuRequest.slave),
         .memRequest(instCacheMemRequest.master),
@@ -163,7 +163,7 @@ module datapath_pipelined
         .deligatedCpuRequest(dataCacheCacheRequest.master),
         .cacheHitQuery(dataCacheHitQuery.master)
     );
-    cache dataCache (
+    cache #("DataCache") dataCache (
         .clk(clk),
         .cpuRequest(dataCacheCacheRequest.slave),
         .memRequest(dataCacheMemRequest.master),
@@ -256,7 +256,7 @@ module datapath_pipelined
             end else begin
                 `DATAPATH_DEBUG_PRINT(
                     ("[Datapath]: @%0d Forwarding into EX stage (%0d -> %0d)", DEBUG_tick, 
-                        idExRegsQ.ticket, idExRegsP.ticket));
+                        idExRegsP.ticket, idExRegsQ.ticket));
                 idExRegsQ <= idExRegsP;
             end
         end else begin
@@ -275,7 +275,7 @@ module datapath_pipelined
             end else begin
                 `DATAPATH_DEBUG_PRINT(
                     ("[Datapath]: @%0d ID->IMUL forwarding (%0d -> %0d)", DEBUG_tick,
-                                       idImulRegsQ.ticket, idImulRegsP.ticket));
+                                       idImulRegsP.ticket, idImulRegsQ.ticket));
                 idImulRegsQ <= idImulRegsP;
             end
         end else begin
@@ -303,7 +303,7 @@ module datapath_pipelined
             end else begin
                 `DATAPATH_DEBUG_PRINT(
                     ("[Datapath]: @%0d EX->MEM forwarding (%0d -> %0d)", DEBUG_tick,
-                    exMemRegsQ.ticket, exMemRegsP.ticket));
+                    exMemRegsP.ticket, exMemRegsQ.ticket));
                 exMemRegsQ <= exMemRegsP;
             end
         end else begin
@@ -375,7 +375,6 @@ module datapath_pipelined
         robControl.MEM_loadDataReady = memHints.MEM_pipeLoadDataReady;
         robControl.MEM_commitTicket = memHints.MEM_commitTicket;
         robControl.MEM_commitStoreComplete = memHints.MEM_commitStoreComplete;
-        robControl.MEM_isCommitting = memHints.MEM_isCommitting;
         robControl.IMUL_ticket = imulHints.IMUL_resultTicket;
         robControl.IMUL_result = imulHints.IMUL_result;
         robControl.WB_commitTicket = wbHints.WB_commitTicket;

@@ -100,6 +100,7 @@ module mem_stage
     end
 
     always_comb begin : MemHintsLogic
+        `MEM_STAGE_DEBUG_PRINT(("[MEM]: @%0d: ================ MEM HINT LOGIC RUN ================", DEBUG_tick));
         // execution hints
         memHints.ticket = exMemRegs.ticket;
         memHints.shouldHalt = FALSE;
@@ -112,15 +113,22 @@ module mem_stage
         // commit hints
         memHints.MEM_commitTicket = ROB_TICKET_INVALID;
         memHints.MEM_commitStoreComplete = FALSE;
-        memHints.MEM_isCommitting = FALSE;
 
-        if (memControl.ROB_commitTicket != ROB_TICKET_INVALID &&
-            memControl.ROB_commitIsStore && !memControl.ROB_commitStoreComplete) begin
+        if (memControl.ROB_commitTicket != ROB_TICKET_INVALID && memControl.ROB_commitIsStore &&
+            !memControl.ROB_commitStoreComplete) begin
             // pause the pipeline, keep instructions
-            memHints.shouldHalt = TRUE;
+            // ALWAYS HALT DURING STORE COMMIT unless it's committing itself
+            memHints.shouldHalt = (memControl.ROB_commitTicket != exMemRegs.ticket);
             memHints.MEM_commitTicket = memControl.ROB_commitTicket;
             // ROB commit STORE instruction: write to cache
             assert (cacheRequest.request && !cacheRequest.isRead);
+            `MEM_STAGE_DEBUG_PRINT((
+                "[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d: request=%0b, ready=%0b",
+                DEBUG_tick,
+                memControl.ROB_commitStVirtAddr.va,
+                memControl.ROB_commitTicket,
+                cacheRequest.request,
+                cacheRequest.ready));
             if (cacheRequest.ready) begin
                 `MEM_STAGE_DEBUG_PRINT((
                     "[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d complete",
@@ -128,11 +136,11 @@ module mem_stage
                     memControl.ROB_commitStVirtAddr.va,
                     memControl.ROB_commitTicket));
                 memHints.MEM_commitStoreComplete = TRUE;
-                memHints.shouldHalt = FALSE;
                 // $display("[MEM]: %0d WRITE: %h -> [%h]", DEBUG_tick,
                 //          memControl.ROB_commitStData,
                 //          memControl.ROB_commitStVirtAddr.va);
             end else begin
+                memHints.shouldHalt = TRUE;
                 `MEM_STAGE_DEBUG_PRINT((
                     "[MEM]: @%0d STORE to cache at PA %h from ROB ticket %0d: request=%0b, ready=%0b",
                     DEBUG_tick,
@@ -141,7 +149,6 @@ module mem_stage
                     cacheRequest.request,
                     cacheRequest.ready));
             end
-            memHints.MEM_isCommitting = TRUE;
         end else if (MEM_isLoad) begin
             memHints.MEM_pipeIsLoad = TRUE;
             // LOAD instruction: first bypass from ROB, if miss, then request cache
@@ -184,6 +191,7 @@ module mem_stage
                 memHints.MEM_pipeLoadDataReady = cacheRequest.ready;
             end
         end
+        `MEM_STAGE_DEBUG_PRINT(("[MEM]: @%0d: ================ MEM HINT LOGIC END ================", DEBUG_tick));
     end
 
     always_comb begin : MemoryInstructionConsistencyCheck
@@ -203,13 +211,21 @@ module mem_stage
     always_ff @(posedge clk) begin
         DEBUG_tick <= DEBUG_tick + 1;
         `MEM_STAGE_DEBUG_PRINT((
-            "[MEM]: @%0d: ticket=%0d, isLoad=%0b, isStore=%0b, virtAddr=%h, storeData=%h",
+            "[MEM]: @%0d: ROB_commitTicket=%0d, ROB_commitIsStore=%0b, ROB_commitStoreComplete=%0b",
+            DEBUG_tick,
+            memControl.ROB_commitTicket,
+            memControl.ROB_commitIsStore,
+            memControl.ROB_commitStoreComplete,
+        ));
+        `MEM_STAGE_DEBUG_PRINT((
+            "[MEM]: @%0d: MEM_ticket=%0d, isLoad=%0b, isStore=%0b, virtAddr=%h, storeData=%h",
             DEBUG_tick,
             exMemRegs.ticket,
-            MEM_instInfo.isLoad,
-            MEM_instInfo.isStore,
+            MEM_isLoad,
+            MEM_isStore,
             MEM_virtAddr,
-            MEM_storeData));
+            MEM_storeData
+        ));
     end
 
 `ifdef DATA_CACHE_DIVERGENCE_TEST
