@@ -316,15 +316,11 @@ module reorder_buffer (
     // this logic is expensive, perhaps seralise update requests (slower performance)?
     bool_t EX_isBranchBypassing, EX_isRegBypassing, EX_isStoreBypassing;
     bool_t MEM_isLoadBypassing, IMUL_isRegBypassing;
-    assign EX_isBranchBypassing = robControl.EX_ticket != ROB_TICKET_INVALID &&
-                                 robControl.EX_isBranch;
-    assign EX_isRegBypassing = robControl.EX_ticket != ROB_TICKET_INVALID &&
-                               !robControl.EX_isLoad && !robControl.EX_isStore &&
-                               robControl.EX_isWriteback;
-    assign EX_isStoreBypassing = robControl.EX_ticket != ROB_TICKET_INVALID &&
-                                 robControl.EX_isStore;
-    assign MEM_isLoadBypassing = robControl.MEM_ticket != ROB_TICKET_INVALID &&
-                                 robControl.MEM_isLoad;
+    assign EX_isBranchBypassing = robControl.EX_ticket != ROB_TICKET_INVALID && robControl.EX_isBranch;
+    assign EX_isRegBypassing = robControl.EX_ticket != ROB_TICKET_INVALID && !robControl.EX_isLoad && 
+                                !robControl.EX_isStore && robControl.EX_isWriteback;
+    assign EX_isStoreBypassing = robControl.EX_ticket != ROB_TICKET_INVALID && robControl.EX_isStore;
+    assign MEM_isLoadBypassing = robControl.MEM_ticket != ROB_TICKET_INVALID && robControl.MEM_isLoad;
     assign IMUL_isRegBypassing = robControl.IMUL_ticket != ROB_TICKET_INVALID;
     always @(posedge clk) begin : UpdateLogic
         `ROB_DEBUG_PRINT(("[ROB]: @%0d: ========== UPDATE LOGIC RUN ===============", DEBUG_tick));
@@ -370,7 +366,7 @@ module reorder_buffer (
             end
         end
         if (robControl.IMUL_ticket != ROB_TICKET_INVALID) begin
-            $display("[ROB]: @%0d: IMUL_ticket = %0d", DEBUG_tick, robControl.IMUL_ticket);
+            // $display("[ROB]: @%0d: IMUL_ticket = %0d", DEBUG_tick, robControl.IMUL_ticket);
             assert (robControl.IMUL_ticket < ROB_SIZE);
             assert (buffer[robControl.IMUL_ticket].entryValid);
         end
@@ -540,14 +536,12 @@ module reorder_buffer (
                     regQuery.rs1Data = robControl.MEM_loadData;
                     regQuery.rs1DataValid = robControl.MEM_loadDataReady;
                 end
+            end else if (robControl.IMUL_ticket == _rs1EntryIndex) begin
+                if (IMUL_isRegBypassing) begin
+                    regQuery.rs1Data = robControl.IMUL_result;
+                    assert (!buffer[_rs1EntryIndex].rdDataValid);
+                end
             end
-            // else if (robControl.IMUL_ticket == _rs1EntryIndex) begin
-            //     if (IMUL_isRegBypassing) begin
-            //         regQuery.rs1Data = robControl.IMUL_result;
-            //         regQuery.rs1DataValid = robControl.IMUL_resultValid;
-            //         assert (!buffer[_rs1EntryIndex].rdDataValid);
-            //     end
-            // end
         end
 
         // same as rs1
@@ -572,14 +566,12 @@ module reorder_buffer (
                     regQuery.rs2Data = robControl.MEM_loadData;
                     regQuery.rs2DataValid = robControl.MEM_loadDataReady;
                 end
+            end else if (robControl.IMUL_ticket == _rs2EntryIndex) begin
+                if (IMUL_isRegBypassing) begin
+                    regQuery.rs2Data = robControl.IMUL_result;
+                    assert (!buffer[_rs2EntryIndex].rdDataValid);
+                end
             end
-            // else if (robControl.IMUL_ticket == _rs2EntryIndex) begin
-            //     if (IMUL_isRegBypassing) begin
-            //         regQuery.rs2Data = robControl.IMUL_result;
-            //         regQuery.rs2DataValid = robControl.IMUL_resultValid;
-            //         assert (!buffer[_rs2EntryIndex].rdDataValid);
-            //     end
-            // end
         end
 
     end

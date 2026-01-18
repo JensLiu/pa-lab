@@ -4,14 +4,12 @@
 `define REGISTER_FILE_EXPOSE_INTERNALS
 `define DEBUG_INST_INFO_EXTENSION
 
-// `define DATA_CACHE_DIVERGENCE_TEST
+`define DATA_CACHE_DIVERGENCE_TEST
 `define INSTRUCTION_CACHE_DIVERGENCE_TEST
 
 `define DATAPATH_USE_STORE_BUFFER
 
 // `define DEBUG_PRINT
-`define ROB_REG_QUERY_DEBUG_PRINT_EN
-// `define DEBUG_PRINT_ROB
 
 `ifdef DEBUG_PRINT
 `define DEBUG_PRINT_IF_STAGE
@@ -24,6 +22,8 @@
 `define DEBUG_DATAPATH
 `define DEBUG_PRINT_CACHE
 `define DEBUG_PRINT_ROB
+`define ROB_REG_QUERY_DEBUG_PRINT_EN
+`define DEBUG_IMUL_PIPELINE
 `endif
 
 // `define ASSERT(x) assert(x)
@@ -53,6 +53,11 @@
 `define WB_STAGE_DEBUG_PRINT(x) $display({$sformatf x})
 `else
 `define WB_STAGE_DEBUG_PRINT(x)
+`endif
+`ifdef DEBUG_IMUL_PIPELINE
+`define IMUL_PIPELINE_DEBUG_PRINT(x) $display({$sformatf x})
+`else
+`define IMUL_PIPELINE_DEBUG_PRINT(x)
 `endif
 `ifdef DEBUG_IMUL_STAGE
 `define DEBUG_IMUL_STAGE_PRINT(x) $display({$sformatf x})

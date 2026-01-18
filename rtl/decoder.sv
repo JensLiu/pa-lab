@@ -26,6 +26,7 @@ module decoder
         info.aluOp = ALU_INVALID;
         info.branchType = BR_INVALID;
         info.stldDataLen = DL_INVALID;
+        info.isImul = FALSE;
 `ifdef DEBUG_INST_INFO_EXTENSION
         info.DEBUG_instBinary = inst;
         info.DEBUG_instID = 32'hDEADBEEF;  // the ID assignement logic can overwrite this later
@@ -44,6 +45,9 @@ module decoder
                         case (inst.rtype.funct7)  // <- add & sub use R-type
                             FN7_ADD_SRL: info.aluOp = ALU_ADD;
                             FN7_SUB_SRA: info.aluOp = ALU_SUB;
+                            FN7_MULDIV: begin
+                                info.isImul = TRUE;  // <- mul uses R-type with funct7 = 0000001
+                            end
                             default: info.aluOp = ALU_INVALID;
                         endcase
                     end

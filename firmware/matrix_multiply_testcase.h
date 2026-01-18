@@ -84,5 +84,5 @@ static int matrix_multiply_test() {
 
   // Return sum of all results for verification
   return result1 + result2 + result3; // Expected: 9024
-  return 0;
+  // return 0;
 }
