@@ -618,15 +618,15 @@ public:
         sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cacheMissWrite);
     metric_counters["DataCache::cacheMissCycles"] =
         sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cyclesCacheMiss);
-    metric_counters["Datapath::IF::haltHintCounter"] = 
+    metric_counters["Datapath::IF::haltHintCounter"] =
         sim->rootp->PIPELINE_ACCESS(DEBUG_IF_haltHintCounter);
-    metric_counters["Datapath::ID::haltHintCounter"] = 
+    metric_counters["Datapath::ID::haltHintCounter"] =
         sim->rootp->PIPELINE_ACCESS(DEBUG_ID_haltHintCounter);
-    metric_counters["Datapath::EX::haltHintCounter"] = 
+    metric_counters["Datapath::EX::haltHintCounter"] =
         sim->rootp->PIPELINE_ACCESS(DEBUG_EX_haltHintCounter);
-    metric_counters["Datapath::MEM::haltHintCounter"] = 
+    metric_counters["Datapath::MEM::haltHintCounter"] =
         sim->rootp->PIPELINE_ACCESS(DEBUG_MEM_haltHintCounter);
-    metric_counters["Datapath::WB::haltHintCounter"] = 
+    metric_counters["Datapath::WB::haltHintCounter"] =
         sim->rootp->PIPELINE_ACCESS(DEBUG_WB_haltHintCounter);
     {
       const double &n_insts = metric_counters["insts"];
