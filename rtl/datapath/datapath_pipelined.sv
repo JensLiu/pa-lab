@@ -468,4 +468,29 @@ module datapath_pipelined
         end
     end
 
+
+    word_t
+        DEBUG_IF_haltHintCounter,
+        DEBUG_ID_haltHintCounter,
+        DEBUG_EX_haltHintCounter,
+        DEBUG_MEM_haltHintCounter,
+        DEBUG_WB_haltHintCounter;
+    always_ff @(posedge clk) begin
+        if (ifHints.shouldHalt) begin
+            DEBUG_IF_haltHintCounter <= DEBUG_IF_haltHintCounter + 1;
+        end
+        if (idHints.shouldHalt) begin
+            DEBUG_ID_haltHintCounter <= DEBUG_ID_haltHintCounter + 1;
+        end
+        if (exHints.shouldHalt) begin
+            DEBUG_EX_haltHintCounter <= DEBUG_EX_haltHintCounter + 1;
+        end
+        if (memHints.shouldHalt) begin
+            DEBUG_MEM_haltHintCounter <= DEBUG_MEM_haltHintCounter + 1;
+        end
+        if (wbHints.shouldHalt) begin
+            DEBUG_WB_haltHintCounter <= DEBUG_WB_haltHintCounter + 1;
+        end
+    end
+
 endmodule

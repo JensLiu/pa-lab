@@ -527,15 +527,15 @@ module reorder_buffer (
                 if (EX_isRegBypassing) begin
                     regQuery.rs1Data = robControl.EX_aluResult;
                     regQuery.rs1DataValid = TRUE;
-                    assert (!buffer[_rs1EntryIndex].rdDataValid);
-                end
-            end else if (robControl.MEM_ticket == _rs1EntryIndex) begin
-                if (MEM_isLoadBypassing) begin
-                    regQuery.rs1Data = robControl.MEM_loadData;
-                    regQuery.rs1DataValid = robControl.MEM_loadDataReady;
-                    assert (!buffer[_rs1EntryIndex].rdDataValid);
                 end
             end
+            // else if (robControl.MEM_ticket == _rs1EntryIndex) begin
+            //     if (MEM_isLoadBypassing) begin
+            //         regQuery.rs1Data = robControl.MEM_loadData;
+            //         regQuery.rs1DataValid = robControl.MEM_loadDataReady;
+            //         assert (!buffer[_rs1EntryIndex].rdDataValid);
+            //     end
+            // end
             // else if (robControl.IMUL_ticket == _rs1EntryIndex) begin
             //     if (IMUL_isRegBypassing) begin
             //         regQuery.rs1Data = robControl.IMUL_result;
@@ -560,15 +560,15 @@ module reorder_buffer (
                 if (EX_isRegBypassing) begin
                     regQuery.rs2Data = robControl.EX_aluResult;
                     regQuery.rs2DataValid = TRUE;
-                    assert (!buffer[_rs2EntryIndex].rdDataValid);
-                end
-            end else if (robControl.MEM_ticket == _rs2EntryIndex) begin
-                if (MEM_isLoadBypassing) begin
-                    regQuery.rs2Data = robControl.MEM_loadData;
-                    regQuery.rs2DataValid = robControl.MEM_loadDataReady;
-                    assert (!buffer[_rs2EntryIndex].rdDataValid);
                 end
             end
+            // else if (robControl.MEM_ticket == _rs2EntryIndex) begin
+            //     if (MEM_isLoadBypassing) begin
+            //         regQuery.rs2Data = robControl.MEM_loadData;
+            //         regQuery.rs2DataValid = robControl.MEM_loadDataReady;
+            //         assert (!buffer[_rs2EntryIndex].rdDataValid);
+            //     end
+            // end
             // else if (robControl.IMUL_ticket == _rs2EntryIndex) begin
             //     if (IMUL_isRegBypassing) begin
             //         regQuery.rs2Data = robControl.IMUL_result;
