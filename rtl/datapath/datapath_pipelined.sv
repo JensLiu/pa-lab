@@ -48,7 +48,9 @@ module datapath_pipelined
     mem_control_t memControl;
     imul_control_t imulControl;
     wb_control_t wbControl;
+    /* verilator lint_off UNOPTFLAT */
     rob_control_t robControl;
+    /* verilator lint_on UNOPTFLAT */
 
     // stage signals/hints
     if_hints_t ifHints;

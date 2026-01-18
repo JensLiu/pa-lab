@@ -58,9 +58,7 @@ module cache (
     } cache_state_t;
 
     cache_state_t currentState;
-    /* verilator lint_off UNOPTFLAT */
     cache_state_t nextState;
-    /* verilator lint_on UNOPTFLAT */
 
 
     cache_t cacheMem;
