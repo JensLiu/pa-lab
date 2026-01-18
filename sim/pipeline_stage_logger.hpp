@@ -180,34 +180,34 @@ public:
   }
 
   void collect_pipeline_metrics() {
-    {
-      const auto &if_should_halt =
-          sim->rootp->PIPELINE_ACCESS(ifHints).DATA_PRIVATE(shouldHalt);
-      if (if_should_halt) {
-        metric_counters["if_stage_halts"]++;
-      }
-    }
-    {
-      const auto &id_should_halt =
-          sim->rootp->PIPELINE_ACCESS(idHints).DATA_PRIVATE(shouldHalt);
-      if (id_should_halt) {
-        metric_counters["id_stage_halts"]++;
-      }
-    }
-    {
-      const auto &ex_should_halt =
-          sim->rootp->PIPELINE_ACCESS(exHints).DATA_PRIVATE(shouldHalt);
-      if (ex_should_halt) {
-        metric_counters["ex_stage_halts"]++;
-      }
-    }
-    {
-      const auto &mem_should_halt =
-          sim->rootp->PIPELINE_ACCESS(memHints).DATA_PRIVATE(shouldHalt);
-      if (mem_should_halt) {
-        metric_counters["mem_stage_halts"]++;
-      }
-    }
+    // {
+    //   const auto &if_should_halt =
+    //       sim->rootp->PIPELINE_ACCESS(ifHints).DATA_PRIVATE(shouldHalt);
+    //   if (if_should_halt) {
+    //     metric_counters["if_stage_halts"]++;
+    //   }
+    // }
+    // {
+    //   const auto &id_should_halt =
+    //       sim->rootp->PIPELINE_ACCESS(idHints).DATA_PRIVATE(shouldHalt);
+    //   if (id_should_halt) {
+    //     metric_counters["id_stage_halts"]++;
+    //   }
+    // }
+    // {
+    //   const auto &ex_should_halt =
+    //       sim->rootp->PIPELINE_ACCESS(exHints).DATA_PRIVATE(shouldHalt);
+    //   if (ex_should_halt) {
+    //     metric_counters["ex_stage_halts"]++;
+    //   }
+    // }
+    // {
+    //   const auto &mem_should_halt =
+    //       sim->rootp->PIPELINE_ACCESS(memHints).DATA_PRIVATE(shouldHalt);
+    //   if (mem_should_halt) {
+    //     metric_counters["mem_stage_halts"]++;
+    //   }
+    // }
   }
 
   void collect_metrics() {
@@ -618,6 +618,16 @@ public:
         sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cacheMissWrite);
     metric_counters["DataCache::cacheMissCycles"] =
         sim->rootp->PIPELINE_ACCESS(dataCache, DEBUG_cyclesCacheMiss);
+    metric_counters["Datapath::IF::haltHintCounter"] = 
+        sim->rootp->PIPELINE_ACCESS(DEBUG_IF_haltHintCounter);
+    metric_counters["Datapath::ID::haltHintCounter"] = 
+        sim->rootp->PIPELINE_ACCESS(DEBUG_ID_haltHintCounter);
+    metric_counters["Datapath::EX::haltHintCounter"] = 
+        sim->rootp->PIPELINE_ACCESS(DEBUG_EX_haltHintCounter);
+    metric_counters["Datapath::MEM::haltHintCounter"] = 
+        sim->rootp->PIPELINE_ACCESS(DEBUG_MEM_haltHintCounter);
+    // metric_counters["Datapath::WB::haltHintCounter"] = 
+    //     sim->rootp->PIPELINE_ACCESS(DEBUG_WB_haltHintCounter);
     {
       const double &n_insts = metric_counters["insts"];
       const double &n_cycles = metric_counters["cycles"];
