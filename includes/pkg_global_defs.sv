@@ -6,6 +6,7 @@
 
 `ifndef LESS_EXPRESSIVE_GRAMMAR
 import pkg_riscv_instructions::*;
+import pkg_virtual_memory::*;
 package pkg_global_defs;
 `endif
     // parameters
@@ -133,6 +134,8 @@ package pkg_global_defs;
         bool_t branchTaken;
         addr_t pcBr;
         exception_t exception;
+        satp_register_t satp;
+        priv_mode_t curr_priv_mode;
     } if_control_t;
 
     typedef struct {
@@ -164,6 +167,9 @@ package pkg_global_defs;
         reg_nr_t MEM_rd;
         bool_t   MEM_isWriteback;
         word_t   MEM_memResult;
+
+        priv_mode_t curr_priv_mode;
+        
     } id_control_t;
 
     typedef struct {
@@ -198,7 +204,7 @@ package pkg_global_defs;
         exception_t exceptions;
     } ex_mem_regs_t;
 
-    typedef struct {bool_t placeholder;} mem_control_t;
+    typedef struct {bool_t placeholder; satp_register_t satp; priv_mode_t curr_priv_mode;} mem_control_t;
 
     typedef struct {
         bool_t   shouldHalt;

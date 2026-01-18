@@ -1,37 +1,71 @@
+// MMU and Page Walker interface
+// 
 
 interface mmu_pw_if;
   import pkg_virtual_memory::*;
 
-  logic req;
-  virtual_address_t vaddr;
-  access_type_t access_type;
+  // ---------------- Request ----------------
+  logic           req;            // start walk (level)
   satp_register_t satp;
+  vaddr_t         vaddr;          // 32-bit VA bus
+  access_type_t   access_type;    // IFETCH/LOAD/STORE
+  priv_mode_t     curr_priv_mode;
 
-  logic grant;  // if walker accepts the request
-  logic done;  // if walker finishes the request
-  tlb_entry_t entry;  // returned TLB entry
-  logic fault;  // if page fault occurs
+  logic           update_ad;
+  logic           set_a;
+  logic           set_d;
 
-  modport mmu(
-      output satp,
-      output req,
-      output vaddr,
-      output access_type,
-      input grant,
-      input done,
-      input entry,
-      input fault
+  // ---------------- Response ----------------
+  logic           ready;          // response valid (success or fault)
+  logic           busy;           // walker in progress
+
+  // Success payload
+  ppn_t             ppn;
+  permission_bits_t perms;
+  pte_sv32_t        pte;          // optional/debug: leaf PTE
+
+  // Fault classification
+  logic           page_fault;     // V=0 => trap SO
+  page_fault_t    fault_cause;    // LOAD/STORE/IFETCH (valid if page_fault=1)
+
+  modport mmu (
+    // output ports
+    output req,
+    output satp,
+    output vaddr,
+    output access_type,
+    output curr_priv_mode,
+    output update_ad,
+    output set_a,
+    output set_d,
+    // input ports
+    input  ready,
+    input  busy,
+    input  ppn,
+    input  perms,
+    input  pte,
+    input  page_fault,
+    input  fault_cause
   );
 
-  modport pw(
-      input satp,
-      input req,
-      input vaddr,
-      input access_type,
-      output grant,
-      output done,
-      output entry,
-      output fault
+  modport page_walker (
+    // input ports
+    input  req,
+    input  satp,
+    input  vaddr,
+    input  access_type,
+    input  curr_priv_mode,
+    input  update_ad,
+    input  set_a,
+    input  set_d,
+    // output ports
+    output ready,
+    output busy,
+    output ppn,
+    output perms,
+    output pte,
+    output page_fault,
+    output fault_cause
   );
 
 endinterface : mmu_pw_if

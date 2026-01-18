@@ -6,8 +6,6 @@ module mmu
 (
     input logic clk,
     input logic rst_n,
-    input satp_register_t satp,
-    input priv_mode_t curr_priv_mode,
     // CPU Interface
     cpu_mmu_if.mmu instr_if,
     cpu_mmu_if.mmu data_if,
@@ -15,184 +13,468 @@ module mmu
     mmu_tlb_if.mmu i_tlb_if,
     mmu_tlb_if.mmu d_tlb_if,
     // Page Table Walker Interface
-    mmu_ptw_if.mmu ptw_mmu_if
+    mmu_pw_if.mmu ptw_if
 );
 
-  // Function to check permissions
-  function automatic logic check_page_permissions(
-      input permissions_t perms, input access_type_t access_type, input priv_mode_t priv_mode);
+  // bypass detection  
+  logic os_bypass_i, os_bypass_d;
+  always_comb begin
+    os_bypass_d = (data_if.satp.mode == SATP_MODE_BARE) || (data_if.curr_priv_mode == SUPERVISOR_MODE);
+    os_bypass_i = (instr_if.satp.mode == SATP_MODE_BARE) || (instr_if.curr_priv_mode == SUPERVISOR_MODE);
+  end
 
-    // Implement permission checking logic here
-    // For simplicity, let's assume all accesses are allowed
-    perm_check_result_t result;
-
-    result.perm_ok = 1'b1;
-    result.violation = NO_VIOLATION;
-    result.need_set_a = 1'b0;
-    result.need_set_d = 1'b0;
-
-    if (priv_mode == USER_MODE && !perms.u) begin
-      res.perm_ok = 1'b0;
-      result.violation = PRIVILEGE_VIOLATION;
-      return result;
-    end
-
-    case (access_type)
-      ACCESS_FETCH: begin
-        if (!perms.x) begin
-          result.perm_ok   = 1'b0;
-          result.violation = EXECUTE_VIOLATION;
-        end
-      end
-      ACCESS_LOAD: begin
-        if (!perms.r) begin
-          result.perm_ok   = 1'b0;
-          result.violation = READ_VIOLATION;
-        end
-      end
-      ACCESS_STORE: begin
-        if (!perms.w) begin
-          result.perm_ok   = 1'b0;
-          result.violation = WRITE_VIOLATION;
-        end
-      end
-      default: begin
-        result.perm_ok   = 1'b1;
-        result.violation = NO_VIOLATION;
-      end
-    endcase
-
-    if (!res.perm_ok) begin
-      return result;
-    end
-
-    if (!perms.a) begin
-      result.need_set_a = 1'b1;
-    end
-
-    if (access_type == ACCESS_STORE && !perms.d) begin
-      result.need_set_d = 1'b1;
-    end
-
-    return result;
-  endfunction : check_page_permissions
-
-
+  // Two state machines, differenciating instruction and data TLB misses
   typedef enum logic [1:0] {
-    MMU_IDLE,
-    MMU_WAIT_PW,
-    MMU_FAULT,
-    MMU_DONE
-  } mmu_state_t;
+    IDLE,
+    WAIT_PTW,
+    RELOOKUP
+  } mmu_channel_state_t;
 
-  mmu_state_t curr_state, next_state;
-  perm_check_result_t perm_check_res;
-  // CPU Interface Signals
-  phys_addr_t instr_phys_addr;
-  phys_addr_t data_phys_addr;
-  logic instr_fault, data_fault;
-  logic instr_ready, data_ready;
-  logic instr_busy, data_busy;
+  mmu_channel_state_t i_mmu_state_q, d_mmu_state_q;
+  mmu_channel_state_t i_mmu_state_d, d_mmu_state_d;
+  
+  // Pending regs per channel
+  vaddr_t         i_vaddr_q, d_vaddr_q;
+  access_type_t   i_acc_q,   d_acc_q;
+  satp_register_t i_satp_q,  d_satp_q;
+  priv_mode_t     i_priv_q,  d_priv_q;
 
-  assign instr_if.paddr = instr_phys_addr;
-  assign data_if.paddr = data_phys_addr;
-  assign instr_if.page_fault = instr_fault;
-  assign data_if.page_fault = data_fault;
-  assign instr_if.ready = instr_ready;
-  assign data_if.ready = data_ready;
-  assign instr_if.busy = instr_busy;
-  assign data_if.busy = data_busy;
+  // PTW owner tracking
+  typedef enum logic {
+    PTW_IDLE,
+    PTW_I,
+    PTW_D
+  } ptw_owner_t;
+  ptw_owner_t ptw_own_q, ptw_own_d;
 
-  // TLB Interface Signals
-  logic i_tlb_req, d_tlb_req;
-  virtual_address_t i_tlb_vaddr, d_tlb_vaddr;
-  access_type_t i_tlb_access_type, d_tlb_access_type;
-  logic i_tlb_flush, d_tlb_flush;
-  tlb_entry_t i_tlb_entry_new, d_tlb_entry_new;
-  logic [8:0] i_tlb_asid, d_tlb_asid;
-  assign i_tlb_if.req = i_tlb_req;
-  assign i_tlb_if.vaddr = i_tlb_vaddr;
-  assign i_tlb_if.access_type = i_tlb_access_type;
-  assign i_tlb_if.flush = i_tlb_flush;
-  assign i_tlb_if.update_entry = 1'b0;  // TODO: Update Entry not implemented yet
-  assign i_tlb_if.new_entry = i_tlb_entry_new;
-  assign i_tlb_if.asid = i_tlb_asid;
+  // TLB Fill signals
+  // Instruction TLB fill
+  logic i_fill_req;
+  vpn_t i_fill_vpn;
+  ppn_t i_fill_ppn;
+  permission_bits_t i_fill_perm;
+  satp_register_t i_fill_satp;
+  // Data TLB fill
+  logic d_fill_req;
+  vpn_t d_fill_vpn;
+  ppn_t d_fill_ppn;
+  permission_bits_t d_fill_perm;
+  satp_register_t d_fill_satp;
 
-  assign d_tlb_if.req = d_tlb_req;
-  assign d_tlb_if.vaddr = d_tlb_vaddr;
-  assign d_tlb_if.access_type = d_tlb_access_type;
-  assign d_tlb_if.flush = d_tlb_flush;
-  assign d_tlb_if.update_entry = 1'b0;  // TODO: Update Entry not implemented yet
-  assign d_tlb_if.new_entry = d_tlb_entry_new;
-  assign d_tlb_if.asid = d_tlb_asid;
-  // ..................................
+  // itlb lookup
+  always_comb begin
+    // Default signals
+    i_tlb_if.lookup_req = 1'b0;
+    i_tlb_if.lookup_vaddr = '0;
+    i_tlb_if.lookup_access_type = ACCESS_IFETCH;
+    i_tlb_if.lookup_satp = instr_if.satp;
+    i_tlb_if.lookup_priv = instr_if.curr_priv_mode;
 
-  // TODO: Flush and ASID handling not implemented yet
+    i_tlb_if.fill_req = i_fill_req;
+    i_tlb_if.fill_vpn = i_fill_vpn;
+    i_tlb_if.fill_ppn = i_fill_ppn;
+    i_tlb_if.fill_perm = i_fill_perm;
+    i_tlb_if.fill_satp = i_fill_satp;
 
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      curr_state <= MMU_IDLE;
-      next_state <= MMU_IDLE;
-    end else begin
-      curr_state <= next_state;
+    i_tlb_if.flush_req = instr_if.flush;
+
+    if (i_mmu_state_q == IDLE) begin
+      if (instr_if.req && !os_bypass_i) begin
+        i_tlb_if.lookup_req = 1'b1;
+        i_tlb_if.lookup_vaddr = instr_if.vaddr;
+      end
+    end else if(i_mmu_state_q == RELOOKUP) begin
+      // Re-issue TLB lookup after PTW fill
+      i_tlb_if.lookup_req = 1'b1;
+      i_tlb_if.lookup_vaddr = i_vaddr_q;
+      i_tlb_if.lookup_satp = i_satp_q;
+      i_tlb_if.lookup_priv = i_priv_q; 
+      i_tlb_if.lookup_access_type = i_acc_q;
     end
   end
 
+  // dtlb lookup
   always_comb begin
-    next_state = curr_state;
-    instr_phys_addr = '0;
-    data_phys_addr = '0;
-    case (curr_state)
-      MMU_IDLE: begin
-        if (satp.mode && (instr_if.req || data_if.req)) begin
-          if (instr_if.req) begin
-            // TODO: Handle instruction fetch
-            i_tlb_req = 1'b1;
-            i_tlb_vaddr = instr_if.vaddr;
-            i_tlb_access_type = instr_if.access_type;
+    // Default signals
+    d_tlb_if.lookup_req = 1'b0;
+    d_tlb_if.lookup_vaddr = '0;
+    d_tlb_if.lookup_access_type = data_if.access_type;
+    d_tlb_if.lookup_satp = data_if.satp;
+    d_tlb_if.lookup_priv = data_if.curr_priv_mode;
 
-            if (i_tlb_if.hit && !i_tlb_if.page_fault) begin
-              phys_addr_t   pa = i_tlb_if.paddr;
-              permissions_t perms = i_tlb_if.permission;
-              perm_check_res = check_page_permissions(perms, instr_if.access_type, curr_priv_mode);
-              //TODO : Complete the logic here
-              // if permissions are okay and accessed bit and dirty bit not needed to be set
-              // then return physical address 
+    // Fill signals
+    d_tlb_if.fill_req = d_fill_req;
+    d_tlb_if.fill_vpn = d_fill_vpn;
+    d_tlb_if.fill_ppn = d_fill_ppn;
+    d_tlb_if.fill_perm = d_fill_perm;
+    d_tlb_if.fill_satp = d_fill_satp;
+    // Flush signal
+    d_tlb_if.flush_req = data_if.flush;
 
+    if (d_mmu_state_q == IDLE) begin
+      if (data_if.req && !os_bypass_d) begin
+        d_tlb_if.lookup_req = 1'b1;
+        d_tlb_if.lookup_vaddr = data_if.vaddr;
+      end
+    end else if(d_mmu_state_q == RELOOKUP) begin
+      // Re-issue TLB lookup after PTW fill
+      d_tlb_if.lookup_req = 1'b1;
+      d_tlb_if.lookup_vaddr = d_vaddr_q;
+      d_tlb_if.lookup_satp = d_satp_q;
+      d_tlb_if.lookup_priv = d_priv_q; 
+      d_tlb_if.lookup_access_type = d_acc_q;
+    end
+  end
 
-              // if permisions are okay but accessed bit or dirty bit need to be set
-              // then send request to PTW to set the bits
+  // Lookup results
+  logic i_valid, d_valid;
+  logic i_hit, d_hit;
+  logic i_miss, d_miss;
+  logic i_need_ad_update, d_need_ad_update; 
+  always_comb begin 
+    i_valid = i_tlb_if.lookup_req && i_tlb_if.lookup_ready;
+    d_valid = d_tlb_if.lookup_req && d_tlb_if.lookup_ready;
 
+    i_hit = i_valid && i_tlb_if.hit;
+    d_hit = d_valid && d_tlb_if.hit;
 
-              // if permissions are not okay then raise page fault
+    i_miss = i_valid && !i_tlb_if.hit;
+    d_miss = d_valid && !d_tlb_if.hit;
 
-            end
+    i_need_ad_update = i_hit && !i_tlb_if.perm_fault && (i_tlb_if.need_a_update || i_tlb_if.need_d_update);
+    d_need_ad_update = d_hit && !d_tlb_if.perm_fault && (d_tlb_if.need_a_update || d_tlb_if.need_d_update);
+  end
 
-          end
+  // MMU State Machines
+  always_comb begin
+    // Default next states
+    i_mmu_state_d = i_mmu_state_q;
+    d_mmu_state_d = d_mmu_state_q;
 
-          if (data_if.req) begin
-            // TODO: Handle data access
-            d_tlb_if.req = 1'b1;
-            d_tlb_if.vaddr = data_if.vaddr;
-            d_tlb_if.access_type = data_if.access_type;
-          end
-        end  // Handle Bare Mode if no translation is required
-        else if (!satp.mode && (instr_if.req || data_if.req)) begin
-          if (instr_if.req) begin
-            instr_phys_addr = phys_addr_t'(instr_if.vaddr);
-            instr_if.ready = 1'b1;
-            instr_if.page_fault = 1'b0;
-          end
-          if (data_if.req) begin
-            data_phys_addr = phys_addr_t'(data_if.vaddr);
-            data_if.ready = 1'b1;
-            data_if.page_fault = 1'b0;
-          end
-        end else begin
-          next_state = MMU_IDLE;
+    unique case (i_mmu_state_q)
+      IDLE: begin
+        if (i_valid && !os_bypass_i && (i_miss || i_need_ad_update)) begin
+          // TLB miss or need A/D update, start PTW
+          i_mmu_state_d = WAIT_PTW;
         end
       end
+      WAIT_PTW: begin
+        if (ptw_if.ready && (ptw_own_q == PTW_I)) begin
+          if(ptw_if.page_fault) begin
+            // Page fault, go back to IDLE
+            i_mmu_state_d = IDLE;
+          end else begin
+            // Successful PTW, go to RELOOKUP
+            i_mmu_state_d = RELOOKUP;
+          end
+        end
+      end
+      RELOOKUP: begin
+        if (i_valid) begin
+          if (i_hit && !i_tlb_if.perm_fault &&
+            !(i_tlb_if.need_a_update || i_tlb_if.need_d_update)) begin
+            // Successful re-lookup, back to IDLE
+            i_mmu_state_d = IDLE;
+          end
+          else if (i_hit && i_tlb_if.perm_fault) begin
+              i_mmu_state_d = IDLE; // Permission fault, back to IDLE, deliver fault to CPU
+          end
+        end
+      end
+      default: begin
+        i_mmu_state_d = IDLE;
+      end
     endcase
+
+    unique case (d_mmu_state_q)
+      IDLE: begin
+        if (d_valid && !os_bypass_d && (d_miss || d_need_ad_update)) begin
+          // TLB miss or need A/D update, start PTW
+          d_mmu_state_d = WAIT_PTW;
+        end
+      end
+      WAIT_PTW: begin
+        if (ptw_if.ready && (ptw_own_q == PTW_D)) begin
+          if(ptw_if.page_fault) begin
+            // Page fault, go back to IDLE
+            d_mmu_state_d = IDLE;
+          end else begin
+            // Successful PTW, go to RELOOKUP
+            d_mmu_state_d = RELOOKUP;
+          end
+        end
+      end
+      RELOOKUP: begin
+        if (d_valid) begin
+          if (d_hit && !d_tlb_if.perm_fault &&
+              !(d_tlb_if.need_a_update || d_tlb_if.need_d_update)) begin
+            // Successful re-lookup, back to IDLE
+            d_mmu_state_d = IDLE;
+          end else if (d_hit && d_tlb_if.perm_fault) begin
+              d_mmu_state_d = IDLE; // Permission fault, back to IDLE, deliver fault to CPU
+          end 
+        end
+      end
+      default: begin
+          d_mmu_state_d = IDLE;
+      end
+    endcase
+  end
+
+  // when enter to WAIT_PTW state
+  always_ff @(posedge clk or negedge rst_n) begin
+    if(!rst_n) begin
+      i_mmu_state_q <= IDLE;
+      d_mmu_state_q <= IDLE;
+
+      ptw_own_q <= PTW_IDLE;
+      // pending regs
+      i_vaddr_q <= '0;
+      i_acc_q <= ACCESS_IFETCH;
+      i_satp_q <= '0;
+      i_priv_q <= USER_MODE;
+
+      d_vaddr_q <= '0;
+      d_acc_q <= ACCESS_LOAD;
+      d_satp_q <= '0;
+      d_priv_q <= USER_MODE;
+
+    end else begin
+      i_mmu_state_q <= i_mmu_state_d;
+      d_mmu_state_q <= d_mmu_state_d;
+      // PTW owner tracking
+      ptw_own_q <= ptw_own_d;
+
+      // Capture pending regs on entering WAIT_PTW
+      if (i_mmu_state_q == IDLE && i_mmu_state_d == WAIT_PTW) begin
+        i_vaddr_q <= instr_if.vaddr;
+        i_acc_q <= ACCESS_IFETCH;
+        i_satp_q <= instr_if.satp;
+        i_priv_q <= instr_if.curr_priv_mode;
+
+      end
+      if (d_mmu_state_q == IDLE && d_mmu_state_d == WAIT_PTW) begin
+        d_vaddr_q <= data_if.vaddr;
+        d_acc_q <= data_if.access_type;
+        d_satp_q <= data_if.satp;
+        d_priv_q <= data_if.curr_priv_mode;
+
+      end
+    end
+  end
+
+  // PTW arbitration and request signals
+  logic ptw_req;
+  ptw_owner_t ptw_own_selector;
+  always_comb begin
+    ptw_req = 1'b0;
+    ptw_own_selector = ptw_own_q;
+
+    // default PTW signals
+    ptw_if.req = 1'b0;
+    ptw_if.satp = '0;
+    ptw_if.vaddr = '0;
+    ptw_if.access_type = ACCESS_NONE;
+    ptw_if.curr_priv_mode = USER_MODE;
+
+    if(!ptw_if.busy && !ptw_if.ready) begin
+      if (d_mmu_state_q == WAIT_PTW) begin
+        ptw_req = 1'b1;
+        ptw_own_selector = PTW_D;
+
+        ptw_if.req = 1'b1;
+        ptw_if.satp = d_satp_q;
+        ptw_if.vaddr = d_vaddr_q;
+        ptw_if.access_type = d_acc_q;
+        ptw_if.curr_priv_mode = d_priv_q;
+
+      end else if (i_mmu_state_q == WAIT_PTW) begin
+        ptw_req = 1'b1;
+        ptw_own_selector = PTW_I;
+
+        ptw_if.req = 1'b1;
+        ptw_if.satp = i_satp_q;
+        ptw_if.vaddr = i_vaddr_q;
+        ptw_if.access_type = i_acc_q;
+        ptw_if.curr_priv_mode = i_priv_q;
+
+      end
+    end
+    // PTW owner tracking
+    if (ptw_req) begin
+      ptw_own_d = ptw_own_selector;
+    end else if (ptw_if.ready) begin
+      ptw_own_d = PTW_IDLE;
+    end else begin
+      ptw_own_d = ptw_own_q;
+    end
+  end
+
+  // PTW response handling and TLB fill signals
+  always_comb begin
+    // Default fills
+    i_fill_req = 1'b0;
+    i_fill_vpn = '0;
+    i_fill_ppn = '0;
+    i_fill_perm = '0;
+    i_fill_satp = '0;
+    d_fill_req = 1'b0;
+    d_fill_vpn = '0;
+    d_fill_ppn = '0;
+    d_fill_perm = '0;
+    d_fill_satp = '0;
+
+    // Handle PTW response
+    if (ptw_if.ready && !ptw_if.page_fault) begin
+        if (ptw_own_q == PTW_D && d_mmu_state_q == WAIT_PTW) begin
+          // Data channel fill
+          d_fill_req = 1'b1;
+          d_fill_vpn = d_vaddr_q[31:12];
+          d_fill_ppn = ptw_if.ppn;
+          d_fill_perm = ptw_if.perms;
+          d_fill_satp = d_satp_q;
+        end else if (ptw_own_q == PTW_I && i_mmu_state_q == WAIT_PTW) begin
+          // Instruction channel fill
+          i_fill_req = 1'b1;
+          i_fill_vpn = i_vaddr_q[31:12];
+          i_fill_ppn = ptw_if.ppn;
+          i_fill_perm = ptw_if.perms;
+          i_fill_satp = i_satp_q;
+        end
+      
+    end
+  end
+
+  // CPU response signals
+  always_comb begin
+    // default values
+    instr_if.ready = 1'b0;
+    instr_if.stall = 1'b0;
+    instr_if.busy = 1'b0;
+    instr_if.page_fault = 1'b0;
+    instr_if.page_fault_cause = PAGE_FAULT_NONE;
+    instr_if.paddr = '0;
+
+    data_if.ready = 1'b0;
+    data_if.stall = 1'b0;
+    data_if.busy = 1'b0;
+    data_if.page_fault = 1'b0;
+    data_if.page_fault_cause = PAGE_FAULT_NONE;
+    data_if.paddr = '0;
+
+    // bypass case
+    if (instr_if.req && os_bypass_i) begin
+      instr_if.ready = 1'b1;
+      instr_if.paddr = instr_if.vaddr;
+    end
+
+    if (data_if.req && os_bypass_d) begin
+      data_if.ready = 1'b1;
+      data_if.paddr = data_if.vaddr;
+    end
+
+    // stall management
+    if (instr_if.req && !os_bypass_i && (i_mmu_state_q != IDLE)) begin
+      instr_if.stall = 1'b1;
+      instr_if.busy = 1'b1;
+    end
+    if (data_if.req && !os_bypass_d && (d_mmu_state_q != IDLE)) begin
+      data_if.stall = 1'b1;
+      data_if.busy = 1'b1;
+    end
+
+    // stall also on TLB miss and ad update
+    if (instr_if.req && !os_bypass_i && (i_mmu_state_q == IDLE) && (i_miss || i_need_ad_update)) begin
+      instr_if.stall = 1'b1;
+      instr_if.busy = 1'b1;
+    end
+    if (data_if.req && !os_bypass_d && (d_mmu_state_q == IDLE) && (d_miss || d_need_ad_update)) begin
+      data_if.stall = 1'b1;
+      data_if.busy = 1'b1;
+    end
+
+    // Permission fault handling ON TLB HIT
+    if (instr_if.req && !os_bypass_i && (i_mmu_state_q == IDLE) && i_hit && i_tlb_if.perm_fault) begin
+      instr_if.ready = 1'b1;
+      instr_if.page_fault = 1'b1;
+      instr_if.page_fault_cause = PAGE_FAULT_IFETCH;
+    end
+    if (data_if.req && !os_bypass_d && (d_mmu_state_q == IDLE) && d_hit && d_tlb_if.perm_fault) begin
+      data_if.ready = 1'b1;
+      if (data_if.access_type == ACCESS_LOAD) begin
+        data_if.page_fault_cause = PAGE_FAULT_LOAD;
+      end else if (data_if.access_type == ACCESS_STORE) begin
+        data_if.page_fault_cause = PAGE_FAULT_STORE;
+      end
+      data_if.page_fault = 1'b1;
+    end
+
+    // Successful TLB hit
+    if (instr_if.req && !os_bypass_i && (i_mmu_state_q == IDLE) && i_hit && !i_tlb_if.perm_fault &&
+          !(i_tlb_if.need_a_update || i_tlb_if.need_d_update)) begin
+      instr_if.ready = 1'b1;
+      instr_if.paddr = i_tlb_if.paddr;
+    end
+    if (data_if.req && !os_bypass_d && (d_mmu_state_q == IDLE) && d_hit && !d_tlb_if.perm_fault &&
+          !(d_tlb_if.need_a_update || d_tlb_if.need_d_update)) begin
+      data_if.ready = 1'b1;
+      data_if.paddr = d_tlb_if.paddr;
+    end
+
+    // PTW page fault handling
+    if (ptw_if.ready && ptw_if.page_fault) begin
+      if (ptw_own_q == PTW_I) begin
+        instr_if.page_fault = 1'b1;
+        instr_if.page_fault_cause = ptw_if.fault_cause;
+        instr_if.ready = 1'b1;
+      end
+      else if (ptw_own_q == PTW_D) begin
+        data_if.page_fault = 1'b1;
+        data_if.page_fault_cause = ptw_if.fault_cause;
+        data_if.ready = 1'b1;
+      end
+    end
+
+    // relookup handling
+    if (i_mmu_state_q == RELOOKUP) begin
+      if (i_valid) begin
+      if (i_hit && !i_tlb_if.perm_fault &&
+          !(i_tlb_if.need_a_update || i_tlb_if.need_d_update)) begin
+        instr_if.ready = 1'b1;
+        instr_if.paddr = i_tlb_if.paddr;
+        instr_if.stall = 1'b0;
+        instr_if.busy = 1'b0;
+      end else if (i_hit && i_tlb_if.perm_fault) begin
+        instr_if.page_fault = 1'b1;
+        instr_if.page_fault_cause = PAGE_FAULT_IFETCH;
+        instr_if.ready = 1'b1;
+        instr_if.stall = 1'b0;
+        instr_if.busy = 1'b0;
+      end
+    end
+    end
+
+    if (d_mmu_state_q == RELOOKUP) begin
+      if (d_valid) begin
+        if (d_hit && !d_tlb_if.perm_fault &&
+            !(d_tlb_if.need_a_update || d_tlb_if.need_d_update)) begin
+          data_if.ready = 1'b1;
+          data_if.paddr = d_tlb_if.paddr;
+          data_if.stall = 1'b0;
+          data_if.busy = 1'b0;
+        end else if (d_hit && d_tlb_if.perm_fault) begin
+          data_if.page_fault = 1'b1;
+          if (d_acc_q == ACCESS_LOAD) begin
+            data_if.page_fault_cause = PAGE_FAULT_LOAD;
+          end else if (d_acc_q == ACCESS_STORE) begin
+            data_if.page_fault_cause = PAGE_FAULT_STORE;
+          end
+          data_if.ready = 1'b1;
+          data_if.stall = 1'b0;
+          data_if.busy = 1'b0;
+        end
+    end
+    end
   end
 
 
