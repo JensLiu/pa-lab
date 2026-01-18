@@ -46,11 +46,12 @@ static int __test_mem_copy() {
 
 // Performance Test 3: Matrix Multiply
 // Count cycles for NxN matrix multiplication
-#define NI 10
-#define NJ 10
-#define NK 10
+#define SMALLER_N 32
+#define NI SMALLER_N
+#define NJ SMALLER_N
+#define NK SMALLER_N
 static int __test_matrix_multiply() {
-  int a[N][N], b[N][N], c[N][N];
+  int a[SMALLER_N][SMALLER_N], b[SMALLER_N][SMALLER_N], c[SMALLER_N][SMALLER_N];
   int i, j, k;
 
   // Initialize matrices
@@ -83,6 +84,6 @@ static int matrix_multiply_test() {
   int result3 = __test_matrix_multiply(); // Expected: N
 
   // Return sum of all results for verification
-  return result1 + result2 + result3; // Expected: 9024
+  return result1 + result2 + result3;
   // return 0;
 }

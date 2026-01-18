@@ -369,7 +369,7 @@ package pkg_global_defs;
     } id_imul_regs_t;
 
     typedef struct {
-        bool_t placeHolder;
+        bool_t flushPipeline;
     } imul_control_t;
 
     typedef struct {

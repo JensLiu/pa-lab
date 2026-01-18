@@ -28,8 +28,8 @@ int __iterative_fibonacci(int n) {
 }
 
 int __memorised_fibonacci(int n, int log_array[], int size) {
-  if (n < size &&
-      log_array[n] != 0) { // non-zero means we already computed this
+  if (n < size && log_array[n] != 0) {
+    // non-zero means we already computed this
     return log_array[n];
   }
   if (n == 0) {

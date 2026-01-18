@@ -22,7 +22,7 @@ module alu
             ALU_NOT:  Y = ~A;
             ALU_AND:  Y = A & B;
             ALU_OR:   Y = A | B;
-            ALU_XOR:  Y = (A & ~B) | (~A | B);
+            ALU_XOR:  Y = A ^ B;
             ALU_SLL:  Y = A << B;
             ALU_SLT:  Y = ($signed(A) < $signed(B)) ? A : B;
             ALU_SLTU: Y = (A < B) ? A : B;

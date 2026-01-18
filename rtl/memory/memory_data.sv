@@ -10,6 +10,10 @@ module memory_data
 
     byte_t mem[DATA_MEM_SIZE];
 
+    initial begin
+        $readmemh("memory.hex", mem);
+    end
+
     always_ff @(posedge clk) begin
         if (cpuRequest.request && !cpuRequest.isRead) begin
             if (cpuRequest.addr >= DATA_MEM_SIZE) begin

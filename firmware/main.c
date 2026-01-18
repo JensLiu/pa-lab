@@ -1,7 +1,19 @@
+// Required by GCC for struct/array operations in freestanding mode
+void *memcpy(void *dest, const void *src, unsigned int n) {
+    unsigned char *d = dest;
+    const unsigned char *s = src;
+    while (n--) {
+        *d++ = *s++;
+    }
+    return dest;
+}
+
+#define STOP *(unsigned int *)(0xcafebabe) = 0xbeafbabe
+
+
 #include "matrix_multiply_testcase.h"
 #include "fib_testcase.h"
-
-// #define STOP *(unsigned int *)(0xcafebabe) = 0xbeafbabe
+#include "bst_testcase.h"
 
 int sum(int n) {
   int total = 0;
@@ -11,11 +23,9 @@ int sum(int n) {
   return total;
 }
 
-
-#define STOP *(unsigned int *)(0xcafebabe) = 0xbeafbabe
-
 int main() {
   // fib_test();
-  matrix_multiply_test();
+  // matrix_multiply_test();
+  bst_test();
   STOP;
 }

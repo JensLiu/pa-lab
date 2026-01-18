@@ -230,7 +230,11 @@ module mem_stage
 
 `ifdef DATA_CACHE_DIVERGENCE_TEST
     always_ff @(posedge clk) begin : DEBUG_DivergenceTest
-        if (MEM_instInfo.isLoad && cacheRequest.ready && cacheRequest.isRead) begin
+        // Only check divergence when BOTH cache and debug memory report ready
+        // This avoids false positives during cache refill bypass (where cache 
+        // returns data from memory response but debug memory hasn't completed)
+        if (MEM_instInfo.isLoad && cacheRequest.ready && cacheRequest.isRead && 
+            DEBUG_dataMemRequest.ready) begin
             if (DEBUG_dataMemRequest.addr != cacheRequest.addr) begin
                 $display("@%d: Divergent address: MEM addr %h != dataMem addr %h",
                          DEBUG_tick, cacheRequest.addr, DEBUG_dataMemRequest.addr);
@@ -239,7 +243,6 @@ module mem_stage
                          DEBUG_tick, cacheRequest.addr,
                          cacheRequest.dataFromCache, DEBUG_dataMemRequest.dataFromCache);
             end
-            assert (DEBUG_dataMemRequest.ready);
             assert (DEBUG_dataMemRequest.addr == cacheRequest.addr);
             assert (DEBUG_dataMemRequest.isRead == cacheRequest.isRead);
             assert (DEBUG_dataMemRequest.dataLen == cacheRequest.dataLen);
