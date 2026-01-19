@@ -2,16 +2,16 @@ interface pw_cache_if;
     import pkg_virtual_memory::*;
     import pkg_global_defs::*;
     // ---------------- Request ----------------
-    logic           req;            // start memory access
-    addr_t       addr;           // physical address
-    logic           is_write;       // read or write
-    logic [31:0]    wdata;          // write data
+    logic         req;  // start memory access
+    addr_t        addr;  // physical address
+    logic         is_write;  // read or write
+    logic  [31:0] wdata;  // write data
     // ---------------- Response ----------------
-    logic           ready;          // response valid
-    logic [31:0]    rdata;          // read data
-    logic           fault;          // memory access fault
+    logic         ready;  // response valid
+    logic  [31:0] rdata;  // read data
+    logic         fault;  // memory access fault
 
-    modport page_walker (
+    modport page_walker(
         // output ports
         output req,
         output addr,
@@ -23,7 +23,7 @@ interface pw_cache_if;
         input fault
     );
 
-    modport memory_controller (
+    modport memory_controller(
         // input ports
         input req,
         input addr,

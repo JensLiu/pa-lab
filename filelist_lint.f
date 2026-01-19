@@ -17,6 +17,8 @@ rtl/virtual_memory/inner/cpu_mmmu_if.sv
 rtl/virtual_memory/inner/mmu_pw_if.sv
 rtl/virtual_memory/inner/mmu_tlb_if.sv
 rtl/virtual_memory/inner/pw_cache_if.sv
+rtl/virtual_memory/adaptors/address_mapper.sv
+rtl/virtual_memory/adaptors/data_cache_access_sequencer.sv
 
 # RTL (top-level and submodules)
 // rtl/datapath/datapath_pipelined.sv

@@ -16,7 +16,7 @@ module mmu
     mmu_pw_if.mmu ptw_if
 );
 
-    // bypass detection  
+    // bypass detection
     logic os_bypass_i, os_bypass_d;
     always_comb begin
         os_bypass_d = (data_if.satp.mode == SATP_MODE_BARE) || (data_if.curr_priv_mode == SUPERVISOR_MODE);
@@ -276,7 +276,11 @@ module mmu
         ptw_if.access_type = ACCESS_NONE;
         ptw_if.curr_priv_mode = USER_MODE;
 
-        if (!ptw_if.busy && !ptw_if.ready) begin
+        // Use ptw_own_q to track if we've already sent a request (avoids combinational loop through ptw_if.ready)
+        // Only send request if:
+        // 1. Page walker is not busy (ptw_if.busy is registered in page_walker)
+        // 2. We haven't already sent a request (ptw_own_q == PTW_IDLE)
+        if (!ptw_if.busy && (ptw_own_q == PTW_IDLE)) begin
             if (d_mmu_state_q == WAIT_PTW) begin
                 ptw_req = 1'b1;
                 ptw_own_selector = PTW_D;

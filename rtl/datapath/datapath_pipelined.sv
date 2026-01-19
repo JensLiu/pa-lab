@@ -61,8 +61,10 @@ module datapath_pipelined
     wb_hints_t wbHints;
     rob_hints_t robHints;
 
-    cache_request_if instCacheCpuRequest ();
-    cache_request_if dataCacheCpuRequest ();
+    cache_request_if instCacheCpuRequestVirtual ();
+    cache_request_if dataCacheCpuRequestVirtual ();
+    cache_request_if instCacheCpuRequestPhysical ();
+    cache_request_if dataCacheCpuRequestPhysical ();
 
     rob_ticket_request_if robTicketRequest ();
     rob_reg_query_if robRegQuery ();
@@ -77,8 +79,7 @@ module datapath_pipelined
         .ifControl(ifControl),
         .ifIdRegs(ifIdRegsP),
         .ifHints(ifHints),
-        // .cacheRequest(instCacheCpuRequest.master)
-        .cacheRequest(instCacheCpuRequest.master)
+        .cacheRequest(instCacheCpuRequestVirtual.master)
 `ifdef INSTRUCTION_CACHE_DIVERGENCE_TEST,
         .DEBUG_instMemRequest(DEBUG_instMemoryCpuRequest.master)
 `endif
@@ -118,7 +119,7 @@ module datapath_pipelined
         .exMemRegs(exMemRegsQ),
         .memControl(memControl),
         .memHints(memHints),
-        .cacheRequest(dataCacheCpuRequest.master),
+        .cacheRequest(dataCacheCpuRequestVirtual.master),
         .storeQuery(robStoreQuery.master)
 `ifdef DATA_CACHE_DIVERGENCE_TEST,
         .DEBUG_dataMemRequest(DEBUG_dataMemoryCpuRequest.master)
@@ -141,6 +142,69 @@ module datapath_pipelined
         .storeQuery(robStoreQuery.slave)
     );
 
+    // ========================= Virtual Memory  =========================
+    addr_mapper_control_t instAddrMapperControl;
+    addr_mapper_control_t dataAddrMapperControl;
+    cache_request_if _dataCacheCpuRequestPhysical ();
+    pw_cache_if pwCacheRequest ();
+    cpu_mmu_if instMMURequest ();
+    cpu_mmu_if dataMMURequest ();
+
+    address_mapper instAddrMapper (
+        .clk(clk),
+        .mapperControl(instAddrMapperControl),
+        .virtualRequest(instCacheCpuRequestVirtual.slave),
+        .physicalRequest(instCacheCpuRequestPhysical.master),
+        .mmuRequest(instMMURequest.cpu)
+    );
+
+    address_mapper dataAddrMapper (
+        .clk(clk),
+        .mapperControl(dataAddrMapperControl),
+        .virtualRequest(dataCacheCpuRequestVirtual.slave),
+        .physicalRequest(_dataCacheCpuRequestPhysical.master),
+        .mmuRequest(dataMMURequest.cpu)
+    );
+
+    data_cache_access_sequencer dataCacheAccessSequencer (
+        .clk(clk),
+        .cpuRequest(_dataCacheCpuRequestPhysical.slave),
+        .pwRequest(pwCacheRequest.memory_controller),
+        .cacheRequest(dataCacheCpuRequestPhysical.master)
+    );
+
+    mmu_tlb_if iTlbRequest ();
+    mmu_tlb_if dTlbRequest ();
+    mmu mmu (
+        .clk(clk),
+        .rst_n(FALSE),  // TODO: reset signal
+        .instr_if(instMMURequest.mmu),
+        .data_if(dataMMURequest.mmu),
+        .i_tlb_if(iTlbRequest.mmu),
+        .d_tlb_if(dTlbRequest.mmu),
+        .ptw_if(pwRequest.mmu)
+    );
+
+    tlb itlb (
+        .clk(clk),
+        .rst_n(FALSE),  // TODO: reset signal
+        .tlb_mmu_if(iTlbRequest.tlb)
+    );
+
+    tlb dtlb (
+        .clk(clk),
+        .rst_n(FALSE),  // TODO: reset signal
+        .tlb_mmu_if(dTlbRequest.tlb)
+    );
+
+    mmu_pw_if pwRequest ();
+    page_walker pageWalker (
+        .clk(clk),
+        .rst_n(FALSE),  // TODO: reset signal
+        .pw_mmu_if(pwRequest.page_walker),
+        .pw_cache_if(pwCacheRequest.page_walker)
+    );
+
     // ========================= Cache and Store Buffer =========================
     mem_request_if instCacheMemRequest ();
     mem_request_if dataCacheMemRequest ();
@@ -149,7 +213,7 @@ module datapath_pipelined
     cache_hit_query_if _instCacheHitQuery ();  // unused
     cache #("InstructionCache") instructionCache (
         .clk(clk),
-        .cpuRequest(instCacheCpuRequest.slave),
+        .cpuRequest(instCacheCpuRequestPhysical.slave),
         .memRequest(instCacheMemRequest.master),
         .cpuHitQuery(_instCacheHitQuery.slave)
     );
@@ -159,7 +223,7 @@ module datapath_pipelined
     cache_hit_query_if dataCacheHitQuery ();
     store_buffer_frontend storeBuffer (
         .clk(clk),
-        .cpuRequest(dataCacheCpuRequest.slave),
+        .cpuRequest(dataCacheCpuRequestPhysical.slave),
         .deligatedCpuRequest(dataCacheCacheRequest.master),
         .cacheHitQuery(dataCacheHitQuery.master)
     );
@@ -171,9 +235,9 @@ module datapath_pipelined
     );
 `else
     cache_hit_query_if _dataCacheHitQuery ();
-    cache_fast dataCache (
+    cache #("DataCache") dataCache (
         .clk(clk),
-        .cpuRequest(dataCacheCpuRequest.slave),
+        .cpuRequest(dataCacheCpuRequestPhysical.slave),
         .memRequest(dataCacheMemRequest.master),
         .cpuHitQuery(_dataCacheHitQuery.slave)
     );

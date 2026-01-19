@@ -1,16 +1,16 @@
 `timescale 1ns / 1ps
 package pkg_virtual_memory;
 
-  // ---------------- SATP mode constants ----------------
-  localparam SATP_MODE_BARE = 1'b0;
-  localparam SATP_MODE_SV32 = 1'b1;
+    // ---------------- SATP mode constants ----------------
+    localparam SATP_MODE_BARE = 1'b0;
+    localparam SATP_MODE_SV32 = 1'b1;
 
-  // ---------------- Basic address types ----------------
-  typedef logic [31:0] vaddr_t;
-  typedef logic [31:0] paddr_t;
-  // Aliases for compatibility
-  typedef vaddr_t virtual_address_t;
-  typedef paddr_t phys_addr_t;
+    // ---------------- Basic address types ----------------
+    typedef logic [31:0] vaddr_t;
+    typedef logic [31:0] paddr_t;
+    // Aliases for compatibility
+    typedef vaddr_t virtual_address_t;
+    typedef paddr_t phys_addr_t;
 
     typedef logic [19:0] vpn_t;  // Sv32: 20-bit VPN (vpn1|vpn0)
     typedef logic [19:0] ppn_t;  // según tu PA / diseño
@@ -43,12 +43,12 @@ package pkg_virtual_memory;
         logic [8:0]       asid;
     } tlb_entry_t;
 
-  // ---------------- SATP (simplified Sv32/BARE) ----------------
-  typedef struct packed {
-    logic       mode;   // 1=Sv32, 0=BARE (si simplificas)
-    logic [8:0] asid;
-    ppn_t       ppn;         // root page table PPN
-  } satp_register_t;
+    // ---------------- SATP (simplified Sv32/BARE) ----------------
+    typedef struct packed {
+        logic       mode;  // 1=Sv32, 0=BARE (si simplificas)
+        logic [8:0] asid;
+        ppn_t       ppn;   // root page table PPN
+    } satp_register_t;
 
     // ---------------- Virtual address decomposition (Sv32) ----------------
     typedef struct packed {
@@ -155,5 +155,12 @@ package pkg_virtual_memory;
             return result;
         end
     endfunction : check_permissions_and_ad
+
+    // Adaptors
+    typedef struct {
+        logic vmEnabled;
+        priv_mode_t currentPrivMode;
+        satp_register_t satp;
+    } addr_mapper_control_t;
 
 endpackage : pkg_virtual_memory

@@ -9,7 +9,6 @@ module memory_request_sequencer
     input logic clk,
     mem_request_if.slave instCacheRequest,
     mem_request_if.slave dataCacheRequest,
-    mem_request_if.slave addrMapperRequest,
     mem_request_if.master memoryRequest
 );
 

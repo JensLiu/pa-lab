@@ -29,6 +29,7 @@ build:
 		${BASE_DIR}/rtl/reorder_buffer/*.sv \
 		${BASE_DIR}/rtl/store_buffer/*.sv \
 		${BASE_DIR}/rtl/virtual_memory/inner/*.sv \
+		${BASE_DIR}/rtl/virtual_memory/adaptors/*.sv \
 		$(CPP_SOURCES)
 
 firmware_obj:
