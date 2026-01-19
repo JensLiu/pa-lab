@@ -190,6 +190,11 @@ module tb_page_walker;
     // ============================================================================
     // Wait for response
     // ============================================================================
+    // Response storage
+    logic       resp_page_fault;
+    page_fault_t resp_fault_cause;
+    ppn_t       resp_ppn;
+    
     task automatic wait_resp();
         int timeout_cnt;
         timeout_cnt = 0;
@@ -203,31 +208,39 @@ module tb_page_walker;
                 $fatal(1, "[PW] wait_resp timeout after 200 cycles");
             end
         end
+        // Capture response values before they are cleared
+        resp_page_fault = pw_if.page_fault;
+        resp_fault_cause = pw_if.fault_cause;
+        resp_ppn = pw_if.ppn;
+        
+        // Wait an extra cycle to ensure any pending memory writes complete
+        @(posedge clk);
+        #1;
     endtask
 
     // ============================================================================
-    // Check response
+    // Check response - uses captured response values
     // ============================================================================
     task automatic check_ok(input ppn_t exp_ppn, input string test_name);
-        if (pw_if.page_fault) begin
+        if (resp_page_fault) begin
             $fatal(1, "[PW] %s: esperado OK, got page_fault (cause=%s)", test_name,
-                   pw_if.fault_cause.name());
+                   resp_fault_cause.name());
         end
-        if (pw_if.ppn !== exp_ppn) begin
-            $fatal(1, "[PW] %s: ppn mismatch exp=%h got=%h", test_name, exp_ppn, pw_if.ppn);
+        if (resp_ppn !== exp_ppn) begin
+            $fatal(1, "[PW] %s: ppn mismatch exp=%h got=%h", test_name, exp_ppn, resp_ppn);
         end
-        $display("[PW] %s: OK (ppn=%h)", test_name, pw_if.ppn);
+        $display("[PW] %s: OK (ppn=%h)", test_name, resp_ppn);
     endtask
 
     task automatic check_fault(input page_fault_t exp_cause, input string test_name);
-        if (!pw_if.page_fault) begin
+        if (!resp_page_fault) begin
             $fatal(1, "[PW] %s: esperado fault, got OK", test_name);
         end
-        if (pw_if.fault_cause !== exp_cause) begin
+        if (resp_fault_cause !== exp_cause) begin
             $fatal(1, "[PW] %s: fault cause mismatch exp=%s got=%s", test_name, exp_cause.name(),
-                   pw_if.fault_cause.name());
+                   resp_fault_cause.name());
         end
-        $display("[PW] %s: FAULT OK (cause=%s)", test_name, pw_if.fault_cause.name());
+        $display("[PW] %s: FAULT OK (cause=%s)", test_name, resp_fault_cause.name());
     endtask
 
     // ============================================================================
@@ -407,7 +420,7 @@ module tb_page_walker;
         check_ok(leaf_ppn2, "TEST10");
 
         // =========================================================================
-        $display("\n========== TODOS LOS TESTS PASARON ==========\n");
+        $display("\n========== ALL TESTS PASSED ==========\n");
         // =========================================================================
         $finish;
     end

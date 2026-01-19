@@ -284,7 +284,7 @@ module tb_tlb;
         drive_defaults();
 
         // -------------------------------------------------------------------------
-        $display("\n[TLB] ========== TODOS LOS TESTS PASARON ==========");
+        $display("\n[TLB] ========== ALL TESTS PASSED ==========");
         $finish;
     end
 

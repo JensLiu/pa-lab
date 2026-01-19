@@ -56,7 +56,7 @@ module tb_mmu;
     logic pend_is_write;
     word_t pend_wdata;
 
-    always_ff @(posedge clk or negedge rst_n) begin
+    always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             pending <= 0;
             cache_if.ready <= 0;
@@ -71,7 +71,7 @@ module tb_mmu;
                 cache_if.fault <= 0;
 
                 if (pend_is_write) begin
-                    mem[pend_addr] = pend_wdata;  // Blocking for associative array
+                    mem[pend_addr] = pend_wdata;  
                     cache_if.rdata <= '0;
                 end else begin
                     cache_if.rdata <= mem.exists(pend_addr) ? mem[pend_addr] : 32'h0;
@@ -700,7 +700,7 @@ module tb_mmu;
     print_all("TEST11 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
-    $display("\n========== TODOS LOS TESTS PASARON ==========\n");
+    $display("\n========== ALL TESTS PASSED ==========\n");
     // =========================================================================
     $finish;
   end
