@@ -20,4 +20,6 @@ testbench/unit_tb/**/*.hex
 testbench/unit_tb/**/*.out
 testbench/unit_tb/**/*.fst
 testbench/unit_tb/**/*.hex
-filelist_lint.f
+filelist_lint.f 
+*.DS_Store
+.hdl_cheker/

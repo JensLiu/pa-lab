@@ -1,0 +1,1618 @@
+{
+ "builder": {
+  "_version": "<undefined>",
+  "_logger": "hdl_checker.builders.fallback",
+  "_work_folder": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/.hdl_checker",
+  "_builtin_libraries": [],
+  "_added_libraries": [
+   {
+    "name": "work",
+    "case_sensitive": false,
+    "__class__": "Identifier"
+   },
+   {
+    "name": "default_library",
+    "case_sensitive": false,
+    "__class__": "Identifier"
+   }
+  ],
+  "__class__": "Fallback"
+ },
+ "config_file": [
+  {
+   "name": "/tmp/hdl_checker_project_pid65399.json",
+   "__class__": "Path"
+  },
+  1762860874.0870361,
+  "generated"
+ ],
+ "database": {
+  "sources": [
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_data.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3427837,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_data.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_data.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        1,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/alu.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762792292.5067446,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/alu.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        1,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/alu.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/wb_stage.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3423836,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/wb_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/wb_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        3,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/datapath_testcases.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3437884,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/datapath_testcases.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "tb_includes.sv",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        2,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/datapath_testcases.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        6,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/datapath_testcases.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        5,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/datapath_pipelined.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3418396,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/datapath_pipelined.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        3,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/datapath_pipelined.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/datapath_pipelined.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        0,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/decoder.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3426132,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/decoder.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        5,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/decoder.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        1,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/decoder.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/includes/tb_includes.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.343343,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/includes/tb_includes.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        0,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/comparator.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762792292.5068457,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/comparator.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        0,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/comparator.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        3,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/rtl_common.svh",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3413463,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/register_file.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3430665,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/register_file.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        1,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/register_file.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_register_file/tb_register_file.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762792292.5091867,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/ex_stage.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3419766,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/ex_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        5,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/ex_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        6,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/ex_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        2,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/id_stage.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3420835,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/id_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        5,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/id_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/id_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        1,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/if_stage.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.342184,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/if_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/if_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        1,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/if_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        5,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_alu/tb_alu.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762792292.5081527,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_alu/tb_alu.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        12,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_decoder/tb_decoder.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762792292.5088878,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_decoder/tb_decoder.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        3,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_decoder/tb_decoder.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3416064,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        3,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        0,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/tb_datapath.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3439407,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/tb_datapath.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        7,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/tb_datapath.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "datapath_testcases.sv",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        2,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/tb_datapath.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        8,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_riscv_instructions.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3411586,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_inst.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3429143,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_inst.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "rtl_common.svh",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "locations": [
+       [
+        1,
+        8
+       ]
+      ],
+      "__class__": "IncludedPath"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_inst.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        5,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_inst.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_global_defs.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3409739,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_global_defs.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        2,
+        7
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_global_defs.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        3,
+        7
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   },
+   {
+    "path": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/mem_stage.sv",
+     "__class__": "Path"
+    },
+    "mtime": 1762805004.3422909,
+    "flags": {
+     "source_specific": [],
+     "single": [],
+     "dependencies": []
+    },
+    "dependencies": [
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/mem_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_global_defs",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        4,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     },
+     {
+      "owner": {
+       "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/mem_stage.sv",
+       "__class__": "Path"
+      },
+      "name": {
+       "name": "pkg_riscv_instructions",
+       "case_sensitive": true,
+       "__class__": "VerilogIdentifier"
+      },
+      "library": null,
+      "locations": [
+       [
+        3,
+        11
+       ]
+      ],
+      "__class__": "RequiredDesignUnit"
+     }
+    ],
+    "diags": []
+   }
+  ],
+  "inferred_libraries": [
+   {
+    "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_global_defs.sv",
+    "__class__": "Path"
+   },
+   {
+    "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/mem_stage.sv",
+    "__class__": "Path"
+   },
+   {
+    "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_riscv_instructions.sv",
+    "__class__": "Path"
+   }
+  ],
+  "design_units": [
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/decoder.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "decoder",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      3,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/alu.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "alu",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      3,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/if_stage.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "if_stage",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      3,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_alu/tb_alu.sv",
+     "__class__": "Path"
+    },
+    "type_": "package",
+    "name": {
+     "name": "import",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      11,
+      44
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_riscv_instructions.sv",
+     "__class__": "Path"
+    },
+    "type_": "package",
+    "name": {
+     "name": "pkg_riscv_instructions",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      6,
+      8
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_data.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "memory_data",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      3,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/comparator.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "comparator",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/wb_stage.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "wb_stage",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_alu/tb_alu.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "tb_alu",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_decoder/tb_decoder.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "tb_decoder",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/tb_datapath.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "tb_datapath",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      6,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_register_file/tb_register_file.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "tb_register_file",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/includes/pkg_global_defs.sv",
+     "__class__": "Path"
+    },
+    "type_": "package",
+    "name": {
+     "name": "pkg_global_defs",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      5,
+      8
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/ex_stage.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "ex_stage",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      4,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/mem_stage.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "mem_stage",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/tb/tb_datapath/datapath_testcases.sv",
+     "__class__": "Path"
+    },
+    "type_": "package",
+    "name": {
+     "name": "datapath_testcases",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      4,
+      8
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "datapath",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/register_file.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "register_file",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      3,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/datapath_pipelined.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "datapath_pipelined",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      2,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/datapath/id_stage.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "id_stage",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      3,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   },
+   {
+    "owner": {
+     "name": "/Users/lizhilin/Documents/Master/1/PA/pa-lab/rtl/memory_inst.sv",
+     "__class__": "Path"
+    },
+    "type_": "entity",
+    "name": {
+     "name": "memory_inst",
+     "case_sensitive": true,
+     "__class__": "VerilogIdentifier"
+    },
+    "locations": [
+     [
+      3,
+      7
+     ]
+    ],
+    "__class__": "VerilogDesignUnit"
+   }
+  ],
+  "__class__": "Database"
+ },
+ "__version__": "0.7.4"
+}

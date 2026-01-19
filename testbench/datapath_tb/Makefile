@@ -115,4 +115,3 @@ clean:
 	-rm -rf obj_dir
 	-rm -f sim_main
 	-rm -f */*.log
-

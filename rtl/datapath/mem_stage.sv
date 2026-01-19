@@ -3,6 +3,7 @@
 module mem_stage
     import pkg_riscv_instructions::*;
     import pkg_global_defs::*;
+    import pkg_virtual_memory::*;
 (
     input clk_t clk,
     input ex_mem_regs_t exMemRegs,
