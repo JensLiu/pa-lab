@@ -158,8 +158,10 @@ module page_walker
         perms_l0 = pte_to_perms(pte_l0_q);
 
         // determine if A/D bits need to be updated
-        need_set_a = update_ad_q && set_a_q && !pte_l0_q.a;
-        need_set_d = update_ad_q && set_d_q && (access_type_q == ACCESS_STORE) && !pte_l0_q.d;
+        // A bit must be set on any access, D bit must be set on store
+        // The page walker always checks and updates A/D when needed
+        need_set_a = !pte_l0_q.a;  // A=0 means we need to set it
+        need_set_d = (access_type_q == ACCESS_STORE) && !pte_l0_q.d;  // D=0 on store means we need to set it
         need_wr_ad = need_set_a || need_set_d;
 
         pte_modified = pte_l0_q;

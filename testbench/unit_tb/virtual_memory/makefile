@@ -34,7 +34,7 @@ MMU_RTL := $(ROOT)/rtl/virtual_memory/inner/mmu.sv
 
 # ---------------- Testbenches (local) ----------------
 TB_TLB := tb_tlb.sv
-TB_PW  := tb_page_walker.sv
+TB_PW  := tb_pw.sv
 TB_MMU := tb_mmu.sv
 
 # ---------------- Outputs ----------------

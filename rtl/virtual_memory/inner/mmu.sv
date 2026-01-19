@@ -38,6 +38,9 @@ module mmu
     access_type_t i_acc_q, d_acc_q;
     satp_register_t i_satp_q, d_satp_q;
     priv_mode_t i_priv_q, d_priv_q;
+    // A/D update tracking per channel
+    logic i_need_a_q, i_need_d_q;
+    logic d_need_a_q, d_need_d_q;
 
     // PTW owner tracking
     typedef enum logic [1:0] {
@@ -238,6 +241,11 @@ module mmu
             d_satp_q <= '0;
             d_priv_q <= USER_MODE;
 
+            i_need_a_q <= 1'b0;
+            i_need_d_q <= 1'b0;
+            d_need_a_q <= 1'b0;
+            d_need_d_q <= 1'b0;
+
         end else begin
             i_mmu_state_q <= i_mmu_state_d;
             d_mmu_state_q <= d_mmu_state_d;
@@ -250,14 +258,16 @@ module mmu
                 i_acc_q   <= ACCESS_IFETCH;
                 i_satp_q  <= instr_if.satp;
                 i_priv_q  <= instr_if.curr_priv_mode;
-
+                i_need_a_q <= i_tlb_if.need_a_update;
+                i_need_d_q <= i_tlb_if.need_d_update;
             end
             if (d_mmu_state_q == IDLE && d_mmu_state_d == WAIT_PTW) begin
                 d_vaddr_q <= data_if.vaddr;
                 d_acc_q   <= data_if.access_type;
                 d_satp_q  <= data_if.satp;
                 d_priv_q  <= data_if.curr_priv_mode;
-
+                d_need_a_q <= d_tlb_if.need_a_update;
+                d_need_d_q <= d_tlb_if.need_d_update;
             end
         end
     end
@@ -275,6 +285,9 @@ module mmu
         ptw_if.vaddr = '0;
         ptw_if.access_type = ACCESS_NONE;
         ptw_if.curr_priv_mode = USER_MODE;
+        ptw_if.update_ad = 1'b0;
+        ptw_if.set_a = 1'b0;
+        ptw_if.set_d = 1'b0;
 
         // Use ptw_own_q to track if we've already sent a request (avoids combinational loop through ptw_if.ready)
         // Only send request if:
@@ -290,6 +303,9 @@ module mmu
                 ptw_if.vaddr = d_vaddr_q;
                 ptw_if.access_type = d_acc_q;
                 ptw_if.curr_priv_mode = d_priv_q;
+                ptw_if.update_ad = d_need_a_q || d_need_d_q;
+                ptw_if.set_a = d_need_a_q;
+                ptw_if.set_d = d_need_d_q;
 
             end else if (i_mmu_state_q == WAIT_PTW) begin
                 ptw_req = 1'b1;
@@ -300,6 +316,9 @@ module mmu
                 ptw_if.vaddr = i_vaddr_q;
                 ptw_if.access_type = i_acc_q;
                 ptw_if.curr_priv_mode = i_priv_q;
+                ptw_if.update_ad = i_need_a_q || i_need_d_q;
+                ptw_if.set_a = i_need_a_q;
+                ptw_if.set_d = i_need_d_q;
 
             end
         end
