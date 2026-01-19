@@ -52,7 +52,7 @@ module tlb
   always_comb begin
     tlb_mmu_if.hit = 1'b0;
     tlb_mmu_if.paddr = '0;
-    tlb_mmu_if.permission = '0;
+    //tlb_mmu_if.permission = '0;
     perm_check_result = '0;
     tlb_mmu_if.lookup_ready = 1'b0;
     tlb_mmu_if.perm_fault = 1'b0;
@@ -72,7 +72,7 @@ module tlb
           tlb_mmu_if.hit = 1'b1;
 
           tlb_mmu_if.paddr = {tlb_entries[i].ppn, tlb_mmu_if.lookup_vaddr[11:0]};
-          tlb_mmu_if.permission = tlb_entries[i].perms;
+          //tlb_mmu_if.permission = tlb_entries[i].perms;
           // Permission check
           perm_check_result = check_permissions_and_ad(
             tlb_entries[i].perms,

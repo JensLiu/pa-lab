@@ -92,8 +92,8 @@ module page_walker
             pw_state_q <= IDLE;
             satp_q <= '0;
             vaddr_q <= '0;
-            access_type_q <= '0;
-            curr_priv_mode_q <= '0;
+            access_type_q <= ACCESS_NONE;
+            curr_priv_mode_q <= USER_MODE;
             update_ad_q <= 1'b0;
             set_a_q <= 1'b0;
             set_d_q <= 1'b0;
@@ -123,12 +123,13 @@ module page_walker
         end
     end
 
+    // combinational logic state transitions and outputs
     permission_bits_t perms_l0;
     logic need_wr_ad, need_set_a, need_set_d;
     pte_sv32_t pte_modified;
+    pte_sv32_t pte_final;
     addr_t l1_pte_addr, l0_pte_addr;
 
-    // combinational logic state transitions and outputs
     always_comb begin
         pw_state_d = pw_state_q;
         // default outputs
@@ -145,6 +146,16 @@ module page_walker
         pw_cache_if.addr = '0;
         pw_cache_if.wdata = '0;
         pw_cache_if.is_write = 1'b0;
+
+        // Default values for combinational variables to avoid latches
+        perms_l0 = '0;
+        need_wr_ad = 1'b0;
+        need_set_a = 1'b0;
+        need_set_d = 1'b0;
+        pte_modified = '0;
+        pte_final = '0;
+        l1_pte_addr = '0;
+        l0_pte_addr = '0;
 
         perms_l0 = pte_to_perms(pte_l0_q);
 
@@ -275,7 +286,6 @@ module page_walker
             end
             // Respond with success
             RESP_OK: begin
-                pte_sv32_t pte_final;
                 pte_final = pte_l0_q;
                 if (need_wr_ad) pte_final = pte_modified;
 

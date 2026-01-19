@@ -40,7 +40,7 @@ module mmu
   priv_mode_t     i_priv_q,  d_priv_q;
 
   // PTW owner tracking
-  typedef enum logic {
+  typedef enum logic [1:0] {
     PTW_IDLE,
     PTW_I,
     PTW_D
@@ -427,11 +427,15 @@ module mmu
         instr_if.page_fault = 1'b1;
         instr_if.page_fault_cause = ptw_if.fault_cause;
         instr_if.ready = 1'b1;
+        instr_if.stall = 1'b0;
+        instr_if.busy = 1'b0;
       end
       else if (ptw_own_q == PTW_D) begin
         data_if.page_fault = 1'b1;
         data_if.page_fault_cause = ptw_if.fault_cause;
         data_if.ready = 1'b1;
+        data_if.stall = 1'b0;
+        data_if.busy = 1'b0;
       end
     end
 
