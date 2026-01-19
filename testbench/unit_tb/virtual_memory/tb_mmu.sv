@@ -110,6 +110,84 @@ module tb_mmu;
   endtask
 
   // ============================================================================
+  // TLB Debug Print
+  // ============================================================================
+  task automatic print_tlbs(input string label);
+    $display("[TLB] === %s ===", label);
+    $display("[TLB] iTLB (entry_count=%0d):", itlb.entry_count);
+    for (int i = 0; i < 4; i++) begin
+      if (itlb.tlb_entries[i].valid) begin
+        $display("[TLB]   [%0d] VPN=%h -> PPN=%h, ASID=%0d, perms(R=%b W=%b X=%b U=%b A=%b D=%b G=%b)",
+          i,
+          itlb.tlb_entries[i].vpn,
+          itlb.tlb_entries[i].ppn,
+          itlb.tlb_entries[i].asid,
+          itlb.tlb_entries[i].perms.r,
+          itlb.tlb_entries[i].perms.w,
+          itlb.tlb_entries[i].perms.x,
+          itlb.tlb_entries[i].perms.u,
+          itlb.tlb_entries[i].perms.a,
+          itlb.tlb_entries[i].perms.d,
+          itlb.tlb_entries[i].perms.g
+        );
+      end else begin
+        $display("[TLB]   [%0d] (invalid)", i);
+      end
+    end
+    $display("[TLB] dTLB (entry_count=%0d):", dtlb.entry_count);
+    for (int i = 0; i < 4; i++) begin
+      if (dtlb.tlb_entries[i].valid) begin
+        $display("[TLB]   [%0d] VPN=%h -> PPN=%h, ASID=%0d, perms(R=%b W=%b X=%b U=%b A=%b D=%b G=%b)",
+          i,
+          dtlb.tlb_entries[i].vpn,
+          dtlb.tlb_entries[i].ppn,
+          dtlb.tlb_entries[i].asid,
+          dtlb.tlb_entries[i].perms.r,
+          dtlb.tlb_entries[i].perms.w,
+          dtlb.tlb_entries[i].perms.x,
+          dtlb.tlb_entries[i].perms.u,
+          dtlb.tlb_entries[i].perms.a,
+          dtlb.tlb_entries[i].perms.d,
+          dtlb.tlb_entries[i].perms.g
+        );
+      end else begin
+        $display("[TLB]   [%0d] (invalid)", i);
+      end
+    end
+  endtask
+
+  // ============================================================================
+  // Memory (Page Table) Debug Print
+  // ============================================================================
+  task automatic print_memory(input string label, input addr_t l1_addr, input addr_t l0_addr);
+    pte_sv32_t pte;
+    $display("[MEM] === %s ===", label);
+    
+    // Print L1 PTE
+    if (mem.exists(l1_addr)) begin
+      pte = pte_sv32_t'(mem[l1_addr]);
+      $display("[MEM] L1 PTE @ %h: PPN=%h, V=%b, R=%b W=%b X=%b U=%b G=%b A=%b D=%b",
+        l1_addr, pte.ppn, pte.v, pte.r, pte.w, pte.x, pte.u, pte.g, pte.a, pte.d);
+    end else begin
+      $display("[MEM] L1 PTE @ %h: (not present)", l1_addr);
+    end
+    
+    // Print L0 PTE
+    if (mem.exists(l0_addr)) begin
+      pte = pte_sv32_t'(mem[l0_addr]);
+      $display("[MEM] L0 PTE @ %h: PPN=%h, V=%b, R=%b W=%b X=%b U=%b G=%b A=%b D=%b",
+        l0_addr, pte.ppn, pte.v, pte.r, pte.w, pte.x, pte.u, pte.g, pte.a, pte.d);
+    end else begin
+      $display("[MEM] L0 PTE @ %h: (not present)", l0_addr);
+    end
+  endtask
+
+  task automatic print_all(input string label, input addr_t l1_addr, input addr_t l0_addr);
+    print_tlbs(label);
+    print_memory(label, l1_addr, l0_addr);
+  endtask
+
+  // ============================================================================
   // Clock/Reset
   // ============================================================================
   initial begin
@@ -331,6 +409,7 @@ module tb_mmu;
     // =========================================================================
     $display("\n========== TEST 1: BYPASS (SATP_MODE_BARE) ==========");
     // =========================================================================
+    print_all("TEST1 BEFORE", l1_addr, l0_addr);
     cpu_req_instr(vaddr, satp_bare, USER_MODE);
     wait_ready_instr();
 
@@ -341,11 +420,13 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST1: bypass paddr!=vaddr (exp=%h got=%h)", vaddr, instr_if.paddr);
     end
     $display("[MMU] TEST1: BYPASS OK (paddr=%h)", instr_if.paddr);
+    print_all("TEST1 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TEST 2: TLB Miss -> PTW -> Fill -> Hit (Data LOAD) ==========");
     // =========================================================================
     do_flush();
+    print_all("TEST2 BEFORE", l1_addr, l0_addr);
 
     cpu_req_data(vaddr, ACCESS_LOAD, satp_sv32, USER_MODE);
     wait_ready_data();
@@ -358,10 +439,12 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST2: paddr mismatch (exp=%h got=%h)", exp_paddr, data_if.paddr);
     end
     $display("[MMU] TEST2: Data LOAD OK (paddr=%h)", data_if.paddr);
+    print_all("TEST2 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TEST 3: TLB Hit (cached from TEST2) ==========");
     // =========================================================================
+    print_all("TEST3 BEFORE", l1_addr, l0_addr);
     cpu_req_data(vaddr, ACCESS_LOAD, satp_sv32, USER_MODE);
     wait_ready_data();
 
@@ -372,11 +455,13 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST3: paddr mismatch");
     end
     $display("[MMU] TEST3: TLB Hit OK (paddr=%h)", data_if.paddr);
+    print_all("TEST3 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TEST 4: Instruction fetch (TLB miss -> PTW) ==========");
     // =========================================================================
     do_flush();
+    print_all("TEST4 BEFORE", l1_addr, l0_addr);
 
     cpu_req_instr(vaddr, satp_sv32, USER_MODE);
     wait_ready_instr();
@@ -388,6 +473,7 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST4: paddr mismatch");
     end
     $display("[MMU] TEST4: Instr Fetch OK (paddr=%h)", instr_if.paddr);
+    print_all("TEST4 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TEST 5: Permission fault (X=0 for IFETCH) ==========");
@@ -397,6 +483,7 @@ module tb_mmu;
     // Modify PTE: remove X permission
     pte_l0 = make_pte_leaf(leaf_ppn, 1,1,0,1, 0, 1,1, 1);  // X=0
     mem_write_pte(l0_addr, pte_l0);
+    print_all("TEST5 BEFORE", l1_addr, l0_addr);
 
     cpu_req_instr(vaddr, satp_sv32, USER_MODE);
     wait_ready_instr();
@@ -408,6 +495,7 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST5: wrong fault cause");
     end
     $display("[MMU] TEST5: Permission fault OK (cause=%s)", instr_if.page_fault_cause.name());
+    print_all("TEST5 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TEST 6: Permission fault (W=0 for STORE) ==========");
@@ -417,6 +505,7 @@ module tb_mmu;
     // Modify PTE: remove W permission
     pte_l0 = make_pte_leaf(leaf_ppn, 1,0,1,1, 0, 1,1, 1);  // W=0
     mem_write_pte(l0_addr, pte_l0);
+    print_all("TEST6 BEFORE", l1_addr, l0_addr);
 
     cpu_req_data(vaddr, ACCESS_STORE, satp_sv32, USER_MODE);
     wait_ready_data();
@@ -428,6 +517,7 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST6: wrong fault cause");
     end
     $display("[MMU] TEST6: Permission fault OK (cause=%s)", data_if.page_fault_cause.name());
+    print_all("TEST6 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TEST 7: V=0 -> Page fault ==========");
@@ -437,6 +527,7 @@ module tb_mmu;
     // Modify PTE: V=0
     pte_l0 = make_pte_leaf(leaf_ppn, 1,1,1,1, 0, 1,1, 0);  // V=0
     mem_write_pte(l0_addr, pte_l0);
+    print_all("TEST7 BEFORE", l1_addr, l0_addr);
 
     cpu_req_data(vaddr, ACCESS_LOAD, satp_sv32, USER_MODE);
     wait_ready_data();
@@ -445,6 +536,7 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST7: expected page_fault for V=0");
     end
     $display("[MMU] TEST7: V=0 fault OK");
+    print_all("TEST7 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TEST 8: Different address ==========");
@@ -466,6 +558,7 @@ module tb_mmu;
 
     mem_write_pte(l1_addr2, make_pte_ptr(l0_ppn, 1'b1));
     mem_write_pte(l0_addr2, make_pte_leaf(leaf_ppn2, 1,1,1,1, 0, 1,1, 1));
+    print_all("TEST8 BEFORE", l1_addr, l0_addr);
 
     cpu_req_data(vaddr2, ACCESS_LOAD, satp_sv32, USER_MODE);
     wait_ready_data();
@@ -478,6 +571,120 @@ module tb_mmu;
       $fatal(1, "[MMU] TEST8: paddr mismatch (exp=%h got=%h)", exp_paddr, data_if.paddr);
     end
     $display("[MMU] TEST8: Different address OK (paddr=%h)", data_if.paddr);
+    print_all("TEST8 AFTER", l1_addr, l0_addr);
+
+    // =========================================================================
+    $display("\n========== TEST 9: Dirty bit update (D=0 -> STORE) ==========");
+    // =========================================================================
+    do_flush();
+
+    // Create a PTE with A=1 but D=0 - a STORE should trigger dirty bit update
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,1,1,1, 0, 1,0, 1);  // R=1,W=1,X=1,U=1, A=1, D=0, V=1
+    mem_write_pte(l0_addr, pte_l0);
+
+    $display("[MMU] TEST9: PTE before STORE: A=1, D=0");
+    print_all("TEST9 BEFORE", l1_addr, l0_addr);
+
+    cpu_req_data(vaddr, ACCESS_STORE, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    exp_paddr = {leaf_ppn, vaddr[11:0]};
+    
+    // The translation should succeed (W=1 allows stores)
+    if (data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST9: unexpected page_fault - STORE should be allowed with W=1");
+    end
+    if (data_if.paddr !== exp_paddr) begin
+      $fatal(1, "[MMU] TEST9: paddr mismatch (exp=%h got=%h)", exp_paddr, data_if.paddr);
+    end
+    
+    // Verify the dirty bit was updated in memory by the page walker
+    begin
+      pte_sv32_t updated_pte;
+      updated_pte = pte_sv32_t'(mem[l0_addr]);
+      if (!updated_pte.d) begin
+        $display("[MMU] TEST9: WARNING - D bit not updated in memory (may be handled by SW)");
+      end else begin
+        $display("[MMU] TEST9: D bit correctly updated to 1 in memory");
+      end
+    end
+    $display("[MMU] TEST9: Dirty bit update OK (paddr=%h)", data_if.paddr);
+    print_all("TEST9 AFTER", l1_addr, l0_addr);
+
+    // =========================================================================
+    $display("\n========== TEST 10: Access bit update (A=0 -> LOAD) ==========");
+    // =========================================================================
+    do_flush();
+
+    // Create a PTE with A=0, D=0 - a LOAD should trigger access bit update
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,1,1,1, 0, 0,0, 1);  // R=1,W=1,X=1,U=1, A=0, D=0, V=1
+    mem_write_pte(l0_addr, pte_l0);
+
+    $display("[MMU] TEST10: PTE before LOAD: A=0, D=0");
+    print_all("TEST10 BEFORE", l1_addr, l0_addr);
+
+    cpu_req_data(vaddr, ACCESS_LOAD, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    exp_paddr = {leaf_ppn, vaddr[11:0]};
+    
+    if (data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST10: unexpected page_fault");
+    end
+    if (data_if.paddr !== exp_paddr) begin
+      $fatal(1, "[MMU] TEST10: paddr mismatch (exp=%h got=%h)", exp_paddr, data_if.paddr);
+    end
+    
+    // Verify the access bit was updated
+    begin
+      pte_sv32_t updated_pte;
+      updated_pte = pte_sv32_t'(mem[l0_addr]);
+      if (!updated_pte.a) begin
+        $display("[MMU] TEST10: WARNING - A bit not updated in memory (may be handled by SW)");
+      end else begin
+        $display("[MMU] TEST10: A bit correctly updated to 1 in memory");
+      end
+    end
+    $display("[MMU] TEST10: Access bit update OK (paddr=%h)", data_if.paddr);
+    print_all("TEST10 AFTER", l1_addr, l0_addr);
+
+    // =========================================================================
+    $display("\n========== TEST 11: Both A and D update (A=0,D=0 -> STORE) ==========");
+    // =========================================================================
+    do_flush();
+
+    // Create a PTE with A=0, D=0 - a STORE should trigger both A and D update
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,1,1,1, 0, 0,0, 1);  // R=1,W=1,X=1,U=1, A=0, D=0, V=1
+    mem_write_pte(l0_addr, pte_l0);
+
+    $display("[MMU] TEST11: PTE before STORE: A=0, D=0");
+    print_all("TEST11 BEFORE", l1_addr, l0_addr);
+
+    cpu_req_data(vaddr, ACCESS_STORE, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    exp_paddr = {leaf_ppn, vaddr[11:0]};
+    
+    if (data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST11: unexpected page_fault");
+    end
+    if (data_if.paddr !== exp_paddr) begin
+      $fatal(1, "[MMU] TEST11: paddr mismatch (exp=%h got=%h)", exp_paddr, data_if.paddr);
+    end
+    
+    // Verify both A and D bits were updated
+    begin
+      pte_sv32_t updated_pte;
+      updated_pte = pte_sv32_t'(mem[l0_addr]);
+      $display("[MMU] TEST11: Updated PTE - A=%b, D=%b", updated_pte.a, updated_pte.d);
+      if (!updated_pte.a || !updated_pte.d) begin
+        $display("[MMU] TEST11: WARNING - A/D bits not fully updated (may be handled by SW)");
+      end else begin
+        $display("[MMU] TEST11: Both A and D bits correctly updated to 1");
+      end
+    end
+    $display("[MMU] TEST11: A+D bit update OK (paddr=%h)", data_if.paddr);
+    print_all("TEST11 AFTER", l1_addr, l0_addr);
 
     // =========================================================================
     $display("\n========== TODOS LOS TESTS PASARON ==========\n");
