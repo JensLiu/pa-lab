@@ -1,8 +1,15 @@
 package pkg_virtual_memory;
 
+  // ---------------- SATP mode constants ----------------
+  localparam SATP_MODE_BARE = 1'b0;
+  localparam SATP_MODE_SV32 = 1'b1;
+
   // ---------------- Basic address types ----------------
   typedef logic [31:0] vaddr_t;
   typedef logic [31:0] paddr_t;
+  // Aliases for compatibility
+  typedef vaddr_t virtual_address_t;
+  typedef paddr_t phys_addr_t;
 
   typedef logic [19:0] vpn_t;   // Sv32: 20-bit VPN (vpn1|vpn0)
   typedef logic [19:0] ppn_t;   // según tu PA / diseño
@@ -37,7 +44,7 @@ package pkg_virtual_memory;
 
   // ---------------- SATP (simplified Sv32/BARE) ----------------
   typedef struct packed {
-    logic       mode_sv32;   // 1=Sv32, 0=BARE (si simplificas)
+    logic       mode;   // 1=Sv32, 0=BARE (si simplificas)
     logic [8:0] asid;
     ppn_t       ppn;         // root page table PPN
   } satp_register_t;

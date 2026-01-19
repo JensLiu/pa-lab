@@ -88,8 +88,8 @@ module page_walker
       pw_state_q <= IDLE;
       satp_q <= '0;
       vaddr_q <= '0;
-      access_type_q <= '0;
-      curr_priv_mode_q <= '0;
+      access_type_q <= ACCESS_NONE;
+      curr_priv_mode_q <= USER_MODE;
       update_ad_q <= 1'b0;
       set_a_q <= 1'b0;
       set_d_q <= 1'b0;
@@ -120,6 +120,12 @@ module page_walker
   end
 
   // combinational logic state transitions and outputs
+  permission_bits_t perms_l0;
+  logic need_wr_ad, need_set_a, need_set_d;
+  pte_sv32_t pte_modified;
+  pte_sv32_t pte_final;
+  addr_t l1_pte_addr, l0_pte_addr;
+
   always_comb begin
     pw_state_d = pw_state_q;
     // default outputs
@@ -137,22 +143,28 @@ module page_walker
     pw_cache_if.wdata = '0;
     pw_cache_if.is_write = 1'b0;
 
-    permission_bits_t perms_l0;
+    // Default values for combinational variables to avoid latches
+    perms_l0 = '0;
+    need_wr_ad = 1'b0;
+    need_set_a = 1'b0;
+    need_set_d = 1'b0;
+    pte_modified = '0;
+    pte_final = '0;
+    l1_pte_addr = '0;
+    l0_pte_addr = '0;
+
     perms_l0 = pte_to_perms(pte_l0_q);
 
-    logic need_wr_ad, need_set_a, need_set_d;
     // determine if A/D bits need to be updated
     need_set_a = update_ad_q && set_a_q && !pte_l0_q.a;
     need_set_d = update_ad_q && set_d_q && (access_type_q == ACCESS_STORE) && !pte_l0_q.d;
     need_wr_ad = need_set_a || need_set_d;
 
-    pte_sv32_t pte_modified;
     pte_modified = pte_l0_q;
     if (need_set_a) pte_modified.a = 1'b1;
     if (need_set_d) pte_modified.d = 1'b1;
 
     // address computation for page table walks
-    addr_t l1_pte_addr, l0_pte_addr;
     l1_pte_addr = mk_pte_addr(satp_q.ppn, vpn1);
     l0_pte_addr = mk_pte_addr(pte_l1_q.ppn, vpn0);
 
@@ -272,7 +284,6 @@ module page_walker
       end
       // Respond with success
       RESP_OK: begin
-        pte_sv32_t pte_final;
         pte_final = pte_l0_q;
         if (need_wr_ad) pte_final = pte_modified;
 

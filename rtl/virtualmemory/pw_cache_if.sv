@@ -1,5 +1,6 @@
 interface pw_cache_if;
     import pkg_virtual_memory::*;
+    import pkg_global_defs::*;
     // ---------------- Request ----------------
     logic           req;            // start memory access
     addr_t       addr;           // physical address

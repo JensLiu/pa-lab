@@ -23,3 +23,4 @@ testbench/unit_tb/**/*.hex
 filelist_lint.f 
 *.DS_Store
 .hdl_cheker/
+*/build/

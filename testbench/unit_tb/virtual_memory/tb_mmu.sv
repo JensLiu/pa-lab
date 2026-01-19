@@ -1,0 +1,488 @@
+`timescale 1ns/1ps
+
+module tb_mmu;
+  import pkg_virtual_memory::*;
+  import pkg_global_defs::*;
+
+  logic clk, rst_n;
+
+  cpu_mmu_if instr_if();
+  cpu_mmu_if data_if();
+
+  mmu_tlb_if i_tlb_if();
+  mmu_tlb_if d_tlb_if();
+  mmu_pw_if  pw_if();
+  pw_cache_if cache_if();
+
+  // iTLB/dTLB
+  tlb itlb(.clk(clk), .rst_n(rst_n), .tlb_mmu_if(i_tlb_if));
+  tlb dtlb(.clk(clk), .rst_n(rst_n), .tlb_mmu_if(d_tlb_if));
+
+  // Page walker
+  page_walker pw(.clk(clk), .rst_n(rst_n), .pw_mmu_if(pw_if), .pw_cache_if(cache_if));
+
+  // MMU
+  mmu dut(
+    .clk(clk),
+    .rst_n(rst_n),
+    .instr_if(instr_if),
+    .data_if(data_if),
+    .i_tlb_if(i_tlb_if),
+    .d_tlb_if(d_tlb_if),
+    .ptw_if(pw_if)
+  );
+
+  // ============================================================================
+  // Memory model (same as PW testbench)
+  // ============================================================================
+  typedef logic [31:0] word_t;
+  word_t mem [addr_t];
+
+  logic pending;
+  addr_t pend_addr;
+  logic pend_is_write;
+  word_t pend_wdata;
+
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      pending <= 0;
+      cache_if.ready <= 0;
+      cache_if.rdata <= '0;
+      cache_if.fault <= 0;
+    end else begin
+      cache_if.ready <= 0;
+
+      if (pending && cache_if.req) begin
+        // Only respond if master still requesting (req must stay high until ready)
+        cache_if.ready <= 1;
+        cache_if.fault <= 0;
+
+        if (pend_is_write) begin
+          mem[pend_addr] = pend_wdata;  // Blocking for associative array
+          cache_if.rdata <= '0;
+        end else begin
+          cache_if.rdata <= mem.exists(pend_addr) ? mem[pend_addr] : 32'h0;
+        end
+        pending <= 0;
+      end else if (cache_if.req && !pending) begin
+        // Accept new request
+        pending <= 1;
+        pend_addr <= cache_if.addr;
+        pend_is_write <= cache_if.is_write;
+        pend_wdata <= cache_if.wdata;
+      end else if (!cache_if.req) begin
+        // Master dropped req before response - cancel
+        pending <= 0;
+      end
+    end
+  end
+
+  // ============================================================================
+  // Helpers
+  // ============================================================================
+  function automatic addr_t mk_pte_addr(input ppn_t base_ppn, input logic [9:0] idx);
+    addr_t base;
+    base = {base_ppn, 12'b0};
+    return base + {idx, 2'b00};
+  endfunction
+
+  function automatic pte_sv32_t make_pte_leaf(
+    input ppn_t ppn,
+    input logic r, w, x, u, g, a, d, v
+  );
+    pte_sv32_t p;
+    p = '0;
+    p.ppn = ppn;
+    p.r = r; p.w = w; p.x = x; p.u = u; p.g = g; p.a = a; p.d = d; p.v = v;
+    return p;
+  endfunction
+
+  function automatic pte_sv32_t make_pte_ptr(input ppn_t next_ppn, input logic v);
+    pte_sv32_t p;
+    p = '0;
+    p.ppn = next_ppn;
+    p.v = v;
+    return p;
+  endfunction
+
+  task automatic mem_write_pte(input addr_t addr, input pte_sv32_t pte);
+    mem[addr] = word_t'(pte);
+  endtask
+
+  // ============================================================================
+  // Clock/Reset
+  // ============================================================================
+  initial begin
+    clk = 0;
+    forever #5 clk = ~clk;
+  end
+
+  initial begin
+    $dumpfile("build/tb_mmu.vcd");
+    $dumpvars(0, tb_mmu);
+  end
+
+  initial begin : timeout_block
+    #100000;
+    $fatal(1, "[MMU] TIMEOUT");
+  end
+
+  task automatic drive_defaults();
+    instr_if.req = 0;
+    instr_if.vaddr = '0;
+    instr_if.access_type = ACCESS_IFETCH;
+    instr_if.satp = '0;
+    instr_if.curr_priv_mode = USER_MODE;
+    instr_if.mmu_enable = 1;
+    instr_if.flush = 0;
+
+    data_if.req = 0;
+    data_if.vaddr = '0;
+    data_if.access_type = ACCESS_LOAD;
+    data_if.satp = '0;
+    data_if.curr_priv_mode = USER_MODE;
+    data_if.mmu_enable = 1;
+    data_if.flush = 0;
+  endtask
+
+  task automatic apply_reset();
+    rst_n = 0;
+    drive_defaults();
+    repeat(5) @(posedge clk);
+    rst_n = 1;
+    @(posedge clk);
+  endtask
+
+  // ============================================================================
+  // Request/Response tasks with proper timing
+  // ============================================================================
+  // CPU request tasks - maintain req=1 until ready=1 (correct protocol)
+  // ============================================================================
+  task automatic cpu_req_instr(
+    input vaddr_t va,
+    input satp_register_t satp,
+    input priv_mode_t priv
+  );
+    int timeout_cnt;
+    
+    // Wait for MMU to not be busy from previous transaction
+    while (instr_if.busy) begin
+      @(posedge clk);
+      #1;
+    end
+
+    // Drive request on negedge
+    @(negedge clk);
+    instr_if.req = 1;
+    instr_if.vaddr = va;
+    instr_if.satp = satp;
+    instr_if.curr_priv_mode = priv;
+    instr_if.access_type = ACCESS_IFETCH;
+
+    // Keep req=1 until ready=1 (correct protocol: hold request until response)
+    timeout_cnt = 0;
+    do begin
+      @(posedge clk);
+      #1;
+      timeout_cnt++;
+      if (timeout_cnt > 300) begin
+        $fatal(1, "[MMU] cpu_req_instr timeout waiting for ready");
+      end
+    end while (!instr_if.ready);
+
+    // Deassert request after ready
+    @(negedge clk);
+    instr_if.req = 0;
+  endtask
+
+  task automatic cpu_req_data(
+    input vaddr_t va,
+    input access_type_t acc,
+    input satp_register_t satp,
+    input priv_mode_t priv
+  );
+    int timeout_cnt;
+    
+    // Wait for MMU to not be busy from previous transaction
+    while (data_if.busy) begin
+      @(posedge clk);
+      #1;
+    end
+
+    // Drive request on negedge
+    @(negedge clk);
+    data_if.req = 1;
+    data_if.vaddr = va;
+    data_if.access_type = acc;
+    data_if.satp = satp;
+    data_if.curr_priv_mode = priv;
+
+    // Keep req=1 until ready=1 (correct protocol: hold request until response)
+    timeout_cnt = 0;
+    do begin
+      @(posedge clk);
+      #1;
+      timeout_cnt++;
+      if (timeout_cnt > 300) begin
+        $fatal(1, "[MMU] cpu_req_data timeout waiting for ready");
+      end
+    end while (!data_if.ready);
+
+    // Deassert request after ready
+    @(negedge clk);
+    data_if.req = 0;
+  endtask
+
+  task automatic wait_ready_instr();
+    int cnt;
+    cnt = 0;
+    while (!instr_if.ready) begin
+      @(posedge clk);
+      #1;
+      cnt++;
+      if (cnt > 200) begin
+        $fatal(1, "[MMU] wait_ready_instr timeout");
+      end
+    end
+  endtask
+
+  task automatic wait_ready_data();
+    int cnt;
+    cnt = 0;
+    while (!data_if.ready) begin
+      @(posedge clk);
+      #1;
+      cnt++;
+      if (cnt > 200) begin
+        $fatal(1, "[MMU] wait_ready_data timeout");
+      end
+    end
+  endtask
+
+  task automatic do_flush();
+    // Wait for MMU to be in IDLE state (both channels)
+    while (dut.i_mmu_state_q != 0 || dut.d_mmu_state_q != 0) begin
+      @(posedge clk);
+      #1;
+    end
+    
+    @(negedge clk);
+    instr_if.flush = 1;
+    data_if.flush = 1;
+    @(posedge clk);
+    #1;
+    @(negedge clk);
+    instr_if.flush = 0;
+    data_if.flush = 0;
+    @(posedge clk);
+  endtask
+
+  // ============================================================================
+  // Tests
+  // ============================================================================
+  initial begin : test_seq
+    satp_register_t satp_bare, satp_sv32;
+    vaddr_t         vaddr, vaddr2;
+    logic [9:0]     vpn1, vpn0;
+    logic [9:0]     vpn1_2, vpn0_2;
+    ppn_t           l1_ppn, l0_ppn, leaf_ppn, leaf_ppn2;
+    addr_t          l1_addr, l0_addr;
+    addr_t          l1_addr2, l0_addr2;
+    pte_sv32_t      pte_l1, pte_l0;
+    paddr_t         exp_paddr;
+
+    apply_reset();
+
+    // =========================================================================
+    // Setup page tables
+    // =========================================================================
+    l1_ppn   = 20'h00100;
+    l0_ppn   = 20'h00200;
+    leaf_ppn = 20'hABCDE;
+
+    satp_bare = '0;
+    satp_bare.mode = SATP_MODE_BARE;
+
+    satp_sv32 = '0;
+    satp_sv32.mode = 1;  // SV32
+    satp_sv32.ppn  = l1_ppn;
+    satp_sv32.asid = 1;
+
+    vaddr = 32'h1234_5678;
+    vpn1 = vaddr[31:22];
+    vpn0 = vaddr[21:12];
+
+    l1_addr = mk_pte_addr(l1_ppn, vpn1);
+    l0_addr = mk_pte_addr(l0_ppn, vpn0);
+
+    // L1[vpn1] => pointer to L0
+    pte_l1 = make_pte_ptr(l0_ppn, 1'b1);
+    mem_write_pte(l1_addr, pte_l1);
+
+    // L0[vpn0] => leaf with RWXU, A=1, D=1
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,1,1,1, 0, 1,1, 1);
+    mem_write_pte(l0_addr, pte_l0);
+
+    $display("\n[MMU] Page tables setup:");
+    $display("[MMU]   VA=%h => vpn1=%h vpn0=%h", vaddr, vpn1, vpn0);
+    $display("[MMU]   L1 @ %h -> L0 ppn=%h", l1_addr, l0_ppn);
+    $display("[MMU]   L0 @ %h -> leaf ppn=%h", l0_addr, leaf_ppn);
+
+    // =========================================================================
+    $display("\n========== TEST 1: BYPASS (SATP_MODE_BARE) ==========");
+    // =========================================================================
+    cpu_req_instr(vaddr, satp_bare, USER_MODE);
+    wait_ready_instr();
+
+    if (instr_if.page_fault) begin
+      $fatal(1, "[MMU] TEST1: bypass should not fault");
+    end
+    if (instr_if.paddr !== vaddr) begin
+      $fatal(1, "[MMU] TEST1: bypass paddr!=vaddr (exp=%h got=%h)", vaddr, instr_if.paddr);
+    end
+    $display("[MMU] TEST1: BYPASS OK (paddr=%h)", instr_if.paddr);
+
+    // =========================================================================
+    $display("\n========== TEST 2: TLB Miss -> PTW -> Fill -> Hit (Data LOAD) ==========");
+    // =========================================================================
+    do_flush();
+
+    cpu_req_data(vaddr, ACCESS_LOAD, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    exp_paddr = {leaf_ppn, vaddr[11:0]};
+    if (data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST2: unexpected page_fault");
+    end
+    if (data_if.paddr !== exp_paddr) begin
+      $fatal(1, "[MMU] TEST2: paddr mismatch (exp=%h got=%h)", exp_paddr, data_if.paddr);
+    end
+    $display("[MMU] TEST2: Data LOAD OK (paddr=%h)", data_if.paddr);
+
+    // =========================================================================
+    $display("\n========== TEST 3: TLB Hit (cached from TEST2) ==========");
+    // =========================================================================
+    cpu_req_data(vaddr, ACCESS_LOAD, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    if (data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST3: unexpected page_fault");
+    end
+    if (data_if.paddr !== exp_paddr) begin
+      $fatal(1, "[MMU] TEST3: paddr mismatch");
+    end
+    $display("[MMU] TEST3: TLB Hit OK (paddr=%h)", data_if.paddr);
+
+    // =========================================================================
+    $display("\n========== TEST 4: Instruction fetch (TLB miss -> PTW) ==========");
+    // =========================================================================
+    do_flush();
+
+    cpu_req_instr(vaddr, satp_sv32, USER_MODE);
+    wait_ready_instr();
+
+    if (instr_if.page_fault) begin
+      $fatal(1, "[MMU] TEST4: unexpected page_fault");
+    end
+    if (instr_if.paddr !== exp_paddr) begin
+      $fatal(1, "[MMU] TEST4: paddr mismatch");
+    end
+    $display("[MMU] TEST4: Instr Fetch OK (paddr=%h)", instr_if.paddr);
+
+    // =========================================================================
+    $display("\n========== TEST 5: Permission fault (X=0 for IFETCH) ==========");
+    // =========================================================================
+    do_flush();
+
+    // Modify PTE: remove X permission
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,1,0,1, 0, 1,1, 1);  // X=0
+    mem_write_pte(l0_addr, pte_l0);
+
+    cpu_req_instr(vaddr, satp_sv32, USER_MODE);
+    wait_ready_instr();
+
+    if (!instr_if.page_fault) begin
+      $fatal(1, "[MMU] TEST5: expected page_fault for X=0");
+    end
+    if (instr_if.page_fault_cause !== PAGE_FAULT_IFETCH) begin
+      $fatal(1, "[MMU] TEST5: wrong fault cause");
+    end
+    $display("[MMU] TEST5: Permission fault OK (cause=%s)", instr_if.page_fault_cause.name());
+
+    // =========================================================================
+    $display("\n========== TEST 6: Permission fault (W=0 for STORE) ==========");
+    // =========================================================================
+    do_flush();
+
+    // Modify PTE: remove W permission
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,0,1,1, 0, 1,1, 1);  // W=0
+    mem_write_pte(l0_addr, pte_l0);
+
+    cpu_req_data(vaddr, ACCESS_STORE, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    if (!data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST6: expected page_fault for W=0");
+    end
+    if (data_if.page_fault_cause !== PAGE_FAULT_STORE) begin
+      $fatal(1, "[MMU] TEST6: wrong fault cause");
+    end
+    $display("[MMU] TEST6: Permission fault OK (cause=%s)", data_if.page_fault_cause.name());
+
+    // =========================================================================
+    $display("\n========== TEST 7: V=0 -> Page fault ==========");
+    // =========================================================================
+    do_flush();
+
+    // Modify PTE: V=0
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,1,1,1, 0, 1,1, 0);  // V=0
+    mem_write_pte(l0_addr, pte_l0);
+
+    cpu_req_data(vaddr, ACCESS_LOAD, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    if (!data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST7: expected page_fault for V=0");
+    end
+    $display("[MMU] TEST7: V=0 fault OK");
+
+    // =========================================================================
+    $display("\n========== TEST 8: Different address ==========");
+    // =========================================================================
+    do_flush();
+
+    // Restore valid PTE
+    pte_l0 = make_pte_leaf(leaf_ppn, 1,1,1,1, 0, 1,1, 1);
+    mem_write_pte(l0_addr, pte_l0);
+
+    // Setup second mapping
+    vaddr2 = 32'hDEAD_B000;
+    leaf_ppn2 = 20'h12345;
+    
+    vpn1_2 = vaddr2[31:22];
+    vpn0_2 = vaddr2[21:12];
+    l1_addr2 = mk_pte_addr(l1_ppn, vpn1_2);
+    l0_addr2 = mk_pte_addr(l0_ppn, vpn0_2);
+
+    mem_write_pte(l1_addr2, make_pte_ptr(l0_ppn, 1'b1));
+    mem_write_pte(l0_addr2, make_pte_leaf(leaf_ppn2, 1,1,1,1, 0, 1,1, 1));
+
+    cpu_req_data(vaddr2, ACCESS_LOAD, satp_sv32, USER_MODE);
+    wait_ready_data();
+
+    exp_paddr = {leaf_ppn2, vaddr2[11:0]};
+    if (data_if.page_fault) begin
+      $fatal(1, "[MMU] TEST8: unexpected fault");
+    end
+    if (data_if.paddr !== exp_paddr) begin
+      $fatal(1, "[MMU] TEST8: paddr mismatch (exp=%h got=%h)", exp_paddr, data_if.paddr);
+    end
+    $display("[MMU] TEST8: Different address OK (paddr=%h)", data_if.paddr);
+
+    // =========================================================================
+    $display("\n========== TODOS LOS TESTS PASARON ==========\n");
+    // =========================================================================
+    $finish;
+  end
+
+endmodule
