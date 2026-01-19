@@ -1,7 +1,9 @@
 module address_mapper
     import pkg_virtual_memory::*;
     import pkg_global_defs::*;
-(
+#(
+    parameter TYPE = "MEM_MAPPER"
+) (
     input clk_t clk,
     addr_mapper_control_t mapperControl,
     // Request address translaion
@@ -34,9 +36,15 @@ module address_mapper
 
         if (mapperControl.vmEnabled) begin
             // request MMU
-            mmuRequest.req = virtualRequest.request;
+            mmuRequest.req   = virtualRequest.request;
             mmuRequest.vaddr = virtualRequest.addr;
-            mmuRequest.access_type = virtualRequest.isRead ? ACCESS_LOAD : ACCESS_STORE;
+            if (TYPE == "IF_MAPPER") begin
+                assert (virtualRequest.isRead);
+                mmuRequest.access_type = ACCESS_IFETCH;
+            end else begin
+                assert (TYPE == "MEM_MAPPER");
+                mmuRequest.access_type = virtualRequest.isRead ? ACCESS_LOAD : ACCESS_STORE;
+            end
             mmuRequest.satp = mapperControl.satp;
             mmuRequest.curr_priv_mode = mapperControl.currentPrivMode;
             mmuRequest.mmu_enable = mapperControl.vmEnabled;
@@ -55,7 +63,7 @@ module address_mapper
                     virtualRequest.failed = physicalRequest.failed;
                     virtualRequest.dataFromCache = physicalRequest.dataFromCache;
                 end else begin
-                    virtualRequest.ready = TRUE;
+                    virtualRequest.ready  = TRUE;
                     // find out a way to distinguish between exceptions
                     virtualRequest.failed = TRUE;
                 end

@@ -150,7 +150,7 @@ module datapath_pipelined
     cpu_mmu_if instMMURequest ();
     cpu_mmu_if dataMMURequest ();
 
-    address_mapper instAddrMapper (
+    address_mapper #("IF_MAPPER") instAddrMapper (
         .clk(clk),
         .mapperControl(instAddrMapperControl),
         .virtualRequest(instCacheCpuRequestVirtual.slave),
@@ -158,7 +158,7 @@ module datapath_pipelined
         .mmuRequest(instMMURequest.cpu)
     );
 
-    address_mapper dataAddrMapper (
+    address_mapper #("MEM_MAPPER") dataAddrMapper (
         .clk(clk),
         .mapperControl(dataAddrMapperControl),
         .virtualRequest(dataCacheCpuRequestVirtual.slave),
