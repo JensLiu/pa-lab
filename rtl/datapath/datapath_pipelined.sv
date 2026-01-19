@@ -22,6 +22,40 @@ module datapath_pipelined
         end
     end
 
+    // system registers
+    satp_register_t satpQ;
+    reg_t sepcQ;
+    priv_mode_t privQ;
+    always_ff @(posedge clk) begin
+        if (wbHints.WB_sysInstType == SYS_CSRRW) begin
+            if (wbHints.WB_csrAddr == SATP_CSR_ADDR) begin
+                satpQ <= wbHints.WB_csrData;
+                `DATAPATH_DEBUG_PRINT(
+                    ("[Datapath]: @%0d SATP updated to %h from CSR writeback",
+                                   DEBUG_tick, wbHints.WB_csrData));
+            end else if (wbHints.WB_csrAddr == SEPC_CSR_ADDR) begin
+                sepcQ <= wbHints.WB_csrData;
+                `DATAPATH_DEBUG_PRINT(
+                    ("[Datapath]: @%0d SEPC updated to %h from CSR writeback",
+                                   DEBUG_tick, wbHints.WB_csrData));
+            end
+        end else if (wbHints.WB_sysInstType == SYS_SRET) begin
+            assert (privQ == SUPERVISOR_MODE);
+            privQ <= USER_MODE;
+            `DATAPATH_DEBUG_PRINT(
+                ("[Datapath]: @%0d Privilege mode updated to %0d from CSR writeback",
+                                   DEBUG_tick, wbHints.WB_csrData[1:0]));
+        end
+    end
+    always_comb begin
+        instAddrMapperControl.vmEnabled = TRUE;
+        instAddrMapperControl.currentPrivMode = USER_MODE;
+        instAddrMapperControl.satp = satpQ;
+        dataAddrMapperControl.vmEnabled = TRUE;
+        dataAddrMapperControl.currentPrivMode = USER_MODE;
+        dataAddrMapperControl.satp = satpQ;
+    end
+
     // pipeline registers
     if_id_regs_t   ifIdRegsQ;
     id_ex_regs_t   idExRegsQ;
@@ -39,7 +73,6 @@ module datapath_pipelined
     id_ex_regs_t idExRegsP;
     ex_mem_regs_t exMemRegsP;
     id_imul_regs_t idImulRegsP;
-
 
     // control signals
     if_control_t ifControl;
@@ -150,7 +183,7 @@ module datapath_pipelined
     cpu_mmu_if instMMURequest ();
     cpu_mmu_if dataMMURequest ();
 
-    address_mapper #("IF_MAPPER") instAddrMapper (
+    address_mapper #(TYPE_IF_MAPPER) instAddrMapper (
         .clk(clk),
         .mapperControl(instAddrMapperControl),
         .virtualRequest(instCacheCpuRequestVirtual.slave),
@@ -158,7 +191,7 @@ module datapath_pipelined
         .mmuRequest(instMMURequest.cpu)
     );
 
-    address_mapper #("MEM_MAPPER") dataAddrMapper (
+    address_mapper #(TYPE_MEM_MAPPER) dataAddrMapper (
         .clk(clk),
         .mapperControl(dataAddrMapperControl),
         .virtualRequest(dataCacheCpuRequestVirtual.slave),
@@ -415,11 +448,19 @@ module datapath_pipelined
         wbControl.ROB_commitIsWriteback = robHints.commitIsWriteback;
         wbControl.ROB_commitRd = robHints.commitRd;
         wbControl.ROB_commitRdData = robHints.commitRdData;
+        // CSR writeback
+        wbControl.ROB_commitSysInstType = robHints.commitSysInstType;
+        wbControl.ROB_commitCsrAddr = robHints.commitCsrAddr;
+        wbControl.ROB_commitCsrData = robHints.commitCsrData;
+        // branch info
         wbControl.ROB_commitIsBranch = robHints.commitIsBranch;
         wbControl.ROB_commitShouldBranch = robHints.commitShouldBranch;
         wbControl.ROB_commitBranchPCVirtAddr = robHints.commitBranchPCVirtAddr;
+        // memory info
         wbControl.IF_memRequestBusy = ifHints.IF_memRequestBusy;
         wbControl.MEM_memRequestBusy = memHints.MEM_memRequestBusy;
+        // CSR info
+        wbControl.CSR_sepc = sepcQ;
 
         // ROB Control
         robControl.WB_shouldJump = wbHints.WB_shouldJump;

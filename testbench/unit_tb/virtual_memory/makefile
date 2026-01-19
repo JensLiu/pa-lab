@@ -22,19 +22,19 @@ PKGS := \
 
 # ---------------- Interfaces VM ----------------
 VM_IFACES := \
-  $(ROOT)/rtl/virtualmemory/cpu_mmu_if.sv \
-  $(ROOT)/rtl/virtualmemory/mmu_tlb_if.sv \
-  $(ROOT)/rtl/virtualmemory/mmu_pw_if.sv \
-  $(ROOT)/rtl/virtualmemory/pw_cache_if.sv
+  $(ROOT)/rtl/virtual_memory/inner/cpu_mmu_if.sv \
+  $(ROOT)/rtl/virtual_memory/inner/mmu_tlb_if.sv \
+  $(ROOT)/rtl/virtual_memory/inner/mmu_pw_if.sv \
+  $(ROOT)/rtl/virtual_memory/inner/pw_cache_if.sv
 
 # ---------------- RTL blocks ----------------
-TLB_RTL := $(ROOT)/rtl/virtualmemory/tlb.sv
-PW_RTL  := $(ROOT)/rtl/virtualmemory/page_walker.sv
-MMU_RTL := $(ROOT)/rtl/virtualmemory/mmu.sv
+TLB_RTL := $(ROOT)/rtl/virtual_memory/inner/tlb.sv
+PW_RTL  := $(ROOT)/rtl/virtual_memory/inner/page_walker.sv
+MMU_RTL := $(ROOT)/rtl/virtual_memory/inner/mmu.sv
 
 # ---------------- Testbenches (local) ----------------
 TB_TLB := tb_tlb.sv
-TB_PW  := tb_pw.sv
+TB_PW  := tb_page_walker.sv
 TB_MMU := tb_mmu.sv
 
 # ---------------- Outputs ----------------
@@ -43,11 +43,11 @@ OBJ_PW  := $(BUILD)/obj_pw
 OBJ_MMU := $(BUILD)/obj_mmu
 
 EXE_TLB := $(OBJ_TLB)/Vtb_tlb
-EXE_PW  := $(OBJ_PW)/Vtb_pw
+EXE_PW  := $(OBJ_PW)/Vtb_page_walker
 EXE_MMU := $(OBJ_MMU)/Vtb_mmu
 
 VCD_TLB := $(BUILD)/tb_tlb.vcd
-VCD_PW  := $(BUILD)/tb_pw.vcd
+VCD_PW  := $(BUILD)/tb_page_walker.vcd
 VCD_MMU := $(BUILD)/tb_mmu.vcd
 
 .PHONY: all tlb pw mmu wave_tlb wave_pw wave_mmu clean
@@ -68,7 +68,7 @@ wave_tlb: tlb
 
 # ---------------- Page Walker TB ----------------
 pw: $(BUILD)
-	$(VERILATOR) $(VFLAGS) -Mdir $(OBJ_PW) -o Vtb_pw \
+	$(VERILATOR) $(VFLAGS) -Mdir $(OBJ_PW) -o Vtb_page_walker \
 	  $(PKGS) $(VM_IFACES) $(PW_RTL) $(TB_PW)
 	$(EXE_PW)
 

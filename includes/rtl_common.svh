@@ -9,6 +9,8 @@
 
 `define DATAPATH_USE_STORE_BUFFER
 
+
+`define DEBUG_DATAPATH
 // `define DEBUG_PRINT
 
 `ifdef DEBUG_PRINT

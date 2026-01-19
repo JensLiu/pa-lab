@@ -25,7 +25,7 @@ int sum(int n) {
 
 int main() {
   // fib_test();
-  // matrix_multiply_test();
-  bst_test();
+  matrix_multiply_test();
+  // bst_test();
   STOP;
 }

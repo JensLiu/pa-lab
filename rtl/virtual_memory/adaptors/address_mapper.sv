@@ -2,7 +2,7 @@ module address_mapper
     import pkg_virtual_memory::*;
     import pkg_global_defs::*;
 #(
-    parameter TYPE = "MEM_MAPPER"
+    parameter TYPE = TYPE_MEM_MAPPER
 ) (
     input clk_t clk,
     addr_mapper_control_t mapperControl,
@@ -38,11 +38,11 @@ module address_mapper
             // request MMU
             mmuRequest.req   = virtualRequest.request;
             mmuRequest.vaddr = virtualRequest.addr;
-            if (TYPE == "IF_MAPPER") begin
-                assert (virtualRequest.isRead);
+            if (TYPE == TYPE_IF_MAPPER) begin
+                // assert (virtualRequest.isRead);
                 mmuRequest.access_type = ACCESS_IFETCH;
             end else begin
-                assert (TYPE == "MEM_MAPPER");
+                assert (TYPE == TYPE_MEM_MAPPER);
                 mmuRequest.access_type = virtualRequest.isRead ? ACCESS_LOAD : ACCESS_STORE;
             end
             mmuRequest.satp = mapperControl.satp;

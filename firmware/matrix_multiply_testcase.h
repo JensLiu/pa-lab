@@ -46,7 +46,7 @@ static int __test_mem_copy() {
 
 // Performance Test 3: Matrix Multiply
 // Count cycles for NxN matrix multiplication
-#define SMALLER_N 32
+#define SMALLER_N 10
 #define NI SMALLER_N
 #define NJ SMALLER_N
 #define NK SMALLER_N

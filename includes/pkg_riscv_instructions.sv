@@ -12,14 +12,15 @@ package pkg_riscv_instructions;
 `endif
 
     typedef enum logic [6:0] {
-        OP_ALU_R =  7'b0110011,  // ALU: register-register
-        OP_ALU_I =  7'b0010011,  // ALU: register-immediate
-        OP_LD    =  7'b0000011,
-        OP_ST    =  7'b0100011,
-        OP_BR    =  7'b1100011,
-        OP_LUI   =  7'b0110111,
-        OP_JAL   =  7'b1101111,
-        OP_JALR  =  7'b1100111
+        OP_ALU_R  =  7'b0110011,  // ALU: register-register
+        OP_ALU_I  =  7'b0010011,  // ALU: register-immediate
+        OP_LD     =  7'b0000011,
+        OP_ST     =  7'b0100011,
+        OP_BR     =  7'b1100011,
+        OP_LUI    =  7'b0110111,
+        OP_JAL    =  7'b1101111,
+        OP_JALR   =  7'b1100111,
+        OP_SYSTEM =  7'b1110011   // SYSTEM: CSR instructions, ECALL, EBREAK
     } inst_opcode_t;
 
     typedef enum logic [2:0] {
@@ -49,6 +50,16 @@ package pkg_riscv_instructions;
         FN3_BLTU = 3'b110,
         FN3_BGEU = 3'b111
     } inst_funct3_br_t;
+
+    typedef enum logic [2:0] {
+        FN3_PRIV   = 3'b000,  // ECALL, EBREAK, xRET
+        FN3_CSRRW  = 3'b001,  // CSR Read/Write
+        FN3_CSRRS  = 3'b010,  // CSR Read/Set
+        FN3_CSRRC  = 3'b011,  // CSR Read/Clear
+        FN3_CSRRWI = 3'b101,  // CSR Read/Write Immediate
+        FN3_CSRRSI = 3'b110,  // CSR Read/Set Immediate
+        FN3_CSRRCI = 3'b111   // CSR Read/Clear Immediate
+    } inst_funct3_csr_t;
 
     typedef enum logic [6:0] {
         FN7_ADD_SRL = 7'b0000000,

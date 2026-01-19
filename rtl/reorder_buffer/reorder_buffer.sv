@@ -1,5 +1,4 @@
 import pkg_global_defs::*;
-
 // `define ROB_STORE_QUERY_DEBUG_PRINT_EN
 // `define ROB_REG_QUERY_DEBUG_PRINT_EN
 
@@ -72,6 +71,11 @@ module reorder_buffer (
         bool_t shouldBranch;
         addr_t branchPCVirtAddr;
 
+        // system instruction
+        sys_inst_t sysInstType;
+        csr_addr_t csrAddr;
+        word_t csrData;
+
         // exception
         exception_t exceptions;
         word_t pc;
@@ -143,6 +147,10 @@ module reorder_buffer (
                 buffer[nextYoungest].isWriteback <= ticketRequest.isWriteback;
                 buffer[nextYoungest].rd <= ticketRequest.rd;
                 buffer[nextYoungest].rdDataValid <= FALSE;
+                // system instructions
+                buffer[nextYoungest].sysInstType <= ticketRequest.sysInstType;
+                buffer[nextYoungest].csrAddr <= ticketRequest.csrAddr;
+                buffer[nextYoungest].csrData <= ticketRequest.csrData;
                 // for branches
                 buffer[nextYoungest].isBranch <= ticketRequest.isBranch;
                 buffer[nextYoungest].shouldBranch <= FALSE;

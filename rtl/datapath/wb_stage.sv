@@ -23,6 +23,9 @@ module wb_stage
         wbHints.WB_jumpPC = IMM_32_WHATEVER;
         wbHints.WB_isWriteback = FALSE;
         wbHints.WB_hasException = FALSE;
+        wbHints.WB_sysInstType = SYS_INVALID;
+        wbHints.WB_csrData = IMM_32_WHATEVER;
+        wbHints.WB_csrAddr = '0;
         wbHints.WB_rd = '0;
         wbHints.WB_rdData = '0;
         if (wbControl.ROB_commitTicket == ROB_TICKET_INVALID) begin
@@ -37,7 +40,7 @@ module wb_stage
                                       wbControl.ROB_commitTicket));
                 // handle excaption
                 wbHints.WB_shouldJump = TRUE;
-                wbHints.WB_jumpPC = 32'h0000_ffff;
+                wbHints.WB_jumpPC = wbControl.CSR_sepc;
                 wbHints.shouldHalt = hasStageMemRequestBusy;
                 wbHints.WB_hasException = TRUE;
                 $display("Excaption handler is not implemented");
@@ -46,7 +49,12 @@ module wb_stage
                 if (wbControl.ROB_commitIsBranch) begin
                     if (wbControl.ROB_commitShouldBranch) begin
                         wbHints.WB_shouldJump = TRUE;
-                        wbHints.WB_jumpPC = wbControl.ROB_commitBranchPCVirtAddr;
+                        // TODO: sret hardcode PC
+                        if (wbControl.ROB_commitSysInstType == SYS_SRET) begin
+                            wbHints.WB_jumpPC = wbControl.CSR_sepc;
+                        end else begin
+                            wbHints.WB_jumpPC = wbControl.ROB_commitBranchPCVirtAddr;
+                        end
                         // NOTE: hold back when IF cannot jump
                         wbHints.shouldHalt = hasStageMemRequestBusy;
                         if (hasStageMemRequestBusy) begin
@@ -103,6 +111,17 @@ module wb_stage
                                                   DEBUGD_tick,
                                                   wbControl.ROB_commitTicket));
                     end
+                end
+                if (wbControl.ROB_commitSysInstType != SYS_INVALID) begin
+                    wbHints.WB_sysInstType = wbControl.ROB_commitSysInstType;
+                    wbHints.WB_csrAddr = wbControl.ROB_commitCsrAddr;
+                    wbHints.WB_csrData = wbControl.ROB_commitCsrData;
+                    `WB_STAGE_DEBUG_PRINT(
+                        ("[WB]: @%0d CSR writeback for ROB ticket %0d, CSR Addr: %h, Data: %h",
+                                              DEBUGD_tick,
+                                              wbControl.ROB_commitTicket,
+                                              wbControl.ROB_commitCsrAddr,
+                                              wbControl.ROB_commitCsrData));
                 end
             end
         end

@@ -45,9 +45,10 @@ package pkg_virtual_memory;
 
     // ---------------- SATP (simplified Sv32/BARE) ----------------
     typedef struct packed {
-        logic       mode;  // 1=Sv32, 0=BARE (si simplificas)
+        logic       mode;    // 1=Sv32, 0=BARE (si simplificas)
         logic [8:0] asid;
-        ppn_t       ppn;   // root page table PPN
+        logic [1:0] unused;
+        ppn_t       ppn;     // root page table PPN
     } satp_register_t;
 
     // ---------------- Virtual address decomposition (Sv32) ----------------
@@ -162,5 +163,9 @@ package pkg_virtual_memory;
         priv_mode_t currentPrivMode;
         satp_register_t satp;
     } addr_mapper_control_t;
+    typedef enum logic [1:0] {
+        TYPE_IF_MAPPER  = 2'b00,
+        TYPE_MEM_MAPPER = 2'b01
+    } addr_mapper_type_t;
 
 endpackage : pkg_virtual_memory

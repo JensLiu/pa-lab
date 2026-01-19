@@ -32,9 +32,7 @@ module page_walker
 
     function automatic addr_t mk_pte_addr(input ppn_t base_ppn, input logic [9:0] idx);
         // base_ppn<<12 + idx*4 (PTE 4 bytes)
-        addr_t base;
-        base = {base_ppn, 12'b0};
-        return base + {20'b0, {idx, 2'b00}};
+        return {base_ppn, idx, 2'b00};
     endfunction
 
     function automatic logic pte_invalid_form(input pte_sv32_t p);

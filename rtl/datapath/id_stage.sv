@@ -123,6 +123,9 @@ module id_stage
         ticketRequest.isBranch = instInfo.branchType != BR_INVALID;
         ticketRequest.stLen = ID_stldDataLen;
         ticketRequest.stData = ID_rs2Data;
+        ticketRequest.sysInstType = instInfo.sysInstType;
+        ticketRequest.csrAddr = instInfo.csrAddr;
+        ticketRequest.csrData = ID_rs1Data;
         ticketRequest.rd = instInfo.rd;
         ticketRequest.pc = ifIdRegs.pc;
         ticketRequest.DEBUG_instInfo = instInfo;

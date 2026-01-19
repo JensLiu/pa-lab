@@ -27,6 +27,8 @@ module decoder
         info.branchType = BR_INVALID;
         info.stldDataLen = DL_INVALID;
         info.isImul = FALSE;
+        info.sysInstType = SYS_INVALID;
+        info.csrAddr = 12'h0;
 `ifdef DEBUG_INST_INFO_EXTENSION
         info.DEBUG_instBinary = inst;
         info.DEBUG_instID = 32'hDEADBEEF;  // the ID assignement logic can overwrite this later
@@ -212,6 +214,35 @@ module decoder
             info.rs2   = REG_NR_INVALID_FALLBACK;
         end
         // LUI end
+
+        // CSR begin
+        // CSRW is a pseudo-instruction: csrw csr, rs1 -> csrrw x0, csr, rs1
+        // CSRRW: Atomic Read/Write CSR - reads CSR to rd, writes rs1 to CSR
+        if (opcode == OP_SYSTEM && funct3 != FN3_PRIV) begin
+            info.sysInstType = SYS_CSRRW;
+            info.csrAddr = inst.itype.imm;  // CSR address is in the immediate field
+            info.rs1 = inst.itype.rs1;      // Source register (value to write)
+            info.rd = inst.itype.rd;        // Destination register (for read value)
+            info.rs2 = REG_NR_INVALID_FALLBACK;
+            // If rd != x0, old CSR value is written to rd
+            info.isWriteback = (inst.itype.rd != 5'b0);
+        end
+        // CSR end
+
+        // SRET begin
+        // SRET: Return from supervisor trap
+        // Encoding: 0001000_00010_00000_000_00000_1110011 (0x10200073)
+        // opcode=SYSTEM, funct3=PRIV(000), funct7=0001000, rs2=00010
+        if (opcode == OP_SYSTEM && funct3 == FN3_PRIV && 
+            inst.rtype.funct7 == 7'b0001000 && inst.rtype.rs2 == 5'b00010) begin
+            info.sysInstType = SYS_SRET;
+            info.rs1 = REG_NR_INVALID_FALLBACK;
+            info.rs2 = REG_NR_INVALID_FALLBACK;
+            info.rd = REG_NR_INVALID_FALLBACK;
+            info.isWriteback = FALSE;
+            info.branchType = BR_UNCOND;  // SRET causes an unconditional jump to SEPC
+        end
+        // SRET end
 
     end
 

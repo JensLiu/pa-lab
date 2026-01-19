@@ -19,6 +19,8 @@ package pkg_global_defs;
     parameter DATA_MEM_SIZE = MEM_SIZE;
     parameter START_ADDRESS = 'h1000;
     parameter ROB_TICKET_INVALID = 'hffffffff;
+    parameter SATP_CSR_ADDR = 'h180;
+    parameter SEPC_CSR_ADDR = 'h141;
 
     // data types
     typedef logic clk_t;
@@ -32,6 +34,14 @@ package pkg_global_defs;
     typedef word_t reg_t;
     // typedef byte_t [15:0] cacheline_data_t;
     typedef logic [127:0] cacheline_data_t;
+    typedef logic [11:0] csr_addr_t;
+
+    // system instructions
+    typedef enum logic [2:0] {
+        SYS_INVALID,
+        SYS_CSRRW,
+        SYS_SRET
+    } sys_inst_t;
 
     // instructions
     typedef enum logic [3:1] {
@@ -112,6 +122,9 @@ package pkg_global_defs;
         signedness_t  stldSignedness;
         // branching
         branch_type_t branchType;
+        // system instructions
+        sys_inst_t    sysInstType;
+        csr_addr_t    csrAddr;
 `ifdef DEBUG_INST_INFO_EXTENSION
         instruction_t DEBUG_instBinary;
         word_t        DEBUG_instID;
@@ -263,6 +276,9 @@ package pkg_global_defs;
         bool_t WB_isWriteback;
         reg_nr_t WB_rd;
         word_t WB_rdData;
+        sys_inst_t WB_sysInstType;
+        csr_addr_t WB_csrAddr;
+        word_t WB_csrData;
         bool_t WB_hasException;
     } wb_hints_t;
 
@@ -278,6 +294,10 @@ package pkg_global_defs;
         bool_t ROB_commitIsWriteback;
         reg_nr_t ROB_commitRd;
         word_t ROB_commitRdData;
+        // system instruction CSR writeback
+        sys_inst_t ROB_commitSysInstType;
+        csr_addr_t ROB_commitCsrAddr;
+        word_t ROB_commitCsrData;
         // 2. non-writeback commit LOAD
         // check for memory access exceptions
         bool_t ROB_commitIsStore;
@@ -286,6 +306,8 @@ package pkg_global_defs;
         bool_t ROB_commitIsBranch;
         bool_t ROB_commitShouldBranch;
         addr_t ROB_commitBranchPCVirtAddr;
+        // CSR
+        word_t CSR_sepc;
     } wb_control_t;
 
     typedef struct {
@@ -315,6 +337,10 @@ package pkg_global_defs;
         // writeback (arithmetic / load)
         reg_nr_t commitRd;
         word_t commitRdData;
+        // system instruction
+        sys_inst_t commitSysInstType;
+        csr_addr_t commitCsrAddr;
+        word_t commitCsrData;
         // store
         virt_addr_unique_t commitStVirtAddr;
         word_t commitStData;

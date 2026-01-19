@@ -11,6 +11,10 @@ interface rob_ticket_request_if;
     word_t stData;
     // writeback
     reg_nr_t rd;
+    // system instruction
+    sys_inst_t sysInstType;
+    csr_addr_t csrAddr;
+    word_t csrData;
     // exception handling
     addr_t pc;
     // debug
@@ -26,6 +30,9 @@ interface rob_ticket_request_if;
         output stLen,
         output stData,
         output rd,
+        output sysInstType,
+        output csrAddr,
+        output csrData,
         output pc,
         output DEBUG_instInfo
     );
@@ -39,6 +46,9 @@ interface rob_ticket_request_if;
         input stLen,
         input stData,
         input rd,
+        input sysInstType,
+        input csrAddr,
+        input csrData,
         input pc,
         input DEBUG_instInfo
     );
