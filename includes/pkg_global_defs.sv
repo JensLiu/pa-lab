@@ -138,8 +138,8 @@ package pkg_global_defs;
         bool_t WB_shouldJump;
         addr_t WB_jumpPC;
         exception_t exception;
-        satp_register_t satp;
-        priv_mode_t curr_priv_mode;
+        pkg_virtual_memory::satp_register_t satp;
+        pkg_virtual_memory::priv_mode_t curr_priv_mode;
     } if_control_t;
 
     typedef struct {
@@ -228,8 +228,8 @@ package pkg_global_defs;
         word_t ROB_commitStData;
         mem_stlen_t ROB_commitStLen;
         bool_t ROB_commitStoreComplete;
-        satp_register_t satp;
-        priv_mode_t currPrivMode;
+        pkg_virtual_memory::satp_register_t satp;
+        pkg_virtual_memory::priv_mode_t currPrivMode;
     } mem_control_t;
 
     typedef struct {

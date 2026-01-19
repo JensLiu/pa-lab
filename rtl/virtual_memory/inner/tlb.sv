@@ -4,12 +4,8 @@ module tlb
 (
     input logic clk,
     input logic rst_n,
-
     // MMU Interface
     mmu_tlb_if.tlb tlb_mmu_if
-
-    // Cache Interface
-
 );
 
   tlb_entry_t tlb_entries[4];  // 4-entry TLB

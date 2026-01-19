@@ -20,6 +20,7 @@ build:
 		-I${BASE_DIR}/cache -I${BASE_DIR}/memory -I${BASE_DIR}/reorder_buffer \
 		-I${BASE_DIR}/store_buffer -Iobj_dir \
 		${BASE_DIR}/includes/pkg_riscv_instructions.sv \
+		${BASE_DIR}/includes/pkg_virtual_memory.sv \
 		${BASE_DIR}/includes/pkg_global_defs.sv \
 		${BASE_DIR}/rtl/*.sv \
 		${BASE_DIR}/rtl/datapath/*.sv \
@@ -27,6 +28,7 @@ build:
 		${BASE_DIR}/rtl/memory/*.sv \
 		${BASE_DIR}/rtl/reorder_buffer/*.sv \
 		${BASE_DIR}/rtl/store_buffer/*.sv \
+		${BASE_DIR}/rtl/virtual_memory/inner/*.sv \
 		$(CPP_SOURCES)
 
 firmware_obj:

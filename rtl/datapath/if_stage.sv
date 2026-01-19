@@ -49,7 +49,7 @@ module if_stage
 
     reg_t jumpPC;
     reg_t IF_pcQ;  // PC register
-  
+
     initial begin
         IF_pcQ = START_ADDRESS;
         currentState = SEQUENTIAL;
@@ -119,20 +119,6 @@ module if_stage
             IF_pcQ <= jumpPC;
         end
     end
-    
-    mmu i_mmu (
-        .clk(clk),
-        .reset(1'b0),  // no reset in this stage
-        .satp(0),  // no virtual memory in this stage
-        .virtual_addr(IF_pcQ),
-        .access_type(ACCESS_EXECUTE), // instruction fetch
-        .physical_addr(),  // not used in this stage
-        .req_o(),  // request to cache
-        .we_o(),  // write enable for cache
-        .stall(),  // stop pipeline
-        .exception_o(),  // page fault or other exception
-        .cause_o()  // exception cause
-    );
 
     instruction_t IF_inst;
     always_comb begin : CacheRequestLogic
