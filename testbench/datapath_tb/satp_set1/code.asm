@@ -1,198 +1,136 @@
-# Test SATP CSR setting: unprivileged instructions before and after SATP write
-# 
-# Scenario: Test pipeline behavior when SATP is modified mid-execution
-# This tests that:
-#   1. Instructions in flight before SATP write complete correctly
-#   2. SATP write commits properly
-#   3. Instructions after SATP write execute correctly
-#   4. No pipeline hazards or stalls cause incorrect behavior
-#
-# SATP Register Format (RV32 Sv32):
-#   [31]     MODE  - 0=Bare (no translation), 1=Sv32
-#   [30:22]  ASID  - 9-bit Address Space Identifier
-#   [21:20]  unused (2 bits)
-#   [19:0]   PPN   - 20-bit Physical Page Number of root page table
-#
-# CSR Address for SATP: 0x180
-
-.equ SATP_CSR, 0x180
-
 .section .text
 .globl _start
+
+# SATP CSR address = 0x180
+# Test cases for SATP read/write operations
+# Expected final result in a0
+
 _start:
-    #==========================================================
-    # Phase 1: Unprivileged instructions BEFORE SATP write
-    # These should all complete normally with SATP=0 (BARE mode)
-    #==========================================================
-    
-    # ALU operations - build up some values
-    li      t0, 100             # t0 = 100
-    li      t1, 200             # t1 = 200
-    add     t2, t0, t1          # t2 = 300
-    sub     t3, t1, t0          # t3 = 100
-    slli    t4, t0, 2           # t4 = 400
-    srli    t5, t1, 1           # t5 = 100
-    and     t6, t0, t1          # t6 = 64 (0x64 & 0xC8 = 0x40)
-    or      s0, t0, t1          # s0 = 236 (0x64 | 0xC8 = 0xEC)
-    xor     s1, t0, t1          # s1 = 172 (0x64 ^ 0xC8 = 0xAC)
-    
-    # More computation to fill pipeline
-    addi    s2, t2, 50          # s2 = 350
-    addi    s3, t3, 25          # s3 = 125
-    mul     s4, t0, t1          # s4 = 20000 (if MUL supported)
-    
-    #==========================================================
-    # Phase 2: SET SATP - This is the critical transition point
-    # Setting SATP to BARE mode (MODE=0) - no address translation
-    # Pipeline must handle this CSR write correctly
-    #==========================================================
-    
-    li      a0, 0x00000000      # BARE mode configuration
-    csrw    SATP_CSR, a0        # Write SATP
-    
-    #==========================================================
-    # Phase 3: Unprivileged instructions AFTER SATP write
-    # These execute after SATP has been set to BARE mode
-    #==========================================================
-    
-    # Continue computations - verify pipeline didn't corrupt state
-    add     s5, s2, s3          # s5 = 475 (350 + 125)
-    sub     s6, s2, s3          # s6 = 225 (350 - 125)
-    sll     s7, t0, t1          # shift (implementation dependent)
-    
-    # Read back SATP to verify write succeeded
-    csrr    a1, SATP_CSR        # a1 should be 0x00000000
-    
-    #==========================================================
-    # Phase 4: More unprivileged ops, then another SATP write
-    # Now enable Sv32 mode
-    #==========================================================
-    
-    # More ALU operations
-    addi    s8, s5, 100         # s8 = 575
-    addi    s9, s6, 50          # s9 = 275
-    add     s10, s8, s9         # s10 = 850
-    
-    # Set SATP to Sv32 mode with ASID=1, PPN=0x1000
-    # Value: 0x80000000 | (1 << 22) | 0x1000 = 0x80401000
-    lui     a2, 0x80401         # a2 = 0x80401000
-    csrw    SATP_CSR, a2        # Enable Sv32 translation
-    
-    #==========================================================
-    # Phase 5: Instructions after enabling Sv32
-    # (In BARE mode these still work; with actual VM they'd need valid page tables)
-    #==========================================================
-    
-    # More unprivileged computation
-    addi    s11, s10, 150       # s11 = 1000
-    add     t0, s11, s8         # t0 = 1575
-    sub     t1, s11, s9         # t1 = 725
-    
-    # Verify SATP was set correctly
-    csrr    a3, SATP_CSR        # a3 should be 0x80401000
-    
-    #==========================================================
-    # Phase 6: Rapid sequence - unprivileged, SATP, unprivileged
-    # Tests back-to-back transitions
-    #==========================================================
-    
-    add     t2, t0, t1          # t2 = 2300
-    addi    t3, t2, 1           # t3 = 2301
-    
-    # Quick SATP change - switch ASID
-    # ASID=2, same PPN: 0x80000000 | (2 << 22) | 0x1000 = 0x80801000
-    lui     a4, 0x80801         # a4 = 0x80801000
-    csrw    SATP_CSR, a4
-    
-    addi    t4, t3, 1           # t4 = 2302 (immediately after CSR write)
-    addi    t5, t4, 1           # t5 = 2303
-    addi    t6, t5, 1           # t6 = 2304
-    
-    csrr    a5, SATP_CSR        # a5 should be 0x80801000
-    
-    #==========================================================
-    # Phase 7: Data dependency across SATP write
-    # Register written before SATP, read after
-    #==========================================================
-    
-    li      gp, 0xDEADBEEF      # gp = 0xDEADBEEF (before SATP write)
-    addi    tp, gp, 1           # tp depends on gp
-    
-    # Change SATP again
-    lui     a6, 0x80C01         # ASID=3, PPN=0x1000
-    csrw    SATP_CSR, a6
-    
-    # Use values computed before SATP write
-    add     a7, gp, tp          # a7 = 0xDEADBEEF + 0xDEADBEF0 (use pre-SATP values)
-    
-    #==========================================================
-    # Phase 8: Switch back to BARE mode
-    #==========================================================
-    
-    addi    t0, a7, 1           # computation before
-    addi    t1, t0, 1
-    
-    csrw    SATP_CSR, zero      # Back to BARE mode (SATP = 0)
-    
-    addi    t2, t1, 1           # computation after
-    addi    t3, t2, 1
-    
-    csrr    t4, SATP_CSR        # t4 should be 0x00000000
-    
-    #==========================================================
-    # Phase 9: Multiple SATP writes in quick succession
-    # Tests that each write takes effect
-    #==========================================================
-    
-    lui     t5, 0x80400         # ASID=1
-    csrw    SATP_CSR, t5
-    nop                         # small gap
-    
-    lui     t5, 0x80800         # ASID=2
-    csrw    SATP_CSR, t5
-    nop
-    
-    lui     t5, 0x80C00         # ASID=3
-    csrw    SATP_CSR, t5
-    nop
-    
-    lui     t5, 0x81000         # ASID=4
-    csrw    SATP_CSR, t5
-    
-    csrr    t6, SATP_CSR        # t6 should be 0x81000000 (last write wins)
-    
-    #==========================================================
-    # Phase 10: Final verification sequence
-    #==========================================================
-    
-    # Set final known value
-    # MODE=1, ASID=0x55, PPN=0xABCDE
-    # Value: 0x80000000 | (0x55 << 22) | 0xABCDE = 0x9540BCDE
-    lui     s0, 0x9540B         # s0 = 0x9540B000
-    ori     s0, s0, 0xCDE       # s0 = 0x9540BCDE
-    
-    # Some instructions before final SATP write
-    li      s1, 1
-    li      s2, 2
-    li      s3, 3
-    add     s4, s1, s2          # s4 = 3
-    add     s5, s3, s4          # s5 = 6
-    
-    csrw    SATP_CSR, s0        # Final SATP write
-    
-    # Instructions after final SATP write
-    add     s6, s4, s5          # s6 = 9
-    add     s7, s5, s6          # s7 = 15
-    add     s8, s6, s7          # s8 = 24
-    
-    # Final SATP readback
-    csrr    s9, SATP_CSR        # s9 should be 0x9540BCDE
-    
-    # End markers
-    li      s10, 0xCAFEBABE     # success marker
-    li      s11, 0x12345678     # test complete marker
-    
-    # End of test
+    # Initialize accumulator
+    li      a0, 0           # a0 = accumulator for results
+
+    #=========================================
+    # Test 1: Basic write and read back
+    #=========================================
+    li      t0, 0x12345678
+    csrw    satp, t0        # write 0x12345678 to SATP
+    csrr    t1, satp        # read SATP back to t1
+    add     a0, a0, t1      # accumulate: a0 += 0x12345678
+
+    #=========================================
+    # Test 2: Overwrite with new value
+    #=========================================
+    li      t0, 0xABCDEF00
+    csrw    satp, t0        # overwrite SATP
+    csrr    t1, satp        # read back
+    add     a0, a0, t1      # accumulate: a0 += 0xABCDEF00
+
+    #=========================================
+    # Test 3: Edge case - all zeros
+    #=========================================
+    li      t0, 0x00000000
+    csrw    satp, t0
+    csrr    t1, satp
+    add     a0, a0, t1      # accumulate: a0 += 0
+
+    #=========================================
+    # Test 4: Edge case - all ones
+    #=========================================
+    li      t0, 0xFFFFFFFF
+    csrw    satp, t0
+    csrr    t1, satp
+    add     a0, a0, t1      # accumulate: a0 += 0xFFFFFFFF
+
+    #=========================================
+    # Test 5: Alternating pattern 0x55555555
+    #=========================================
+    li      t0, 0x55555555
+    csrw    satp, t0
+    csrr    t1, satp
+    add     a0, a0, t1      # accumulate: a0 += 0x55555555
+
+    #=========================================
+    # Test 6: Alternating pattern 0xAAAAAAAA
+    #=========================================
+    li      t0, 0xAAAAAAAA
+    csrw    satp, t0
+    csrr    t1, satp
+    add     a0, a0, t1      # accumulate: a0 += 0xAAAAAAAA
+
+    #=========================================
+    # Test 7: CSRRW - read old value while writing new
+    # Write 0x11111111, then use csrrw to write 0x22222222
+    # and capture the old value
+    #=========================================
+    li      t0, 0x11111111
+    csrw    satp, t0        # SATP = 0x11111111
+    li      t0, 0x22222222
+    csrrw   t1, satp, t0    # t1 = old SATP (0x11111111), SATP = 0x22222222
+    add     a0, a0, t1      # accumulate: a0 += 0x11111111
+
+    # Verify the new value was written
+    csrr    t1, satp        # should be 0x22222222
+    add     a0, a0, t1      # accumulate: a0 += 0x22222222
+
+    #=========================================
+    # Test 8: Multiple consecutive reads (no hazard)
+    #=========================================
+    li      t0, 0x33333333
+    csrw    satp, t0
+    csrr    t1, satp
+    csrr    t2, satp
+    csrr    t3, satp
+    add     a0, a0, t1      # accumulate: a0 += 0x33333333
+    add     a0, a0, t2      # accumulate: a0 += 0x33333333
+    add     a0, a0, t3      # accumulate: a0 += 0x33333333
+
+    #=========================================
+    # Test 9: Write-after-read dependency
+    # Read SATP, modify, write back
+    #=========================================
+    li      t0, 0x00000100
+    csrw    satp, t0        # SATP = 0x100
+    csrr    t1, satp        # t1 = 0x100
+    addi    t1, t1, 0x50    # t1 = 0x150
+    csrw    satp, t1        # SATP = 0x150
+    csrr    t2, satp        # t2 = 0x150
+    add     a0, a0, t2      # accumulate: a0 += 0x150
+
+    #=========================================
+    # Test 10: Loop - write and read multiple times
+    # Sum SATP values: 1 + 2 + 3 + 4 + 5 = 15 (0xF)
+    #=========================================
+    li      t0, 1           # counter
+    li      t4, 5           # limit
+    li      t5, 0           # local sum
+
+loop_start:
+    bgt     t0, t4, loop_end
+    csrw    satp, t0        # SATP = counter
+    csrr    t1, satp        # read back
+    add     t5, t5, t1      # local sum += SATP
+    addi    t0, t0, 1       # counter++
+    j       loop_start
+
+loop_end:
+    add     a0, a0, t5      # accumulate: a0 += 15
+
+    #=========================================
+    # Final expected value calculation:
+    # Test 1:  0x12345678
+    # Test 2:  0xABCDEF00
+    # Test 3:  0x00000000
+    # Test 4:  0xFFFFFFFF
+    # Test 5:  0x55555555
+    # Test 6:  0xAAAAAAAA
+    # Test 7a: 0x11111111
+    # Test 7b: 0x22222222
+    # Test 8:  0x33333333 * 3 = 0x99999999
+    # Test 9:  0x00000150
+    # Test 10: 0x0000000F
+    #=========================================
+
+    # End of program
     nop
     nop
     nop

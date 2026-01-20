@@ -33,7 +33,9 @@ module address_mapper
         mmuRequest.curr_priv_mode = USER_MODE;
         mmuRequest.mmu_enable = FALSE;
         mmuRequest.flush = FALSE;
-
+        `ADDR_MAPPER_DEBUG_PRINT(
+            ("[ADDR_MAPPER] Translating virtual address 0x%h to physical address 0x%h",
+                        virtualRequest.addr, mmuRequest.paddr));
         if (mapperControl.vmEnabled) begin
             // request MMU
             mmuRequest.req   = virtualRequest.request;

@@ -10,8 +10,10 @@
 `define DATAPATH_USE_STORE_BUFFER
 
 
-`define DEBUG_DATAPATH
+// `define DEBUG_DATAPATH
 // `define DEBUG_PRINT
+// `define DEBUG_PRINT_ROB
+// `define DEBUG_PRINT_WB_STAGE
 
 `ifdef DEBUG_PRINT
 `define DEBUG_PRINT_IF_STAGE
@@ -20,12 +22,13 @@
 `define DEBUG_PRINT_MEM_STAGE
 `define DEBUG_PRINT_WB_STAGE
 `define DEBUG_PRINT_REGISTER_FILE
-`define DEBUG_PRINT_STORE_BUFFER
+// `define DEBUG_PRINT_STORE_BUFFER
 `define DEBUG_DATAPATH
-`define DEBUG_PRINT_CACHE
+// `define DEBUG_PRINT_CACHE
 `define DEBUG_PRINT_ROB
 `define ROB_REG_QUERY_DEBUG_PRINT_EN
-`define DEBUG_IMUL_PIPELINE
+// `define DEBUG_IMUL_PIPELINE
+`define DEBUG_ADDR_MAPPER_PRINT
 `endif
 
 // `define ASSERT(x) assert(x)
@@ -95,4 +98,9 @@
 `define ROB_DEBUG_PRINT(x) $display({$sformatf x})
 `else
 `define ROB_DEBUG_PRINT(x)
+`endif
+`ifdef DEBUG_ADDR_MAPPER_PRINT
+`define ADDR_MAPPER_DEBUG_PRINT(x) $display({$sformatf x})
+`else
+`define ADDR_MAPPER_DEBUG_PRINT(x)
 `endif

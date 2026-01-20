@@ -75,6 +75,8 @@ module reorder_buffer (
         sys_inst_t sysInstType;
         csr_addr_t csrAddr;
         word_t csrData;
+        bool_t csrDataValid;
+        bool_t csrWriteback;
 
         // exception
         exception_t exceptions;
@@ -146,11 +148,19 @@ module reorder_buffer (
                 // for writebacks
                 buffer[nextYoungest].isWriteback <= ticketRequest.isWriteback;
                 buffer[nextYoungest].rd <= ticketRequest.rd;
-                buffer[nextYoungest].rdDataValid <= FALSE;
+                if (ticketRequest.sysInstType != SYS_INVALID) begin
+                    // CSR to GPR writebacks: ALL CSR instructions write old CSR value to rd
+                    buffer[nextYoungest].rdDataValid <= TRUE;
+                    buffer[nextYoungest].rdData <= ticketRequest.currCsrData;
+                end else begin
+                    buffer[nextYoungest].rdDataValid <= FALSE;
+                    buffer[nextYoungest].rdData <= IMM_32_WHATEVER;
+                end
                 // system instructions
                 buffer[nextYoungest].sysInstType <= ticketRequest.sysInstType;
                 buffer[nextYoungest].csrAddr <= ticketRequest.csrAddr;
-                buffer[nextYoungest].csrData <= ticketRequest.csrData;
+                buffer[nextYoungest].csrWriteback <= ticketRequest.csrWriteback;
+                buffer[nextYoungest].csrDataValid <= FALSE;
                 // for branches
                 buffer[nextYoungest].isBranch <= ticketRequest.isBranch;
                 buffer[nextYoungest].shouldBranch <= FALSE;
@@ -237,6 +247,13 @@ module reorder_buffer (
         robHints.commitBranchPCVirtAddr = buffer[oldest].branchPCVirtAddr;
         // end
 
+        // for system instruction commit
+        robHints.commitSysInstType = buffer[oldest].sysInstType;
+        robHints.commitCsrAddr = buffer[oldest].csrAddr;
+        robHints.commitCsrData = buffer[oldest].csrData;
+        robHints.commitCsrDataValid = buffer[oldest].csrDataValid;
+        robHints.commitCsrWriteback = buffer[oldest].csrWriteback;
+
         if (robHints.commitTicket != ROB_TICKET_INVALID) begin
             `ROB_DEBUG_PRINT(
                 ("[ROB]: @%0d: ROB Commit Ready for Ticket %0d", DEBUG_tick, robHints.commitTicket));
@@ -303,6 +320,23 @@ module reorder_buffer (
                                  buffer[oldest].branchPCVirtAddr));
             end
 
+            if (robHints.commitSysInstType != SYS_INVALID) begin
+                _shouldDequeue = TRUE;
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Ticket %0d Dequeue for CSR (csrAddr=%h, csrData=%h)",
+                                 DEBUG_tick, oldest,
+                                 buffer[oldest].csrAddr,
+                                 buffer[oldest].csrData));
+            end
+
+            if (!robHints.commitIsWriteback && !robHints.commitIsStore && 
+                !robHints.commitIsBranch && robHints.commitSysInstType == SYS_INVALID) begin
+                _shouldDequeue = TRUE;
+                `ROB_DEBUG_PRINT(
+                    ("[ROB]: @%0d: ROB Ticket %0d Dequeue for NOP-like instruction (no side effects)",
+                                 DEBUG_tick, oldest));
+            end
+
             if (_shouldDequeue) begin
                 if (oldest + 1 == ROB_SIZE) begin
                     oldest <= 0;
@@ -322,11 +356,15 @@ module reorder_buffer (
     end
 
     // this logic is expensive, perhaps seralise update requests (slower performance)?
-    bool_t EX_isBranchBypassing, EX_isRegBypassing, EX_isStoreBypassing;
+    bool_t EX_isBranchBypassing, EX_isRegBypassing, EX_isStoreBypassing, EX_isCsrBypassing;
     bool_t MEM_isLoadBypassing, IMUL_isRegBypassing;
     assign EX_isBranchBypassing = robControl.EX_ticket != ROB_TICKET_INVALID && robControl.EX_isBranch;
+    // CSR instructions should NOT use EX ALU bypass - their rdData is set during enqueue
     assign EX_isRegBypassing = robControl.EX_ticket != ROB_TICKET_INVALID && !robControl.EX_isLoad && 
-                                !robControl.EX_isStore && robControl.EX_isWriteback;
+                                !robControl.EX_isStore && robControl.EX_isWriteback &&
+                                robControl.EX_sysInstType == SYS_INVALID;
+    assign EX_isCsrBypassing = robControl.EX_ticket != ROB_TICKET_INVALID &&
+                                robControl.EX_sysInstType != SYS_INVALID && robControl.EX_csrWriteback;
     assign EX_isStoreBypassing = robControl.EX_ticket != ROB_TICKET_INVALID && robControl.EX_isStore;
     assign MEM_isLoadBypassing = robControl.MEM_ticket != ROB_TICKET_INVALID && robControl.MEM_isLoad;
     assign IMUL_isRegBypassing = robControl.IMUL_ticket != ROB_TICKET_INVALID;
@@ -394,11 +432,23 @@ module reorder_buffer (
                     buffer[robControl.EX_ticket].branchDecided <= TRUE;
                     buffer[robControl.EX_ticket].branchPCVirtAddr <= robControl.EX_branchPC;
                 end
+                if (buffer[robControl.EX_ticket].csrWriteback) begin
+                    assert (robControl.EX_sysInstType != SYS_INVALID);
+                    buffer[robControl.EX_ticket].csrData <= robControl.EX_csrResult;
+                    buffer[robControl.EX_ticket].csrDataValid <= TRUE;
+                end
                 if (buffer[robControl.EX_ticket].isWriteback) begin
-                    buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
-                    buffer[robControl.EX_ticket].rdDataValid <= TRUE;
+                    // FIXME: check for CSR instructions only
+                    if (robControl.EX_sysInstType == SYS_INVALID) begin
+                        buffer[robControl.EX_ticket].rdData <= robControl.EX_aluResult;
+                        buffer[robControl.EX_ticket].rdDataValid <= TRUE;
+                    end else begin
+                        // do nothing since our rd data has already bypassed from CSR
+                    end
                     buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
-                end else if (!robControl.EX_isBranch) begin
+                end else if (!robControl.EX_isBranch && robControl.EX_sysInstType == SYS_INVALID) begin
+                    $display("inst: %h",
+                             buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary);
                     assert (buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
                 end
                 `ROB_DEBUG_PRINT(
@@ -458,7 +508,7 @@ module reorder_buffer (
 
         `ROB_DEBUG_PRINT(
             (
-            "[ROB] @%0d: commitStComplete=%0d, robControl.MEM_ticket=%0d robControl.MEM_commitTicket=%0d, robControl.MEM_commitStoreComplete=%0d",
+            "[ROB]: @%0d: commitStComplete=%0d, robControl.MEM_ticket=%0d robControl.MEM_commitTicket=%0d, robControl.MEM_commitStoreComplete=%0d",
             DEBUG_tick, commitStComplete, robControl.MEM_ticket,
             robControl.MEM_commitTicket, robControl.MEM_commitStoreComplete));
 
@@ -474,6 +524,9 @@ module reorder_buffer (
     // youngest in ROB (no bypass)
     bool_t _rs1EntryFound, _rs2EntryFound;
     word_t _rs1EntryIndex, _rs2EntryIndex;
+    function static bool_t sysInstIsCsr(sys_inst_t instType);
+        return (instType == SYS_CSRRW || instType == SYS_CSRRS || instType == SYS_CSRRC);
+    endfunction
     always_comb begin : RegQueryLogic  // this logic is very expensive
         // Assumption: the register query interface is only used in ID stage
 
@@ -495,12 +548,13 @@ module reorder_buffer (
             // start from the oldest to the youngest, iterate through the ROB
             // we do NOT use `break` so the latest entry always overrides previous ones
             automatic int index = (oldest + i + ROB_SIZE) % ROB_SIZE;
-            if (buffer[index].entryValid)
-                `ROB_DEBUG_PRINT(
-                    ("[ROB]: @%0d: RegQuery Checking %0d, %0d ROB Entry %0d: rd=%0d, isWriteback=%0b, isEntryValid=%0b",
-                     DEBUG_tick, regQuery.rs1, regQuery.rs2, index, buffer[index].rd, buffer[index].isWriteback, buffer[index].entryValid));
-            if (buffer[index].entryValid && buffer[index].isWriteback) begin
-                if (buffer[index].rd == regQuery.rs1) begin
+            // if (buffer[index].entryValid)
+            //     `ROB_DEBUG_PRINT(
+            //         ("[ROB]: @%0d: RegQuery Checking %0d, %0d ROB Entry %0d: rd=%0d, isWriteback=%0b, isEntryValid=%0b",
+            //          DEBUG_tick, regQuery.rs1, regQuery.rs2, index, buffer[index].rd, buffer[index].isWriteback, buffer[index].entryValid));
+
+            if (buffer[index].rd == regQuery.rs1[4:0]) begin
+                if (buffer[index].entryValid && buffer[index].isWriteback) begin
 `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
                     `ROB_DEBUG_PRINT(
                         ("[ROB]: @%0d: RegQuery rs1 Match at ROB Entry %0d: rd=%0d",
@@ -509,11 +563,28 @@ module reorder_buffer (
                     _rs1EntryFound = TRUE;
                     _rs1EntryIndex = index;
                 end
-                if (buffer[index].rd == regQuery.rs2) begin
+            end
+            if (!regQuery.rs2IsCsr && buffer[index].rd == regQuery.rs2[4:0]) begin
+                if (buffer[index].entryValid && buffer[index].isWriteback) begin
 `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
                     `ROB_DEBUG_PRINT(
-                        ("[ROB]: @%0d: RegQuery rs2 Match at ROB Entry %0d: rd=%0d",
-                         DEBUG_tick, index, buffer[index].rd));
+                        (
+                        "[ROB]: @%0d: RegQuery rs2 Match at ROB Entry %0d: rd=%0d",
+                         DEBUG_tick, index, buffer[index].rd
+                    ));
+`endif
+                    _rs2EntryFound = TRUE;
+                    _rs2EntryIndex = index;
+                end
+            end else if (regQuery.rs2IsCsr && sysInstIsCsr(
+                    buffer[index].sysInstType
+                ) && buffer[index].csrAddr == regQuery.rs2[11:0]) begin
+                if (buffer[index].entryValid && buffer[index].csrWriteback) begin
+`ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
+                    `ROB_DEBUG_PRINT(
+                        (
+                        "[ROB]: @%0d: RegQuery rs2 CSR Match at ROB Entry %0d: csrAddr=%0d",
+                         DEBUG_tick, index, buffer[index].csrAddr));
 `endif
                     _rs2EntryFound = TRUE;
                     _rs2EntryIndex = index;
@@ -554,30 +625,49 @@ module reorder_buffer (
 
         // same as rs1
         if (_rs2EntryFound && regQuery.rs2 > 0) begin
-`ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
-            `ROB_DEBUG_PRINT(
-                ("[ROB]: @%0d: RegQuery rs2 Hit at ROB Entry %0d: rd=%0d",
-                 DEBUG_tick, _rs2EntryIndex, buffer[_rs2EntryIndex].rd));
-`endif
-            regQuery.rs2Data = buffer[_rs2EntryIndex].rdData;
-            regQuery.rs2DataValid = buffer[_rs2EntryIndex].rdDataValid;
+            // `ifdef ROB_REG_QUERY_DEBUG_PRINT_EN
+            //             `ROB_DEBUG_PRINT(
+            //                 ("[ROB]: @%0d: RegQuery rs2 Hit at ROB Entry %0d: rd=%0d",
+            //                  DEBUG_tick, _rs2EntryIndex, buffer[_rs2EntryIndex].rd));
+            // `endif
             regQuery.rs2HasEntry = TRUE;
-            // TODO: use bypass
-            if (robControl.EX_ticket == _rs2EntryIndex) begin
-                if (EX_isRegBypassing) begin
-                    regQuery.rs2Data = robControl.EX_aluResult;
-                    regQuery.rs2DataValid = TRUE;
+            if (regQuery.rs2IsCsr) begin
+                // FIXME: add bypass for CSR
+                if (robControl.EX_ticket == _rs2EntryIndex) begin
+                    if (EX_isCsrBypassing) begin
+                        `ROB_DEBUG_PRINT(
+                            ("[ROB]: @%0d: RegQuery rs2 CSR Bypassing from EX Stage for ROB Entry %0d: csrAddr=%0d",
+                             DEBUG_tick, _rs2EntryIndex, buffer[_rs2EntryIndex].csrAddr));
+                        regQuery.rs2Data = robControl.EX_csrResult;
+                        regQuery.rs2DataValid = TRUE;
+                    end else begin
+                        `ROB_DEBUG_PRINT(
+                            ("[ROB]: @%0d: RegQuery rs2 CSR Hit at ROB Entry %0d: csrAddr=%0d, data=%h, dataValid=%0b",
+                             DEBUG_tick, _rs2EntryIndex, buffer[_rs2EntryIndex].csrAddr,
+                             buffer[_rs2EntryIndex].csrData, buffer[_rs2EntryIndex].csrDataValid));
+                        regQuery.rs2Data = buffer[_rs2EntryIndex].csrData;
+                        regQuery.rs2DataValid = buffer[_rs2EntryIndex].csrDataValid;
+                    end
                 end
-            end else if (robControl.MEM_ticket == _rs2EntryIndex) begin
-                if (MEM_isLoadBypassing) begin
-                    assert (robControl.MEM_commitTicket == ROB_TICKET_INVALID);
-                    regQuery.rs2Data = robControl.MEM_loadData;
-                    regQuery.rs2DataValid = robControl.MEM_loadDataReady;
-                end
-            end else if (robControl.IMUL_ticket == _rs2EntryIndex) begin
-                if (IMUL_isRegBypassing) begin
-                    regQuery.rs2Data = robControl.IMUL_result;
-                    assert (!buffer[_rs2EntryIndex].rdDataValid);
+            end else begin
+                regQuery.rs2Data = buffer[_rs2EntryIndex].rdData;
+                regQuery.rs2DataValid = buffer[_rs2EntryIndex].rdDataValid;
+                if (robControl.EX_ticket == _rs2EntryIndex) begin
+                    if (EX_isRegBypassing) begin
+                        regQuery.rs2Data = robControl.EX_aluResult;
+                        regQuery.rs2DataValid = TRUE;
+                    end
+                end else if (robControl.MEM_ticket == _rs2EntryIndex) begin
+                    if (MEM_isLoadBypassing) begin
+                        assert (robControl.MEM_commitTicket == ROB_TICKET_INVALID);
+                        regQuery.rs2Data = robControl.MEM_loadData;
+                        regQuery.rs2DataValid = robControl.MEM_loadDataReady;
+                    end
+                end else if (robControl.IMUL_ticket == _rs2EntryIndex) begin
+                    if (IMUL_isRegBypassing) begin
+                        regQuery.rs2Data = robControl.IMUL_result;
+                        assert (!buffer[_rs2EntryIndex].rdDataValid);
+                    end
                 end
             end
         end
@@ -719,6 +809,28 @@ module reorder_buffer (
                     buffer[i].rd,
                     buffer[i].rdDataValid,
                     buffer[i].rdData,
+                    buffer[i].exceptions
+                ));
+                end else if (buffer[i].sysInstType != SYS_INVALID) begin
+                    `ROB_DEBUG_PRINT(
+                        (
+                    "[ROB]: @%0d [%0d] SYS: PC=%h, inst=%h, csrAddr=%0h, csrData=%h, exceptions=%h",
+                    DEBUG_tick,
+                    i,
+                    buffer[i].pc,
+                    buffer[i].DEBUG_instInfo.DEBUG_instBinary,
+                    buffer[i].csrAddr,
+                    buffer[i].csrData,
+                    buffer[i].exceptions
+                ));
+                end else begin
+                    `ROB_DEBUG_PRINT(
+                        (
+                    "[ROB]: @%0d [%0d] NOP-like: PC=%h, inst=%h, exceptions=%h",
+                    DEBUG_tick,
+                    i,
+                    buffer[i].pc,
+                    buffer[i].DEBUG_instInfo.DEBUG_instBinary,
                     buffer[i].exceptions
                 ));
                 end

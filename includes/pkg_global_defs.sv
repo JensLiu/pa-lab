@@ -39,7 +39,9 @@ package pkg_global_defs;
     // system instructions
     typedef enum logic [2:0] {
         SYS_INVALID,
-        SYS_CSRRW,
+        SYS_CSRRW,   // CSR Read/Write
+        SYS_CSRRS,   // CSR Read/Set (used for csrr pseudo-instruction when rs1=x0)
+        SYS_CSRRC,   // CSR Read/Clear
         SYS_SRET
     } sys_inst_t;
 
@@ -177,6 +179,8 @@ package pkg_global_defs;
         word_t   WB_rdData;
         bool_t   WB_hasException;
         bool_t   WB_shouldJump;
+        // Current CSR values for CSR read instructions (when no pending write in ROB)
+        word_t   CSR_satp;
     } id_control_t;
 
     typedef struct {
@@ -186,6 +190,9 @@ package pkg_global_defs;
         exception_t exceptions;
         reg_t rs1Data;
         reg_t rs2Data;
+        sys_inst_t sysInstType;
+        word_t csrData;
+        bool_t csrWriteback;
     } id_ex_regs_t;
 
     typedef struct {
@@ -212,6 +219,10 @@ package pkg_global_defs;
         reg_nr_t EX_rd;
         // Rd or Virtual Address
         word_t   EX_aluResult;
+        // csr instructions
+        sys_inst_t EX_sysInstType;
+        word_t   EX_csrResult;
+        bool_t  EX_csrWriteback;
         // Since we are using ROB, we don't need to halt, we just update the ROB entry
         // Old control logic (it should be handled by the WB stage instead)
         // When IF is not ready, halt until IF drained its cache requests
@@ -278,6 +289,8 @@ package pkg_global_defs;
         word_t WB_rdData;
         sys_inst_t WB_sysInstType;
         csr_addr_t WB_csrAddr;
+        bool_t WB_csrDataValid;
+        bool_t WB_csrWriteback;
         word_t WB_csrData;
         bool_t WB_hasException;
     } wb_hints_t;
@@ -298,6 +311,8 @@ package pkg_global_defs;
         sys_inst_t ROB_commitSysInstType;
         csr_addr_t ROB_commitCsrAddr;
         word_t ROB_commitCsrData;
+        bool_t ROB_commitCsrDataValid;
+        bool_t ROB_commitCsrWriteback;
         // 2. non-writeback commit LOAD
         // check for memory access exceptions
         bool_t ROB_commitIsStore;
@@ -341,6 +356,8 @@ package pkg_global_defs;
         sys_inst_t commitSysInstType;
         csr_addr_t commitCsrAddr;
         word_t commitCsrData;
+        bool_t commitCsrDataValid;
+        bool_t commitCsrWriteback;
         // store
         virt_addr_unique_t commitStVirtAddr;
         word_t commitStData;
@@ -362,6 +379,10 @@ package pkg_global_defs;
         word_t EX_branchPC;
         // branch instructions
         bool_t EX_shouldBranch;
+        // csr instructions
+        sys_inst_t EX_sysInstType;
+        word_t EX_csrResult;
+        bool_t EX_csrWriteback;
         // ALU exceptions
         exception_t EX_exceptions;
 

@@ -8,7 +8,7 @@
 COMPILER  ?= riscv64-unknown-elf-gcc
 OBJCOPY   ?= riscv64-unknown-elf-objcopy
 OBJDUMP   ?= riscv64-unknown-elf-objdump
-ARCH_FLAGS ?= -march=rv32im -mabi=ilp32
+ARCH_FLAGS ?= -march=rv32im_zicsr -mabi=ilp32
 LIB_FLAGS  ?= -ffreestanding -nostdlib
 
 CXX      ?= g++
@@ -88,8 +88,11 @@ test_driver:
 	-I$(abspath ${BASE_DIR}/includes) -I$(abspath ${BASE_DIR}/rtl) \
 	-I$(abspath ${BASE_DIR}/rtl/datapath) -I$(abspath ${BASE_DIR}/rtl/cache) \
 	-I$(abspath ${BASE_DIR}/rtl/memory) -I$(abspath ${BASE_DIR}/rtl/reorder_buffer) \
-	-I$(abspath ${BASE_DIR}/rtl/store_buffer) -I$(abspath obj_dir) \
+	-I$(abspath ${BASE_DIR}/rtl/store_buffer) \
+	-I$(abspath ${BASE_DIR}/rtl/virtual_memory/inner) -I$(abspath ${BASE_DIR}/rtl/virtual_memory/adaptors) \
+	-I$(abspath obj_dir) \
 	${BASE_DIR}/includes/pkg_riscv_instructions.sv \
+	${BASE_DIR}/includes/pkg_virtual_memory.sv \
 	${BASE_DIR}/includes/pkg_global_defs.sv \
 	${BASE_DIR}/rtl/*.sv \
 	${BASE_DIR}/rtl/datapath/*.sv \
@@ -97,6 +100,8 @@ test_driver:
 	${BASE_DIR}/rtl/memory/*.sv \
 	${BASE_DIR}/rtl/reorder_buffer/*.sv \
 	${BASE_DIR}/rtl/store_buffer/*.sv \
+	${BASE_DIR}/rtl/virtual_memory/inner/*.sv \
+	${BASE_DIR}/rtl/virtual_memory/adaptors/*.sv \
 	sim_main.cpp
 	@echo "  -> ./sim_main"
 

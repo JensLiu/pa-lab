@@ -216,16 +216,55 @@ module decoder
         // LUI end
 
         // CSR begin
-        // CSRW is a pseudo-instruction: csrw csr, rs1 -> csrrw x0, csr, rs1
+        // CSR instructions use I-type format: imm[11:0] = CSR address, rs1 = source, rd = dest
         // CSRRW: Atomic Read/Write CSR - reads CSR to rd, writes rs1 to CSR
+        // CSRRS: Atomic Read/Set CSR - reads CSR to rd, sets bits in CSR using rs1 mask
+        //        csrr rd, csr is a pseudo-instruction for csrrs rd, csr, x0 (pure read)
+        // CSRRC: Atomic Read/Clear CSR - reads CSR to rd, clears bits in CSR using rs1 mask
         if (opcode == OP_SYSTEM && funct3 != FN3_PRIV) begin
-            info.sysInstType = SYS_CSRRW;
-            info.csrAddr = inst.itype.imm;  // CSR address is in the immediate field
-            info.rs1 = inst.itype.rs1;      // Source register (value to write)
-            info.rd = inst.itype.rd;        // Destination register (for read value)
-            info.rs2 = REG_NR_INVALID_FALLBACK;
+            info.csrAddr     = inst.itype.imm;  // CSR address is in the immediate field
+            info.rs1         = inst.itype.rs1;  // Source register (value to write/set/clear)
+            info.rd          = inst.itype.rd;  // Destination register (for read value)
+            info.rs2         = REG_NR_INVALID_FALLBACK;
             // If rd != x0, old CSR value is written to rd
             info.isWriteback = (inst.itype.rd != 5'b0);
+            case (funct3)
+                FN3_CSRRW: info.sysInstType = SYS_CSRRW;
+                FN3_CSRRS: info.sysInstType = SYS_CSRRS;
+                FN3_CSRRC: info.sysInstType = SYS_CSRRC;
+                default:   info.sysInstType = SYS_INVALID;  // TODO: add CSRRWI, CSRRSI, CSRRCI
+            endcase
+            // debug
+            case (info.sysInstType)
+                SYS_CSRRW:
+                $display(
+                    "[DECODER]: Decoded CSRRW instruction: CSR Addr=%h, rs1=R%d, rd=R%d",
+                    info.csrAddr,
+                    info.rs1,
+                    info.rd
+                );
+                SYS_CSRRS:
+                $display(
+                    "[DECODER]: Decoded CSRRS instruction: CSR Addr=%h, rs1=R%d, rd=R%d",
+                    info.csrAddr,
+                    info.rs1,
+                    info.rd
+                );
+                SYS_CSRRC:
+                $display(
+                    "[DECODER]: Decoded CSRRC instruction: CSR Addr=%h, rs1=R%d, rd=R%d",
+                    info.csrAddr,
+                    info.rs1,
+                    info.rd
+                );
+                default:
+                $display(
+                    "[DECODER]: Decoded unknown CSR instruction: CSR Addr=%h, rs1=R%d, rd=R%d",
+                    info.csrAddr,
+                    info.rs1,
+                    info.rd
+                );
+            endcase
         end
         // CSR end
 

@@ -46,6 +46,12 @@ module id_stage
         .write_data(idControl.WB_rdData)
     );
 
+    bool_t EX_csrWriteback;
+    assign EX_csrWriteback = (instInfo.sysInstType == SYS_CSRRW) ||
+                            ((instInfo.sysInstType == SYS_CSRRS ||
+                             instInfo.sysInstType == SYS_CSRRC
+                            ) && instInfo.rs1 != 0);
+
     // bypass network queries
     bool_t rs1ShouldHalt, rs2ShouldHalt;
     bool_t dependencyShouldHalt;
@@ -53,12 +59,34 @@ module id_stage
     word_t ID_rs1Data, ID_rs2Data;
     always_comb begin : BypassQueryLogic
         // regQuery.ticket = ticket;
-        regQuery.rs1 = instInfo.rs1;
-        regQuery.rs2 = instInfo.rs2;
+        regQuery.rs1 = {27'b0, instInfo.rs1};
+        regQuery.rs2 = {27'b0, instInfo.rs2};
+        regQuery.rs2IsCsr = FALSE;
+        case (instInfo.sysInstType)
+            SYS_CSRRW, SYS_CSRRS, SYS_CSRRC: begin
+                // for CSR instructions, rs2 is not a source register
+                regQuery.rs2IsCsr = TRUE;
+                regQuery.rs2 = {20'b0, instInfo.csrAddr};
+            end
+            default: begin
+                // do nothing
+            end
+        endcase
         rs1ShouldHalt = instInfo.rs1 != 0 && regQuery.rs1HasEntry && !regQuery.rs1DataValid;
-        rs2ShouldHalt = instInfo.rs2 != 0 && regQuery.rs2HasEntry && !regQuery.rs2DataValid;
         ID_rs1Data = instInfo.rs1 != 0 && regQuery.rs1HasEntry ? regQuery.rs1Data : ID_oldRs1Data;
-        ID_rs2Data = instInfo.rs2 != 0 && regQuery.rs2HasEntry ? regQuery.rs2Data : ID_oldRs2Data;
+        if (instInfo.sysInstType != SYS_INVALID) begin
+            // assert (regQuery.rs2IsCsr);
+            // CSR instructions
+            rs2ShouldHalt = regQuery.rs2HasEntry && !regQuery.rs2DataValid;
+            ID_rs2Data = regQuery.rs2HasEntry ? regQuery.rs2Data : idControl.CSR_satp;
+        end else begin
+            // general purpose instructions
+            // assert (!regQuery.rs2IsCsr);
+            rs2ShouldHalt = instInfo.rs2 != 0 && regQuery.rs2HasEntry && !regQuery.rs2DataValid;
+            ID_rs2Data = instInfo.rs2 != 0 &&
+                            regQuery.rs2HasEntry ? regQuery.rs2Data : ID_oldRs2Data;
+
+        end
         `ID_STAGE_DEBUG_PRINT(
             ("[ID]: @%0d: ticket=%0d, inst=%h", DEBUG_tick, ticket, instInfo.DEBUG_instBinary));
         `ID_STAGE_DEBUG_PRINT(
@@ -105,12 +133,14 @@ module id_stage
                                   !dependencyShouldHalt;
     bool_t ticketShouldHalt;
     always_comb begin : RobTicketRequestLogic
-        `ID_STAGE_DEBUG_PRINT((
+        `ID_STAGE_DEBUG_PRINT(
+            (
             "[ID]: @%0d Preparing ROB ticket request: PC=%h, inst=%h",
             DEBUG_tick,
             ifIdRegs.pc,
             instInfo.DEBUG_instBinary));
-        `ID_STAGE_DEBUG_PRINT((
+        `ID_STAGE_DEBUG_PRINT(
+            (
             "[ID]: @%0d Preparing ROB ticket request: IF_instValid=%0b, dependencyShouldHalt=%0b, WB_shouldJump=%0b, ID_halt=%0b",
             DEBUG_tick,
             IF_instValid,
@@ -125,7 +155,8 @@ module id_stage
         ticketRequest.stData = ID_rs2Data;
         ticketRequest.sysInstType = instInfo.sysInstType;
         ticketRequest.csrAddr = instInfo.csrAddr;
-        ticketRequest.csrData = ID_rs1Data;
+        ticketRequest.csrWriteback = EX_csrWriteback;
+        ticketRequest.currCsrData = ID_rs2Data;  // we read the old CSR value
         ticketRequest.rd = instInfo.rd;
         ticketRequest.pc = ifIdRegs.pc;
         ticketRequest.DEBUG_instInfo = instInfo;
@@ -186,6 +217,9 @@ module id_stage
             idExRegs.rs1Data = ID_rs1Data;
             idExRegs.rs2Data = ID_rs2Data;
             idExRegs.exceptions = ifIdRegs.exceptions;
+            idExRegs.sysInstType = instInfo.sysInstType;
+            idExRegs.csrWriteback = EX_csrWriteback;
+            idExRegs.csrData = ID_rs2Data;
 
         end
 

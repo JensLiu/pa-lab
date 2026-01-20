@@ -3,6 +3,7 @@
 module datapath_pipelined
     import pkg_global_defs::*;
     import pkg_riscv_instructions::*;
+    import pkg_virtual_memory::*;
 (
 `ifdef DATAPATH_EXPOSE_INTERNALS
 `ifdef REGISTER_FILE_EXPOSE_INTERNALS
@@ -27,32 +28,48 @@ module datapath_pipelined
     reg_t sepcQ;
     priv_mode_t privQ;
     always_ff @(posedge clk) begin
-        if (wbHints.WB_sysInstType == SYS_CSRRW) begin
-            if (wbHints.WB_csrAddr == SATP_CSR_ADDR) begin
-                satpQ <= wbHints.WB_csrData;
-                `DATAPATH_DEBUG_PRINT(
-                    ("[Datapath]: @%0d SATP updated to %h from CSR writeback",
-                                   DEBUG_tick, wbHints.WB_csrData));
-            end else if (wbHints.WB_csrAddr == SEPC_CSR_ADDR) begin
-                sepcQ <= wbHints.WB_csrData;
-                `DATAPATH_DEBUG_PRINT(
-                    ("[Datapath]: @%0d SEPC updated to %h from CSR writeback",
-                                   DEBUG_tick, wbHints.WB_csrData));
-            end
-        end else if (wbHints.WB_sysInstType == SYS_SRET) begin
-            assert (privQ == SUPERVISOR_MODE);
-            privQ <= USER_MODE;
-            `DATAPATH_DEBUG_PRINT(
-                ("[Datapath]: @%0d Privilege mode updated to %0d from CSR writeback",
+        if (wbHints.WB_commitFinished) begin
+            case (wbHints.WB_sysInstType)
+                SYS_CSRRW, SYS_CSRRS, SYS_CSRRC: begin
+                    // CSR writebacks
+                    if (wbHints.WB_csrWriteback) begin
+                        `DATAPATH_DEBUG_PRINT(
+                            ("[Datapath]: @%0d CSR writeback executed for CSR Addr %h, Data %h",
+                                           DEBUG_tick, wbHints.WB_csrAddr, wbHints.WB_csrData));
+                        if (wbHints.WB_csrAddr == SATP_CSR_ADDR) begin
+                            satpQ <= wbHints.WB_csrData;
+                            $display("[Datapath]: @%0d SATP updated to %h from CSR writeback",
+                                     DEBUG_tick, wbHints.WB_csrData);
+                        end else if (wbHints.WB_csrAddr == SEPC_CSR_ADDR) begin
+                            sepcQ <= wbHints.WB_csrData;
+                            $display("[Datapath]: @%0d SEPC updated to %h from CSR writeback",
+                                     DEBUG_tick, wbHints.WB_csrData);
+                        end
+                    end
+                end
+                SYS_SRET: begin
+                    // SRET changes privilege mode
+                    assert (privQ == SUPERVISOR_MODE);
+                    privQ <= USER_MODE;
+                    `DATAPATH_DEBUG_PRINT(
+                        ("[Datapath]: @%0d Privilege mode updated to %0d from CSR writeback",
                                    DEBUG_tick, wbHints.WB_csrData[1:0]));
+                    `DATAPATH_DEBUG_PRINT(
+                        ("[Datapath]: @%0d SRET executed, changing privilege mode to USER_MODE",
+                                           DEBUG_tick));
+                end
+                default: begin
+                    // no action
+                end
+            endcase
         end
     end
     always_comb begin
         instAddrMapperControl.vmEnabled = TRUE;
-        instAddrMapperControl.currentPrivMode = USER_MODE;
+        instAddrMapperControl.currentPrivMode = SUPERVISOR_MODE;
         instAddrMapperControl.satp = satpQ;
         dataAddrMapperControl.vmEnabled = TRUE;
-        dataAddrMapperControl.currentPrivMode = USER_MODE;
+        dataAddrMapperControl.currentPrivMode = SUPERVISOR_MODE;
         dataAddrMapperControl.satp = satpQ;
     end
 
@@ -210,7 +227,7 @@ module datapath_pipelined
     mmu_tlb_if dTlbRequest ();
     mmu mmu (
         .clk(clk),
-        .rst_n(FALSE),  // TODO: reset signal
+        .rst_n(TRUE),  // Not in reset (active-low)
         .instr_if(instMMURequest.mmu),
         .data_if(dataMMURequest.mmu),
         .i_tlb_if(iTlbRequest.mmu),
@@ -220,20 +237,20 @@ module datapath_pipelined
 
     tlb itlb (
         .clk(clk),
-        .rst_n(FALSE),  // TODO: reset signal
+        .rst_n(TRUE),  // Not in reset (active-low)
         .tlb_mmu_if(iTlbRequest.tlb)
     );
 
     tlb dtlb (
         .clk(clk),
-        .rst_n(FALSE),  // TODO: reset signal
+        .rst_n(TRUE),  // Not in reset (active-low)
         .tlb_mmu_if(dTlbRequest.tlb)
     );
 
     mmu_pw_if pwRequest ();
     page_walker pageWalker (
         .clk(clk),
-        .rst_n(FALSE),  // TODO: reset signal
+        .rst_n(TRUE),  // Not in reset (active-low)
         .pw_mmu_if(pwRequest.page_walker),
         .pw_cache_if(pwCacheRequest.page_walker)
     );
@@ -350,6 +367,9 @@ module datapath_pipelined
                 idExRegsQ.exceptions <= exception_make_none();
                 idExRegsQ.rs1Data <= IMM_32_WHATEVER;
                 idExRegsQ.rs2Data <= IMM_32_WHATEVER;
+                idExRegsQ.sysInstType <= SYS_INVALID;
+                idExRegsQ.csrData <= IMM_32_WHATEVER;
+                idExRegsQ.csrWriteback <= FALSE;
             end else begin
                 `DATAPATH_DEBUG_PRINT(
                     ("[Datapath]: @%0d Forwarding into EX stage (%0d -> %0d)", DEBUG_tick, 
@@ -427,6 +447,7 @@ module datapath_pipelined
         idControl.WB_rdData = wbHints.WB_rdData;
         idControl.WB_hasException = wbHints.WB_hasException;
         idControl.WB_shouldJump = wbHints.WB_shouldJump;
+        idControl.CSR_satp = satpQ;  // Provide current SATP for CSR reads
 
         // EX Control
         // EX is not stateful
@@ -452,6 +473,8 @@ module datapath_pipelined
         wbControl.ROB_commitSysInstType = robHints.commitSysInstType;
         wbControl.ROB_commitCsrAddr = robHints.commitCsrAddr;
         wbControl.ROB_commitCsrData = robHints.commitCsrData;
+        wbControl.ROB_commitCsrDataValid = robHints.commitCsrDataValid;
+        wbControl.ROB_commitCsrWriteback = robHints.commitCsrWriteback;
         // branch info
         wbControl.ROB_commitIsBranch = robHints.commitIsBranch;
         wbControl.ROB_commitShouldBranch = robHints.commitShouldBranch;
@@ -472,6 +495,9 @@ module datapath_pipelined
         robControl.EX_aluResult = exHints.EX_aluResult;
         robControl.EX_branchPC = exHints.EX_branchPC;
         robControl.EX_shouldBranch = exHints.EX_shouldBranch;
+        robControl.EX_sysInstType = exHints.EX_sysInstType;
+        robControl.EX_csrResult = exHints.EX_csrResult;
+        robControl.EX_csrWriteback = exHints.EX_csrWriteback;
         robControl.EX_exceptions = exHints.EX_exceptions;
         robControl.MEM_ticket = memHints.ticket;
         robControl.MEM_exceptions = memHints.MEM_exceptions;

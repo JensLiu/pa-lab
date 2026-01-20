@@ -1,18 +1,20 @@
 interface rob_reg_query_if;  // for bypasses (ID)
     // word_t ticket;  // should only query from [oldest, ticket)
-    reg_nr_t rs1;
-    bool_t   rs1HasEntry;
-    word_t   rs1Data;
-    bool_t   rs1DataValid;
+    word_t rs1;
+    bool_t rs1HasEntry;
+    word_t rs1Data;
+    bool_t rs1DataValid;
 
-    reg_nr_t rs2;
-    bool_t   rs2HasEntry;
-    word_t   rs2Data;
-    bool_t   rs2DataValid;
+    word_t rs2;
+    bool_t rs2IsCsr;
+    bool_t rs2HasEntry;
+    word_t rs2Data;
+    bool_t rs2DataValid;
     modport master(
         // output ticket,
         output rs1,
         output rs2,
+        output rs2IsCsr,
         input rs1HasEntry,
         input rs2HasEntry,
         input rs1Data,
@@ -24,6 +26,7 @@ interface rob_reg_query_if;  // for bypasses (ID)
         // input ticket,
         input rs1,
         input rs2,
+        input rs2IsCsr,
         output rs1HasEntry,
         output rs2HasEntry,
         output rs1Data,

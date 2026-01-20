@@ -114,14 +114,18 @@ module wb_stage
                 end
                 if (wbControl.ROB_commitSysInstType != SYS_INVALID) begin
                     wbHints.WB_sysInstType = wbControl.ROB_commitSysInstType;
+                    wbHints.WB_csrWriteback = wbControl.ROB_commitCsrWriteback;
                     wbHints.WB_csrAddr = wbControl.ROB_commitCsrAddr;
                     wbHints.WB_csrData = wbControl.ROB_commitCsrData;
-                    `WB_STAGE_DEBUG_PRINT(
-                        ("[WB]: @%0d CSR writeback for ROB ticket %0d, CSR Addr: %h, Data: %h",
-                                              DEBUGD_tick,
-                                              wbControl.ROB_commitTicket,
-                                              wbControl.ROB_commitCsrAddr,
-                                              wbControl.ROB_commitCsrData));
+                    wbHints.WB_csrDataValid = wbControl.ROB_commitCsrDataValid;
+                    // Only block if CSR write is required but data not ready
+                    // Read-only CSR ops (csrWriteback=FALSE) don't need csrDataValid
+                    if (wbControl.ROB_commitCsrWriteback && !wbControl.ROB_commitCsrDataValid) begin
+                        wbHints.WB_commitFinished = FALSE;
+                    end
+                    $display("[WB]: @%0d CSR writeback for ROB ticket %0d, CSR Addr: %h, Data: %h",
+                             DEBUGD_tick, wbControl.ROB_commitTicket, wbControl.ROB_commitCsrAddr,
+                             wbControl.ROB_commitCsrData);
                 end
             end
         end

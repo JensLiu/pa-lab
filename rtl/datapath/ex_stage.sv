@@ -82,6 +82,19 @@ module ex_stage
     word_t EX_expectedAluResult;
     assign EX_expectedAluResult = EX_instInfo.branchType == BR_UNCOND ? EX_pc + 4 : EX_aluResult;
 
+    word_t EX_csrResult;
+    always_comb begin
+        // TODO: reuse ALU logic
+        case (idExRegs.sysInstType)
+            SYS_CSRRW: EX_csrResult = EX_rs1Data;
+            SYS_CSRRS: EX_csrResult = EX_rs1Data | idExRegs.csrData;
+            SYS_CSRRC: EX_csrResult = (~EX_rs1Data) & idExRegs.csrData;
+            default: begin
+                EX_csrResult = IMM_32_WHATEVER;
+            end
+        endcase
+    end
+
     always_comb begin
         // propagate
         exMemRegs.ticket = EX_ticket;
@@ -104,7 +117,10 @@ module ex_stage
         exHints.EX_rd = EX_instInfo.rd;
         // arithmetic hints
         exHints.EX_aluResult = EX_expectedAluResult;
-
+        // CSR hints
+        exHints.EX_csrResult = EX_csrResult;  // TODO: CSR writeback
+        exHints.EX_sysInstType = idExRegs.sysInstType;
+        exHints.EX_csrWriteback = idExRegs.csrWriteback;
     end
 
     logic [31:0] DEBUG_tick;
@@ -114,9 +130,11 @@ module ex_stage
 
     always_ff @(posedge clk) begin
         `EX_STAGE_DEBUG_PRINT(("[EX]: @%0d ticket %0d", DEBUG_tick, EX_ticket));
-        `EX_STAGE_DEBUG_PRINT(("[EX]: @%0d Branch Type=%0d, shouldBranch=%0b",
+        `EX_STAGE_DEBUG_PRINT(
+            ("[EX]: @%0d Branch Type=%0d, shouldBranch=%0b",
             DEBUG_tick, EX_instInfo.branchType, EX_shouldBranch));
-        `EX_STAGE_DEBUG_PRINT(("[EX]: @%d ticket %0d, a=%h, b=%h, op=%d, result=%h",
+        `EX_STAGE_DEBUG_PRINT(
+            ("[EX]: @%d ticket %0d, a=%h, b=%h, op=%d, result=%h",
             DEBUG_tick, EX_ticket, EX_aluA, EX_aluB, EX_aluOp, EX_aluResult));
     end
 
