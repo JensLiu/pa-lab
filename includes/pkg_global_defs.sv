@@ -102,6 +102,13 @@ package pkg_global_defs;
         bool_t gt;
     } cmp_result_t;
 
+    // address range coverage
+    typedef enum logic [1:0] {
+        ADDR_FULLY_IN_RANGE,
+        ADDR_PARTIALLY_IN_RANGE,
+        ADDR_OUT_OF_RANGE
+    } addr_range_coverage_t;
+
     typedef struct {
         reg_nr_t      rs1;
         reg_nr_t      rs2;

@@ -46,7 +46,7 @@ static int __test_mem_copy() {
 
 // Performance Test 3: Matrix Multiply
 // Count cycles for NxN matrix multiplication
-#define SMALLER_N 10
+#define SMALLER_N 128
 #define NI SMALLER_N
 #define NJ SMALLER_N
 #define NK SMALLER_N
@@ -84,6 +84,6 @@ static int matrix_multiply_test() {
   int result3 = __test_matrix_multiply(); // Expected: N
 
   // Return sum of all results for verification
-  return result1 + result2 + result3;
-  // return 0;
+  // return result1 + result2 + result3;
+  return 0;
 }

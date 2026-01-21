@@ -6,8 +6,10 @@ module store_buffer
     input logic clk,
     // read combinationally
     input addr_t readAddr,
+    input mem_stlen_t readDataLen,
     output word_t readData,
     output bool_t readHit,
+    output addr_range_coverage_t readHitRange,
     // write sequentially
     output bool_t sbCanWrite,
     input bool_t writeRequest,
@@ -20,6 +22,8 @@ module store_buffer
     // interface to cache
     cache_writeonly_request_if.master cacheRequest
 );
+
+    localparam SB_SIZE = 4;
 
     typedef struct {
         bool_t valid;  // should be consistent with the valid range [oldest, nextYoungest) mod SIZE
@@ -37,7 +41,7 @@ module store_buffer
 
     store_buffer_state_t currentState, nextState;
 
-    store_buffer_entry_t buffer[4];
+    store_buffer_entry_t buffer[SB_SIZE];
     // NOTE: Wrap-around Logic
     //      wrap-around is guaranteed by overflow/underflow
     //      since the buffer size is BUFFER_SIZE = 2^(ADDR_SIZE)
@@ -49,37 +53,107 @@ module store_buffer
     initial isFull = FALSE;
 
     bool_t isHit;
+    addr_t hitBaseAddr;
     logic [1:0] hitIdx;
+    addr_range_coverage_t hitRange;
+    assign readHit = isHit;
+    assign readHitRange = isHit ? hitRange : ADDR_OUT_OF_RANGE;
+    addr_t _offset, _sizeLeft;
+    logic [63:0] _dataExtended;
+    always_comb begin
+        _offset = '0;
+        _dataExtended = '0;
+        if (readHitRange != ADDR_FULLY_IN_RANGE) begin
+            readData = '0;
+        end else begin
+            // since we are in full coverage, we can read the data directly
+            _offset = readAddr - hitBaseAddr;
+            // to avoid out-of-bound slicing
+            _dataExtended = {32'b0, buffer[hitIdx].data};
+            readData = _dataExtended[(_offset*8)+:32];
+        end
+    end
+
+    function automatic addr_range_coverage_t addrRangeCheck(
+        input addr_t queryAddr, input mem_stlen_t queryLenEnum, input addr_t baseAddr,
+        input mem_stlen_t baseLenEnum);
+        word_t queryLen, baseLen;
+        addr_t queryEndAddr, baseEndAddr;
+        case (queryLenEnum)
+            MEM_STLEN_BYTE: queryLen = 1;
+            MEM_STLEN_HALF: queryLen = 2;
+            MEM_STLEN_WORD: queryLen = 4;
+            default: begin
+                `ASSERT(FALSE);
+                queryLen = 0;
+            end
+        endcase
+        case (baseLenEnum)
+            MEM_STLEN_BYTE: baseLen = 1;
+            MEM_STLEN_HALF: baseLen = 2;
+            MEM_STLEN_WORD: baseLen = 4;
+            default: begin
+                `ASSERT(FALSE);
+                baseLen = 0;
+            end
+        endcase
+        queryEndAddr = queryAddr + queryLen - 1;
+        baseEndAddr  = baseAddr + baseLen - 1;
+        if (queryAddr >= baseAddr && queryEndAddr <= baseEndAddr) begin
+            return ADDR_FULLY_IN_RANGE;
+        end else if ((queryAddr >= baseAddr && queryAddr <= baseEndAddr) ||
+                     (queryEndAddr >= baseAddr && queryEndAddr <= baseEndAddr)) begin
+            return ADDR_PARTIALLY_IN_RANGE;
+        end else begin
+            return ADDR_OUT_OF_RANGE;
+        end
+    endfunction
 
     always_comb begin : StoreBufferHitLogic
         `SB_DEBUG_PRINT(("[SB]: @%0d: ==== StoreBufferHitLogic run ====", DEBUG_tick));
         `SB_DEBUG_PRINT(("[SB]: @%0d: readAddr=0x%h", DEBUG_tick, readAddr));
         `SB_DEBUG_PRINT(
             ("[SB]: @%0d: oldest=%0d, nextYoungest=%0d", DEBUG_tick, oldest, nextYoungest));
-        for (int i = 0; i < 4; i++) begin
-            `SB_DEBUG_PRINT(
-                ("[SB]: @%0d: Buffer[%0d]: valid=%0b, addr=0x%h, data=0x%h, len=%0d", DEBUG_tick, i,
-                buffer[i].valid, buffer[i].addr, buffer[i].data, buffer[i].dataLen));
-        end
-        isHit  = FALSE;
+        isHit = FALSE;
         hitIdx = '0;
-        // prefer younger hits
-        if (buffer[2'(nextYoungest-1)].valid && buffer[2'(nextYoungest-1)].addr == readAddr) begin
-            isHit  = TRUE;
-            hitIdx = 2'(nextYoungest - 1);
-        end else if (buffer[2'(nextYoungest-2)].valid &&
-                     buffer[2'(nextYoungest-2)].addr == readAddr) begin
-            isHit  = TRUE;
-            hitIdx = 2'(nextYoungest - 2);
-        end else if (buffer[2'(nextYoungest-3)].valid &&
-                     buffer[2'(nextYoungest-3)].addr == readAddr) begin
-            isHit  = TRUE;
-            hitIdx = 2'(nextYoungest - 3);
-        end else if (buffer[2'(nextYoungest-4)].valid &&
-                     buffer[2'(nextYoungest-4)].addr == readAddr) begin
-            isHit  = TRUE;
-            hitIdx = 2'(nextYoungest - 4);
+        hitRange = ADDR_OUT_OF_RANGE;
+        hitBaseAddr = '0;
+        for (int i = 0; i < SB_SIZE; i++) begin
+            automatic int idx = ({30'b0, oldest} + i) % SB_SIZE;  // prefer younger hits
+            if (buffer[idx].valid) begin
+                case (addrRangeCheck(
+                    readAddr, readDataLen, buffer[idx].addr, buffer[idx].dataLen
+                ))
+                    ADDR_FULLY_IN_RANGE: begin
+                        `SB_DEBUG_PRINT(
+                            ("[SB]: @%0d: Store Buffer Hit at idx=%0d for readAddr=0x%h", DEBUG_tick, idx,
+                            readAddr));
+                        isHit = TRUE;
+                        hitIdx = idx[1:0];  // < SB_SIZE == 4
+                        hitRange = ADDR_FULLY_IN_RANGE;
+                        hitBaseAddr = buffer[idx].addr;
+                    end
+                    ADDR_PARTIALLY_IN_RANGE: begin
+                        `SB_DEBUG_PRINT(
+                            ("[SB]: @%0d: Store Buffer Partial Hit at idx=%0d for readAddr=0x%h", DEBUG_tick,
+                            idx, readAddr));
+                        isHit = TRUE;
+                        hitIdx = idx[1:0];  // < SB_SIZE == 4
+                        hitRange = ADDR_PARTIALLY_IN_RANGE;
+                        hitBaseAddr = buffer[idx].addr;
+                    end
+                    ADDR_OUT_OF_RANGE: begin
+                        `SB_DEBUG_PRINT(
+                            ("[SB]: @%0d: Store Buffer Miss at idx=%0d for readAddr=0x%h", DEBUG_tick, idx,
+                            readAddr));
+                    end
+                    default: begin
+                        `ASSERT(FALSE);
+                    end
+                endcase
+            end
         end
+
         `SB_DEBUG_PRINT(
             ("[SB]: @%0d: Read addr=0x%h data=0x%h hit=%b", DEBUG_tick, readAddr,
             isHit ? buffer[hitIdx].data : '0, isHit));
@@ -87,8 +161,7 @@ module store_buffer
             ("[SB]: @%0d: readAddr=0x%h readHit=%0b, readData=0x%h", DEBUG_tick, readAddr, isHit, isHit ? buffer[hitIdx].data : '0));
     end
 
-    assign readHit  = isHit;
-    assign readData = isHit ? buffer[hitIdx].data : '0;
+
 
     always_comb begin : NextStateLogic
         `SB_DEBUG_PRINT(("[SB]: @%0d: ==== NextStateLogic run ====", DEBUG_tick));
@@ -182,6 +255,7 @@ module store_buffer
 
     // TODO: clean up the logic
     always_ff @(posedge clk) begin : DrainingRequestAndDequeueLogic
+        assert (SB_SIZE == 4);  // TODO: use wrap adder instead of truncated addition
         `SB_DEBUG_PRINT(("[SB]: @%0d: ==== DrainingRequestAndDequeueLogic run ====", DEBUG_tick));
         `SB_DEBUG_PRINT(
             ("[SB]: @%0d: currentState=%0d, nextState=%0d", DEBUG_tick, currentState, nextState));

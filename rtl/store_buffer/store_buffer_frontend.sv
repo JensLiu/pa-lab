@@ -10,8 +10,10 @@ module store_buffer_frontend
 );
     // store buffer combinational read
     addr_t sbReadAddr;
+    mem_stlen_t sbReadDataLen;
     word_t sbReadData;
     bool_t sbReadHit;
+    addr_range_coverage_t sbReadHitRange;
     // store buffer sequential write
     bool_t sbCanWrite;
     bool_t sbWriteRequest;
@@ -40,8 +42,10 @@ module store_buffer_frontend
     store_buffer storeBuffer (
         .clk(clk),
         .readAddr(sbReadAddr),
+        .readDataLen(sbReadDataLen),
         .readData(sbReadData),
         .readHit(sbReadHit),
+        .readHitRange(sbReadHitRange),
         .sbCanWrite(sbCanWrite),
         .writeRequest(sbWriteRequest),
         .writeAddr(sbWriteAddr),
@@ -65,6 +69,7 @@ module store_buffer_frontend
     word_t sbHitData, cacheHitData;
     always_comb begin : StoreBufferHitLogic
         sbReadAddr = cpuRequest.addr;
+        sbReadDataLen = cpuRequest.dataLen;
         sbHitData = sbReadData;
         sbIsHit = sbReadHit;
     end
@@ -155,14 +160,25 @@ module store_buffer_frontend
                         // FIXME: do not bypass when partial store length is smaller than requested length
                         //        just set `cpuRequest.ready = FALSE` to wait for the SB to drain
                         //        - When it is written to cache, `sbIsHit = FALSE` and `cacheIsHit = TRUE`
-                        case (cpuRequest.dataLen)
-                            MEM_STLEN_BYTE:    cpuRequest.dataFromCache = {24'h0, sbHitData[7:0]};
-                            MEM_STLEN_HALF:    cpuRequest.dataFromCache = {16'h0, sbHitData[15:0]};
-                            MEM_STLEN_WORD:    cpuRequest.dataFromCache = sbHitData[31:0];
-                            MEM_STLEN_INVALID: cpuRequest.dataFromCache = '0;
-                            default:            cpuRequest.dataFromCache = '0;
+                        case (sbReadHitRange)
+                            ADDR_FULLY_IN_RANGE: begin
+                                case (cpuRequest.dataLen)
+                                    MEM_STLEN_BYTE:
+                                    cpuRequest.dataFromCache = {24'h0, sbHitData[7:0]};
+                                    MEM_STLEN_HALF:
+                                    cpuRequest.dataFromCache = {16'h0, sbHitData[15:0]};
+                                    MEM_STLEN_WORD: cpuRequest.dataFromCache = sbHitData[31:0];
+                                    MEM_STLEN_INVALID: cpuRequest.dataFromCache = '0;
+                                    default: cpuRequest.dataFromCache = '0;
+                                endcase
+                                cpuRequest.ready = TRUE;
+                            end
+                            default: begin
+                                // partial coverage, we do not bypass, wait until SB drains this entry
+                                // i.e. no sbIsHit in the next cycle
+                                cpuRequest.ready = FALSE;
+                            end
                         endcase
-                        cpuRequest.ready = TRUE;
                     end else begin
                         // Store buffer miss, fallback to cache
                         // (2) Query for cache hit, this is all combinational (can be done in a single clock)
