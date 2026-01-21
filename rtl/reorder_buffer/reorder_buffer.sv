@@ -447,8 +447,10 @@ module reorder_buffer (
                     end
                     buffer[robControl.EX_ticket].exceptions <= robControl.EX_exceptions;
                 end else if (!robControl.EX_isBranch && robControl.EX_sysInstType == SYS_INVALID) begin
-                    $display("inst: %h",
-                             buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary);
+                    if (buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary != 0) begin
+                        $display("inst: %h",
+                                 buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary);
+                    end
                     assert (buffer[robControl.EX_ticket].DEBUG_instInfo.DEBUG_instBinary == '0);
                 end
                 `ROB_DEBUG_PRINT(

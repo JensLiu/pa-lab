@@ -67,10 +67,11 @@ module store_buffer
             readData = '0;
         end else begin
             // since we are in full coverage, we can read the data directly
-            _offset = readAddr - hitBaseAddr;
+            _offset  = readAddr - hitBaseAddr;
             // to avoid out-of-bound slicing
             _dataExtended = {32'b0, buffer[hitIdx].data};
             readData = _dataExtended[(_offset*8)+:32];
+            // $display("bypassing @%h: %h", readAddr, readData);
         end
     end
 
@@ -100,9 +101,13 @@ module store_buffer
         queryEndAddr = queryAddr + queryLen - 1;
         baseEndAddr  = baseAddr + baseLen - 1;
         if (queryAddr >= baseAddr && queryEndAddr <= baseEndAddr) begin
+            $display("[%h, %h] is fully contained in [%h, %h]", queryAddr, queryEndAddr, baseAddr,
+                     baseEndAddr);
             return ADDR_FULLY_IN_RANGE;
         end else if ((queryAddr >= baseAddr && queryAddr <= baseEndAddr) ||
                      (queryEndAddr >= baseAddr && queryEndAddr <= baseEndAddr)) begin
+            $display("[%h, %h] is partially contained in [%h, %h]", queryAddr, queryEndAddr,
+                     baseAddr, baseEndAddr);
             return ADDR_PARTIALLY_IN_RANGE;
         end else begin
             return ADDR_OUT_OF_RANGE;
@@ -148,7 +153,7 @@ module store_buffer
                             readAddr));
                     end
                     default: begin
-                        `ASSERT(FALSE);
+                        assert (FALSE);
                     end
                 endcase
             end

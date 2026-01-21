@@ -157,28 +157,22 @@ module store_buffer_frontend
                     // (1) Query for store buffer hit, this is combinational
                     if (sbIsHit) begin
                         // Store buffer hit, return immediately
-                        // FIXME: do not bypass when partial store length is smaller than requested length
-                        //        just set `cpuRequest.ready = FALSE` to wait for the SB to drain
-                        //        - When it is written to cache, `sbIsHit = FALSE` and `cacheIsHit = TRUE`
-                        case (sbReadHitRange)
-                            ADDR_FULLY_IN_RANGE: begin
-                                case (cpuRequest.dataLen)
-                                    MEM_STLEN_BYTE:
-                                    cpuRequest.dataFromCache = {24'h0, sbHitData[7:0]};
-                                    MEM_STLEN_HALF:
-                                    cpuRequest.dataFromCache = {16'h0, sbHitData[15:0]};
-                                    MEM_STLEN_WORD: cpuRequest.dataFromCache = sbHitData[31:0];
-                                    MEM_STLEN_INVALID: cpuRequest.dataFromCache = '0;
-                                    default: cpuRequest.dataFromCache = '0;
-                                endcase
-                                cpuRequest.ready = TRUE;
-                            end
-                            default: begin
-                                // partial coverage, we do not bypass, wait until SB drains this entry
-                                // i.e. no sbIsHit in the next cycle
-                                cpuRequest.ready = FALSE;
-                            end
+                        `SB_FRONTEND_DEBUG_PRINT(
+                            ("[SB FRONT]: @%0d: SB Hit Addr=%h Data=%h Len=%0d",
+                            DEBUG_tick, cpuRequest.addr, sbHitData, cpuRequest.dataLen));
+                        `SB_FRONTEND_DEBUG_PRINT((
+                            "[SB FRONT]: @%0d: SB Hit Data Range=%0d",
+                            DEBUG_tick, sbReadHitRange));
+                        case (cpuRequest.dataLen)
+                            MEM_STLEN_BYTE: cpuRequest.dataFromCache = {24'h0, sbHitData[7:0]};
+                            MEM_STLEN_HALF: cpuRequest.dataFromCache = {16'h0, sbHitData[15:0]};
+                            MEM_STLEN_WORD: cpuRequest.dataFromCache = sbHitData[31:0];
+                            MEM_STLEN_INVALID: cpuRequest.dataFromCache = '0;
+                            default: cpuRequest.dataFromCache = '0;
                         endcase
+                        // partial coverage, we do not bypass, wait until SB drains this entry
+                        // i.e. no sbIsHit in the next cycle
+                        cpuRequest.ready = sbReadHitRange == ADDR_FULLY_IN_RANGE;
                     end else begin
                         // Store buffer miss, fallback to cache
                         // (2) Query for cache hit, this is all combinational (can be done in a single clock)
